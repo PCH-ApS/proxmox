@@ -1,0 +1,70 @@
+Install step to install proxmox on host and get ip-network connectivity
+
+# Install proxmox on host
+
+* Boot up proxmox install media (iso-image on USB)
+* In the "PROXMOX  - Welcome to Proxmox Virtual Environment" sceen
+	* Select the option "Install Proxmox VE (Graphical)"
+* EULA page
+	* Accept the EULA - "I agree" button in lower right corner
+* Proxmox Installer page
+	* Select the target harddisk for the installation
+	* Click "Options"
+		* Set filesystem to zfs(raid0)
+		* Click "OK"
+	* Click "Next" button in lower right corner
+* Location and Time Zone settings
+	* Select "Denmark"  as country
+	* Select "Europe/Copenhagen" as timezone
+	* Select "Danish" as keyboard layout
+* Administration Password and Email Address
+	* Enter administrative password - will be changed later
+	* Enter admin mail address
+	*  Click "Next" button in lower right corner
+* Management Network Configuration
+	* Enter FQDN - any value will do. Will be changed by script.
+	* Enter ip-address "x.x.x.x/29"
+	* Enter gateway "y.y.y.y"
+	* Enter dns server "y.y.y.y"
+	* Click "Next" button in lower right corner
+* Click "Install" button in lower right corner
+
+# After Install - if running on laptop
+  In the proxmox web gui, access shell on the PVE host
+  * nano /etc/systemd/logind.conf
+  Uncomment :
+    #HandleLidSwitch=suspend
+    #HandleLidSwitchExternalPower=ignore
+    #HandleLidSwitchDocked=ignore
+
+  Change to
+    HandleLidSwitch=ignore
+    HandleLidSwitchExternalPower=ignore
+    HandleLidSwitchDocked=ignore
+
+  Submit with
+    systemctl restart systemd-logind
+
+  Reboot
+
+# Validate SSH log-in to host
+    ssh -o IdentitiesOnly=yes root@192.168.x.x
+  Copy ssh-key to Proxmox root
+     ssh-copy-id -o IdentitiesOnly=yes -i ~/.ssh/AutomationKey-Proxmox.pub root@x.x.x.x
+
+# Set host to dhcp - Fixed IP to be set in UDM
+    Modify /etc/network/interfaces
+  add
+    iface vmbr0 inet dhcp
+  comment out or remove
+    #iface vmbr0 inet static
+    #       address x.x.x.x/29
+    #       gateway y.y.y.y
+  add
+            bridge-vlan-aware yes
+            bridge-vids 2-4094
+
+reboot
+
+
+

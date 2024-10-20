@@ -1,0 +1,75 @@
+{
+  "USER":{
+    "username"      : "root",
+    "allow_blank"   : false,
+    "allow_spaces"  : false,
+    "comment"       : "username used by script to ssh to proxmox host"
+  },
+  "HOST":{
+    "host_ip"       : "<Your proxmox host ip-address>",
+    "allow_blank"   : false,
+    "allow_spaces"  : false,
+    "comment"       : "ip-address of proxmox host used by script to ssh to host"
+  },
+  "ID":{
+    "id"            : 9001,
+    "allow_blank"   : false,
+    "allow_spaces"  : false,
+    "comment"       : "Proxmox ID to assign the new template"
+  },
+  "NAME":{
+    "name"          : "noble-server-cloudimg-amd64",
+    "allow_blank"   : false,
+    "allow_spaces"  : false,
+    "comment"       : "Template name in Proxmox GUI"
+  },
+  "OS_TYPE":{
+    "os"            : "l26",
+    "allow_blank"   : false,
+    "allow_spaces"  : false,
+    "comment"       : "OS Type of the template"
+  },
+  "CORES":{
+    "cores"         : 1,
+    "allow_blank"   : false,
+    "allow_spaces"  : false,
+    "comment"       : "Memory assigned to the template in MB"
+  },
+  "MEMORY":{
+    "mem"           : 512,
+    "allow_blank"   : false,
+    "allow_spaces"  : false,
+    "comment"       : "Memory assigned to the template in MB"
+  },
+  "STORAGE_CONTROLLER": {
+    "storage_ctrl"  : "virtio-scsi-pci",
+    "allow_blank"   : false,
+    "allow_spaces"  : false,
+    "comment"       : "the storage controller selected for the VM template"
+  },
+  "LOCAL_STORAGE": {
+    "local_storage" : "local-zfs",
+    "allow_blank"   : false,
+    "allow_spaces"  : false,
+    "comment"       : "the filesystem to use for the VM template"
+  },
+  "NETWORK_CONTROLLER": {
+    "nic"           : "virtio",
+    "allow_blank"   : false,
+    "allow_spaces"  : false,
+    "comment"       : "the network controller selected for the VM template"
+  },
+  "NETWORK_BRIDGE": {
+    "bridge"        : "vmbr0",
+    "allow_blank"   : false,
+    "allow_spaces"  : false,
+    "comment"       : "the network bridge to use for the VM template"
+  },
+  "DISKIMAGE": {
+    "image"         : "/var/lib/vz/template/iso/noble-server-cloudimg-amd64.img",
+    "allow_blank"   : false,
+    "allow_spaces"  : false,
+    "comment"       : "the diskimage used to create the disk for the VM template"
+  }
+}
+
