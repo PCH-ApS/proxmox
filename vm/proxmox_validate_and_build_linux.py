@@ -5,6 +5,8 @@ import sys
 import re
 import paramiko
 import time
+import random
+import string
 
 
 print("-------------------------------------------")
@@ -483,108 +485,128 @@ def wait_for_reboot(host, username, password=None, timeout=300, interval=10):
     print(f"\033[91m[ERROR]           : Timeout while waiting for {host} to reboot.")
     sys.exit(1)
 
+def execute_ssh_command(ssh, command, error_message):
+    stdin, stdout, stderr = ssh.exec_command(command)
+    exit_status = stdout.channel.recv_exit_status()
+    error_output = stderr.read().decode().strip()
+    if exit_status != 0:
+        print(f"\033[91m[ERROR]           : {error_message}: {error_output}\033[0m")
+        sys.exit(1)
+    return stdout.read().decode().strip()
+
+
+def generate_random_password(length=24):
+    characters = string.ascii_letters + string.digits + string.punctuation
+    return ''.join(random.choice(characters) for i in range(length))
+
+
 def on_guest_temp_fix_cloudinit(ssh, values, ipaddress):
-    name = values.get("name")
-    domain = values.get("ci_domain")
     ci_username = values.get("ci_username")
-    ci_password = values.get("ci_password")
+    ci_password = generate_random_password()  # Generate a random password
+    print(f"\033[93m[DEBUG]           : Generated password for user '{ci_username}' is: {ci_password}")
     ci_publickey = values.get("ci_publickey")
 
-    print(f"\033[92m[INFO]            : Expected hostname '{name}'.")
-
     try:
-        # Step 1: Add ci_username if provided
-        if ci_username and ci_password:
+        # Step 1: Check if user already exists
+        check_user_cmd = f"id -u {ci_username}"
+        try:
+            execute_ssh_command(ssh, check_user_cmd, f"User '{ci_username}' does not exist, proceeding with creation.")
+            print(f"\033[93m[INFO]            : User '{ci_username}' already exists. No need to apply fix.")
+            return
+        except:
+            print(f"\033[92m[INFO]            : User '{ci_username}' does not exist. Proceeding with user creation.")
+
+        # Step 2: Add ci_username if provided
+        if ci_username:
             print(f"\033[92m[INFO]            : Adding user '{ci_username}' with specified password.")
 
             # Command to create user if not exists
             add_user_cmd = f"useradd -m {ci_username}"
-            stdin, stdout, stderr = ssh.exec_command(add_user_cmd)
-            stdout.channel.recv_exit_status()  # Wait for command to complete
-            error_output = stderr.read().decode().strip()
-            if error_output:
-                if "already exists" in error_output:
-                    print(f"\033[93m[INFO]            : User '{ci_username}' already exists. Skipping creation.")
-                else:
-                    print(f"\033[91m[ERROR]           : Failed to add user '{ci_username}': {error_output}")
-                    sys.exit(1)
+            execute_ssh_command(ssh, add_user_cmd, f"Failed to add user '{ci_username}'")
+            print(f"\033[92m[SUCCESS]         : User '{ci_username}' added successfully.")
+
+            # Add user to sudo group
+            add_sudo_cmd = f"usermod -aG sudo {ci_username}"
+            execute_ssh_command(ssh, add_sudo_cmd, f"Failed to add user '{ci_username}' to sudo group")
+            print(f"\033[92m[SUCCESS]         : User '{ci_username}' added to sudo group successfully.")
+
+            # Re-check if the user was added successfully
+            execute_ssh_command(ssh, check_user_cmd, f"Failed to verify user '{ci_username}' after creation.")
+            print(f"\033[92m[SUCCESS]         : User '{ci_username}' verified successfully.")
 
             # Command to set password for the user
             set_password_cmd = f"echo '{ci_username}:{ci_password}' | chpasswd"
-            stdin, stdout, stderr = ssh.exec_command(set_password_cmd)
-            stdout.channel.recv_exit_status()  # Wait for command to complete
-            error_output = stderr.read().decode().strip()
-            if error_output:
-                print(f"\033[91m[ERROR]           : Failed to set password for user '{ci_username}': {error_output}")
-                sys.exit(1)
-            else:
-                print(f"\033[92m[SUCCESS]         : Password set successfully for user '{ci_username}'.")
+            execute_ssh_command(ssh, set_password_cmd, f"Failed to set password for user '{ci_username}'")
+            print(f"\033[92m[SUCCESS]         : Password set successfully for user '{ci_username}'.")
 
-            # Step 2: Add SSH public key to ci_username's authorized_keys
+            # Step 3: Add SSH public key to ci_username's authorized_keys
             if ci_publickey:
                 print(f"\033[92m[INFO]            : Adding SSH public key to '{ci_username}'.")
 
                 # Command to create the .ssh directory in the user's home
                 create_ssh_dir_cmd = f"mkdir -p /home/{ci_username}/.ssh && chmod 700 /home/{ci_username}/.ssh"
-                stdin, stdout, stderr = ssh.exec_command(create_ssh_dir_cmd)
-                stdout.channel.recv_exit_status()  # Wait for command to complete
-                error_output = stderr.read().decode().strip()
-                if error_output:
-                    print(f"\033[91m[ERROR]           : Failed to create .ssh directory for '{ci_username}': {error_output}")
-                    sys.exit(1)
+                execute_ssh_command(ssh, create_ssh_dir_cmd, f"Failed to create .ssh directory for '{ci_username}'")
+
+                # Command to set the correct owner and group for the .ssh directory
+                set_ssh_owner_cmd = f"chown -R {ci_username}:{ci_username} /home/{ci_username}/.ssh && chmod 700 /home/{ci_username}/.ssh"
+                execute_ssh_command(ssh, set_ssh_owner_cmd, f"Failed to set ownership for .ssh directory for '{ci_username}'")
 
                 # Command to add the SSH key to authorized_keys
                 add_ssh_key_cmd = f"echo '{ci_publickey}' >> /home/{ci_username}/.ssh/authorized_keys && chmod 600 /home/{ci_username}/.ssh/authorized_keys"
-                stdin, stdout, stderr = ssh.exec_command(add_ssh_key_cmd)
-                stdout.channel.recv_exit_status()  # Wait for command to complete
-                error_output = stderr.read().decode().strip()
-                if error_output:
-                    print(f"\033[91m[ERROR]           : Failed to add SSH public key for '{ci_username}': {error_output}")
+                execute_ssh_command(ssh, add_ssh_key_cmd, f"Failed to add SSH public key for '{ci_username}'")
+                print(f"\033[92m[SUCCESS]         : SSH public key added successfully for user '{ci_username}'.")
+
+                # Command to set the correct owner and permissions for authorized_keys
+                set_auth_keys_owner_cmd = f"chown {ci_username}:{ci_username} /home/{ci_username}/.ssh/authorized_keys && chmod 600 /home/{ci_username}/.ssh/authorized_keys"
+                execute_ssh_command(ssh, set_auth_keys_owner_cmd, f"Failed to set ownership and permissions for authorized_keys for '{ci_username}'")
+
+                # Re-check if the SSH key was added successfully
+                verify_ssh_key_cmd = f"grep '{ci_publickey}' /home/{ci_username}/.ssh/authorized_keys"
+                execute_ssh_command(ssh, verify_ssh_key_cmd, f"Failed to verify SSH public key for '{ci_username}' in authorized_keys.")
+                print(f"\033[92m[SUCCESS]         : SSH public key verified successfully for user '{ci_username}'.")
+
+        # Step 4: Perform a login test with the newly created user
+        print(f"\033[92m[INFO]            : Performing login test for user '{ci_username}'.")
+        test_ssh = paramiko.SSHClient()
+        test_ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        login_attempts = 3
+        for attempt in range(1, login_attempts + 1):
+            try:
+                test_ssh.connect(hostname=ipaddress, username=ci_username, password=ci_password)
+                print(f"\033[92m[SUCCESS]         : Login test successful for user '{ci_username}'.")
+                break
+            except Exception as e:
+                if attempt == login_attempts:
+                    print(f"\033[91m[ERROR]           : Login test failed for user '{ci_username}' after {login_attempts} attempts: {e}\033[0m")
                     sys.exit(1)
                 else:
-                    print(f"\033[92m[SUCCESS]         : SSH public key added successfully for user '{ci_username}'.")
+                    print(f"\033[93m[INFO]            : Login attempt {attempt} failed for user '{ci_username}'. Retrying...")
+                    time.sleep(5)
 
-        # Step 3: Check and update the hostname
-        # Execute the command to get the current hostname
-        stdin, stdout, stderr = ssh.exec_command('hostname')
-        current_hostname = stdout.read().decode().strip()
+        # Test sudo access after login
+        print(f"\033[92m[INFO]            : Testing sudo access for user '{ci_username}'.")
+        try:
+            sudo_test_cmd = f"echo '{ci_password}' | sudo -S whoami"
+            stdin, stdout, stderr = test_ssh.exec_command(sudo_test_cmd)
+            exit_status = stdout.channel.recv_exit_status()
+            if exit_status == 0 and 'root' in stdout.read().decode().strip():
+                print(f"\033[92m[SUCCESS]         : Sudo access verified for user '{ci_username}'.")
+            else:
+                print(f"\033[91m[ERROR]           : Sudo access test failed for user '{ci_username}'.\033[0m")
+                sys.exit(1)
+        except Exception as e:
+            print(f"\033[91m[ERROR]           : Sudo access test failed for user '{ci_username}': {e}\033[0m")
+            sys.exit(1)
+        finally:
+            test_ssh.close()
 
-        print(f"\033[92m[INFO]            : Current hostname '{current_hostname}'.")
-
-        if current_hostname == name:
-            print(f"\033[92m[SUCCESS]         : Hostname matches the expected value.")
-        else:
-            print(f"\033[92m[INFO]            : Hostname mismatch! Expected '{name}', but got '{current_hostname}'.")
-            fqdn = f"{name}.{domain}"
-            print(f"\033[92m[INFO]            : Proceeding with hostname change.")
-
-            # Perform the hostname change on the remote host
-            change_cmd = f"""
-            echo "{name}" > /etc/hostname
-            sed -i "/{current_hostname}/d" /etc/hosts
-            echo "{ipaddress} {fqdn} {name}" >> /etc/hosts
-            hostnamectl set-hostname "{name}"
-            reboot
-            """
-            stdin, stdout, stderr = ssh.exec_command(change_cmd)
-            stdout.channel.recv_exit_status()  # Wait for command to complete
-            print(f"\033[92m[SUCCESS]         : Hostname on {ipaddress} has been changed from {current_hostname} to {fqdn}")
-
-            # Wait for the system to reboot
-            print(f"\033[92m[INFO]            : Waiting for the system to reboot...")
-            ssh.close()
-
-            # Call wait_for_reboot here to reconnect after the reboot
-            ssh = wait_for_reboot(ipaddress, ci_username, ci_password)
-
-            # Recheck the hostname after reconnecting
-            on_guest_temp_fix_cloudinit(ssh, values, ipaddress)
+        # Step 5: Display the generated password
+        print(f"\033[92m[INFO]            : The generated password for user '{ci_username}' is: {ci_password}")
 
     except Exception as e:
         print(f"\033[91m[ERROR]           : Failed to execute command on {ipaddress}: {e}\033[0m")
         sys.exit(1)
-
-
+        
 config_file = sys.argv[1]
 config = load_config(config_file)
 values = get_json_values(config)
@@ -603,7 +625,7 @@ start_vm(ssh, values)
 ipaddress = get_vm_ipv4_address(ssh, values)
 temp_fix_cloudinit(ssh, values)
 ssh.close()
-#ssh = ssh_connect(ipaddress, "root")
-#on_guest_temp_fix_cloudinit(ssh, values, ipaddress)
+ssh = ssh_connect(ipaddress, "root")
+on_guest_temp_fix_cloudinit(ssh, values, ipaddress)
 
 end_output_to_shell()
