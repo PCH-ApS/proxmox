@@ -427,23 +427,21 @@ def temp_fix_cloudinit(ssh, values):
         # Step 2: Set root password if `ci_password` is provided
         if values.get("ci_password"):
             ci_password = values.get('ci_password')
-            commands.append(f"qm guest passwd {vm_id} root --password {ci_password}")
+            commands.append(f"qm guest passwd {vm_id} ubuntu --password {ci_password}")
 
         # Step 3: Add SSH public key to root's authorized_keys if `ci_publickey` is provided
         if values.get("ci_publickey"):
             ci_publickey = values.get("ci_publickey")
 
             # Command 1: Create the .ssh directory for root
-            commands.append(f"qm guest exec {vm_id} -- mkdir -p /root/.ssh")
+            commands.append(f"qm guest exec {vm_id} -- mkdir -p home/ubuntu/.ssh")
 
             # Command 2: Append the public key to authorized_keys
-            commands.append(f"qm guest exec {vm_id} -- sh -c 'echo \"{ci_publickey}\" >> /root/.ssh/authorized_keys'")
-
-
+            commands.append(f"qm guest exec {vm_id} -- sh -c 'echo \"{ci_publickey}\" >> /home/ubuntu/.ssh/authorized_keys'")
 
             # Command 3: Set permissions on the authorized_keys file and .ssh directory
-            commands.append(f"qm guest exec {vm_id} -- chmod 600 /root/.ssh/authorized_keys")
-            commands.append(f"qm guest exec {vm_id} -- chmod 700 /root/.ssh")
+            commands.append(f"qm guest exec {vm_id} -- chmod 600 /home/ubuntu/.ssh/authorized_keys")
+            commands.append(f"qm guest exec {vm_id} -- chmod 700 /home/ubuntu/.ssh")
 
         print(f"\033[92m[INFO]            : Attempting to fix cloud-init issue on: '{vm_id}'")
 
@@ -514,12 +512,12 @@ def on_guest_temp_fix_cloudinit(ssh, values, ipaddress):
             print(f"\033[92m[INFO]            : Adding user '{ci_username}' with specified password.")
 
             # Command to create user without setting the password initially
-            add_user_cmd = f"useradd -m {ci_username}"
+            add_user_cmd = f"sudo useradd -m {ci_username}"
             execute_ssh_command(ssh, add_user_cmd, f"Failed to add user '{ci_username}'")
             print(f"\033[92m[SUCCESS]         : User '{ci_username}' added successfully.")
 
             # Add user to sudo group
-            add_sudo_cmd = f"usermod -aG sudo {ci_username}"
+            add_sudo_cmd = f"sudo usermod -aG sudo {ci_username}"
             execute_ssh_command(ssh, add_sudo_cmd, f"Failed to add user '{ci_username}' to sudo group")
             print(f"\033[92m[SUCCESS]         : User '{ci_username}' added to sudo group successfully.")
 
@@ -528,13 +526,17 @@ def on_guest_temp_fix_cloudinit(ssh, values, ipaddress):
             print(f"\033[92m[SUCCESS]         : User '{ci_username}' verified successfully.")
 
             # Command to set password for the user using unhashed password
-            set_password_cmd = f"echo '{ci_username}:{ci_password}' | chpasswd"
+            set_password_cmd = f"echo '{ci_username}:{ci_password}' | sudo chpasswd"
             execute_ssh_command(ssh, set_password_cmd, f"Failed to set password for user '{ci_username}'")
             print(f"\033[92m[SUCCESS]         : Password set successfully for user '{ci_username}'.")
 
             # Step 3: Add SSH public key to ci_username's authorized_keys
             if ci_publickey:
                 print(f"\033[92m[INFO]            : Adding SSH public key to '{ci_username}'.")
+
+                # Command to elevate to root
+                elevate_cmd = f"sudo -i"
+                execute_ssh_command(ssh, elevate_cmd, f"Failed to elevate to root to add SSH public key for '{ci_username}'")
 
                 # Command to create the .ssh directory in the user's home
                 create_ssh_dir_cmd = f"mkdir -p /home/{ci_username}/.ssh && chmod 700 /home/{ci_username}/.ssh"
@@ -545,9 +547,8 @@ def on_guest_temp_fix_cloudinit(ssh, values, ipaddress):
                 execute_ssh_command(ssh, set_ssh_owner_cmd, f"Failed to set ownership for .ssh directory for '{ci_username}'")
 
                 # Command to add the SSH key to authorized_keys
-                add_ssh_key_cmd = f"echo '{ci_publickey}' >> /home/{ci_username}/.ssh/authorized_keys && chmod 600 /home/{ci_username}/.ssh/authorized_keys"
+                add_ssh_key_cmd = f"echo '{ci_publickey}' | sudo tee -a /home/{ci_username}/.ssh/authorized_keys > /dev/null"
                 execute_ssh_command(ssh, add_ssh_key_cmd, f"Failed to add SSH public key for '{ci_username}'")
-                print(f"\033[92m[SUCCESS]         : SSH public key added successfully for user '{ci_username}'.")
 
                 # Command to set the correct owner and permissions for authorized_keys
                 set_auth_keys_owner_cmd = f"chown {ci_username}:{ci_username} /home/{ci_username}/.ssh/authorized_keys && chmod 600 /home/{ci_username}/.ssh/authorized_keys"
@@ -557,6 +558,10 @@ def on_guest_temp_fix_cloudinit(ssh, values, ipaddress):
                 verify_ssh_key_cmd = f"grep '{ci_publickey}' /home/{ci_username}/.ssh/authorized_keys"
                 execute_ssh_command(ssh, verify_ssh_key_cmd, f"Failed to verify SSH public key for '{ci_username}' in authorized_keys.")
                 print(f"\033[92m[SUCCESS]         : SSH public key verified successfully for user '{ci_username}'.")
+
+                # Command to exit root
+                elevate_cmd = f"exit"
+                execute_ssh_command(ssh, elevate_cmd, f"Failed to exit root")
 
         # Step 4: Perform a login test with the newly created user
         print(f"\033[92m[INFO]            : Performing login test for user '{ci_username}'.")
@@ -615,7 +620,7 @@ start_vm(ssh, values)
 ipaddress = get_vm_ipv4_address(ssh, values)
 temp_fix_cloudinit(ssh, values)
 ssh.close()
-ssh = ssh_connect(ipaddress, "root")
+ssh = ssh_connect(ipaddress, "ubuntu")
 on_guest_temp_fix_cloudinit(ssh, values, ipaddress)
 
 end_output_to_shell()
