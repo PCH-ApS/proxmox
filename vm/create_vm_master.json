@@ -84,10 +84,10 @@
     "comment"       : "The default (root) user created on the VM during install."
   },
   "CLOUDINIT_PW":{
-    "ci_password"   : "<Your default password goes here>",
+    "ci_password"   : "<Your hashed password goes here>",
     "allow_blank"   : true,
     "allow_spaces"  : false,
-    "comment"       : "The default (root) password created on the VM during install. Password will be changed afterwards by automation scripts"
+    "comment"       : "The default (root) password created on the VM during install."
   },
   "CLOUDINIT_PUB_KEY":{
     "ci_publickey"  : "<Your ssh public key goes here>",

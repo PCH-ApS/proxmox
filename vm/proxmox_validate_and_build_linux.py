@@ -217,8 +217,6 @@ def create_server(ssh, values):
             if error_output:
                 print(f"\033[91m[ERROR]           : Command '{command}' failed with error: {error_output}")
                 sys.exit(1)
-            else:
-                print(f"\033[92m[SUCCESS]         : Command '{command}' executed successfully.")
 
         print(f"\033[92m[SUCCESS]         : Virtual server '{vm_id}' created successfully on the Proxmox host.")
     except Exception as e:
@@ -298,8 +296,6 @@ def create_ci_options(ssh, values):
             if error_output:
                 print(f"\033[91m[ERROR]           : Command '{command}' failed with error: {error_output}")
                 sys.exit(1)
-            else:
-                print(f"\033[92m[SUCCESS]         : Command '{command}' executed successfully.")
 
         print(f"\033[92m[SUCCESS]         : Additional settings on '{vm_id}' set successfully.")
     except Exception as e:
@@ -494,16 +490,13 @@ def execute_ssh_command(ssh, command, error_message):
         sys.exit(1)
     return stdout.read().decode().strip()
 
-
 def generate_random_password(length=24):
     characters = string.ascii_letters + string.digits + string.punctuation
     return ''.join(random.choice(characters) for i in range(length))
 
-
 def on_guest_temp_fix_cloudinit(ssh, values, ipaddress):
     ci_username = values.get("ci_username")
-    ci_password = generate_random_password()  # Generate a random password
-    print(f"\033[93m[DEBUG]           : Generated password for user '{ci_username}' is: {ci_password}")
+    ci_password = values.get("ci_password")  # Use unhashed password directly
     ci_publickey = values.get("ci_publickey")
 
     try:
@@ -520,7 +513,7 @@ def on_guest_temp_fix_cloudinit(ssh, values, ipaddress):
         if ci_username:
             print(f"\033[92m[INFO]            : Adding user '{ci_username}' with specified password.")
 
-            # Command to create user if not exists
+            # Command to create user without setting the password initially
             add_user_cmd = f"useradd -m {ci_username}"
             execute_ssh_command(ssh, add_user_cmd, f"Failed to add user '{ci_username}'")
             print(f"\033[92m[SUCCESS]         : User '{ci_username}' added successfully.")
@@ -534,7 +527,7 @@ def on_guest_temp_fix_cloudinit(ssh, values, ipaddress):
             execute_ssh_command(ssh, check_user_cmd, f"Failed to verify user '{ci_username}' after creation.")
             print(f"\033[92m[SUCCESS]         : User '{ci_username}' verified successfully.")
 
-            # Command to set password for the user
+            # Command to set password for the user using unhashed password
             set_password_cmd = f"echo '{ci_username}:{ci_password}' | chpasswd"
             execute_ssh_command(ssh, set_password_cmd, f"Failed to set password for user '{ci_username}'")
             print(f"\033[92m[SUCCESS]         : Password set successfully for user '{ci_username}'.")
@@ -572,7 +565,7 @@ def on_guest_temp_fix_cloudinit(ssh, values, ipaddress):
         login_attempts = 3
         for attempt in range(1, login_attempts + 1):
             try:
-                test_ssh.connect(hostname=ipaddress, username=ci_username, password=ci_password)
+                test_ssh.connect(hostname=ipaddress, username=ci_username, password=ci_password)  # Use unhashed password for login test
                 print(f"\033[92m[SUCCESS]         : Login test successful for user '{ci_username}'.")
                 break
             except Exception as e:
@@ -586,7 +579,7 @@ def on_guest_temp_fix_cloudinit(ssh, values, ipaddress):
         # Test sudo access after login
         print(f"\033[92m[INFO]            : Testing sudo access for user '{ci_username}'.")
         try:
-            sudo_test_cmd = f"echo '{ci_password}' | sudo -S whoami"
+            sudo_test_cmd = f"echo '{ci_password}' | sudo -S whoami"  # Use unhashed password for sudo test
             stdin, stdout, stderr = test_ssh.exec_command(sudo_test_cmd)
             exit_status = stdout.channel.recv_exit_status()
             if exit_status == 0 and 'root' in stdout.read().decode().strip():
@@ -600,13 +593,10 @@ def on_guest_temp_fix_cloudinit(ssh, values, ipaddress):
         finally:
             test_ssh.close()
 
-        # Step 5: Display the generated password
-        print(f"\033[92m[INFO]            : The generated password for user '{ci_username}' is: {ci_password}")
-
     except Exception as e:
         print(f"\033[91m[ERROR]           : Failed to execute command on {ipaddress}: {e}\033[0m")
         sys.exit(1)
-        
+
 config_file = sys.argv[1]
 config = load_config(config_file)
 values = get_json_values(config)
