@@ -511,7 +511,7 @@ def on_guest_temp_fix_cloudinit(ssh, values, ipaddress):
         if ci_username:
             print(f"\033[92m[INFO]            : Adding user '{ci_username}' with specified password.")
 
-            # Command to create user without setting the password initially
+            # Create the user without setting the password initially
             add_user_cmd = f"sudo useradd -m {ci_username}"
             execute_ssh_command(ssh, add_user_cmd, f"Failed to add user '{ci_username}'")
             print(f"\033[92m[SUCCESS]         : User '{ci_username}' added successfully.")
@@ -521,47 +521,31 @@ def on_guest_temp_fix_cloudinit(ssh, values, ipaddress):
             execute_ssh_command(ssh, add_sudo_cmd, f"Failed to add user '{ci_username}' to sudo group")
             print(f"\033[92m[SUCCESS]         : User '{ci_username}' added to sudo group successfully.")
 
-            # Re-check if the user was added successfully
-            execute_ssh_command(ssh, check_user_cmd, f"Failed to verify user '{ci_username}' after creation.")
-            print(f"\033[92m[SUCCESS]         : User '{ci_username}' verified successfully.")
-
-            # Command to set password for the user using unhashed password
+            # Set the user's password
             set_password_cmd = f"echo '{ci_username}:{ci_password}' | sudo chpasswd"
             execute_ssh_command(ssh, set_password_cmd, f"Failed to set password for user '{ci_username}'")
             print(f"\033[92m[SUCCESS]         : Password set successfully for user '{ci_username}'.")
 
-            # Step 3: Add SSH public key to ci_username's authorized_keys
+            # Step 3: Add SSH public key to authorized_keys
             if ci_publickey:
-                print(f"\033[92m[INFO]            : Adding SSH public key to '{ci_username}'.")
+                ci_publickey = ci_publickey.strip()
 
-                # Command to elevate to root
-                elevate_cmd = f"sudo -i"
-                execute_ssh_command(ssh, elevate_cmd, f"Failed to elevate to root to add SSH public key for '{ci_username}'")
-
-                # Command to create the .ssh directory in the user's home
-                create_ssh_dir_cmd = f"mkdir -p /home/{ci_username}/.ssh && chmod 700 /home/{ci_username}/.ssh"
+                # Create the .ssh directory and set the correct permissions
+                create_ssh_dir_cmd = f"sudo -u {ci_username} mkdir -p /home/{ci_username}/.ssh"
                 execute_ssh_command(ssh, create_ssh_dir_cmd, f"Failed to create .ssh directory for '{ci_username}'")
 
-                # Command to set the correct owner and group for the .ssh directory
-                set_ssh_owner_cmd = f"chown -R {ci_username}:{ci_username} /home/{ci_username}/.ssh && chmod 700 /home/{ci_username}/.ssh"
-                execute_ssh_command(ssh, set_ssh_owner_cmd, f"Failed to set ownership for .ssh directory for '{ci_username}'")
+                set_ssh_dir_permissions_cmd = f"sudo chmod 700 /home/{ci_username}/.ssh && sudo chown {ci_username}:{ci_username} /home/{ci_username}/.ssh"
+                execute_ssh_command(ssh, set_ssh_dir_permissions_cmd, f"Failed to set permissions for .ssh directory for '{ci_username}'")
 
-                # Command to add the SSH key to authorized_keys
-                add_ssh_key_cmd = f"echo '{ci_publickey}' | sudo tee -a /home/{ci_username}/.ssh/authorized_keys > /dev/null"
+                # Add the SSH key to authorized_keys
+                add_ssh_key_cmd = f"echo '{ci_publickey}' | sudo -u {ci_username} tee -a /home/{ci_username}/.ssh/authorized_keys > /dev/null"
                 execute_ssh_command(ssh, add_ssh_key_cmd, f"Failed to add SSH public key for '{ci_username}'")
 
-                # Command to set the correct owner and permissions for authorized_keys
-                set_auth_keys_owner_cmd = f"chown {ci_username}:{ci_username} /home/{ci_username}/.ssh/authorized_keys && chmod 600 /home/{ci_username}/.ssh/authorized_keys"
-                execute_ssh_command(ssh, set_auth_keys_owner_cmd, f"Failed to set ownership and permissions for authorized_keys for '{ci_username}'")
+                # Set the correct permissions for authorized_keys
+                set_auth_keys_permissions_cmd = f"sudo chmod 600 /home/{ci_username}/.ssh/authorized_keys && sudo chown {ci_username}:{ci_username} /home/{ci_username}/.ssh/authorized_keys"
+                execute_ssh_command(ssh, set_auth_keys_permissions_cmd, f"Failed to set permissions for authorized_keys for '{ci_username}'")
 
-                # Re-check if the SSH key was added successfully
-                verify_ssh_key_cmd = f"grep '{ci_publickey}' /home/{ci_username}/.ssh/authorized_keys"
-                execute_ssh_command(ssh, verify_ssh_key_cmd, f"Failed to verify SSH public key for '{ci_username}' in authorized_keys.")
-                print(f"\033[92m[SUCCESS]         : SSH public key verified successfully for user '{ci_username}'.")
-
-                # Command to exit root
-                elevate_cmd = f"exit"
-                execute_ssh_command(ssh, elevate_cmd, f"Failed to exit root")
+                print(f"\033[92m[SUCCESS]         : SSH public key added successfully for user '{ci_username}'.")
 
         # Step 4: Perform a login test with the newly created user
         print(f"\033[92m[INFO]            : Performing login test for user '{ci_username}'.")
