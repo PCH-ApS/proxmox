@@ -479,18 +479,17 @@ def wait_for_reboot(host, username, password=None, timeout=300, interval=10):
     print(f"\033[91m[ERROR]           : Timeout while waiting for {host} to reboot.")
     sys.exit(1)
 
-def execute_ssh_command(ssh, command, error_message):
+def execute_ssh_command(ssh, command, error_message=None):
     stdin, stdout, stderr = ssh.exec_command(command)
     exit_status = stdout.channel.recv_exit_status()
     error_output = stderr.read().decode().strip()
     if exit_status != 0:
-        print(f"\033[91m[ERROR]           : {error_message}: {error_output}\033[0m")
+        if error_message:
+            print(f"\033[91m[ERROR]           : {error_message}: {error_output}\033[0m")
+        else:
+            print(f"\033[91m[ERROR]           : Command failed with error: {error_output}\033[0m")
         sys.exit(1)
     return stdout.read().decode().strip()
-
-def generate_random_password(length=24):
-    characters = string.ascii_letters + string.digits + string.punctuation
-    return ''.join(random.choice(characters) for i in range(length))
 
 def on_guest_temp_fix_cloudinit(ssh, values, ipaddress):
     ci_username = values.get("ci_username")
@@ -501,7 +500,7 @@ def on_guest_temp_fix_cloudinit(ssh, values, ipaddress):
         # Step 1: Check if user already exists
         check_user_cmd = f"id -u {ci_username}"
         try:
-            execute_ssh_command(ssh, check_user_cmd, f"User '{ci_username}' does not exist, proceeding with creation.")
+            execute_ssh_command(ssh, check_user_cmd)
             print(f"\033[93m[INFO]            : User '{ci_username}' already exists. No need to apply fix.")
             return
         except:
@@ -586,6 +585,24 @@ def on_guest_temp_fix_cloudinit(ssh, values, ipaddress):
         print(f"\033[91m[ERROR]           : Failed to execute command on {ipaddress}: {e}\033[0m")
         sys.exit(1)
 
+def on_guest_temp_fix_cloudinit_part_2(ssh, values, ipaddress):
+    ci_password = values.get("ci_password")  # Use unhashed password directly
+
+    try:
+        # Step 1: disable the default ubuntu user
+    #    disable_ubuntu_cmd = f"echo '{ci_password}' | sudo -S deluser ubuntu"
+    #    execute_ssh_command(ssh, disable_ubuntu_cmd, f"Failed to delete 'ubuntu' user")
+        print(f"\033[92m[SUCCESS]         : User 'ubuntu' deleted successfully.")
+
+        # Step 1: disable the default ubuntu user
+    #    disable_ubuntu_cmd = f"echo '{ci_password}' | sudo -S deluser --remove-home ubuntu"
+    #    execute_ssh_command(ssh, disable_ubuntu_cmd, f"Failed to delete 'ubuntu' home folder")
+    #    print(f"\033[92m[SUCCESS]         : User 'ubuntu' deleted home folder successfully.")
+
+    except Exception as e:
+        print(f"\033[91m[ERROR]           : Failed to execute command on {ipaddress}: {e}\033[0m")
+        sys.exit(1)
+
 config_file = sys.argv[1]
 config = load_config(config_file)
 values = get_json_values(config)
@@ -604,7 +621,16 @@ start_vm(ssh, values)
 ipaddress = get_vm_ipv4_address(ssh, values)
 temp_fix_cloudinit(ssh, values)
 ssh.close()
+
+# login as the local default user
 ssh = ssh_connect(ipaddress, "ubuntu")
 on_guest_temp_fix_cloudinit(ssh, values, ipaddress)
+ssh.close()
+
+# login as user cloud-init shpuld have created
+ci_username = values.get("ci_username")
+ssh = ssh_connect(ipaddress, ci_username)
+on_guest_temp_fix_cloudinit_part_2(ssh, values, ipaddress)
+ssh.close()
 
 end_output_to_shell()
