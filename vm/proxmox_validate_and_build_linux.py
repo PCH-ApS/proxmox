@@ -606,11 +606,6 @@ def on_guest_temp_fix_cloudinit_part_2(ssh, values, ipaddress):
         execute_ssh_command(ssh, disable_ubuntu_cmd, f"Failed to delete 'ubuntu' user")
         print(f"\033[92m[SUCCESS]         : User 'ubuntu' deleted successfully.")
 
-        # Step 2: Remove the home directory of the ubuntu user
-        #remove_home_cmd = f"echo '{ci_password}' | sudo -S deluser --remove-home ubuntu"
-        #execute_ssh_command(ssh, remove_home_cmd, f"Failed to delete 'ubuntu' home folder")
-        #print(f"\033[92m[SUCCESS]         : User 'ubuntu' home folder deleted successfully.")
-
     except Exception as e:
         print(f"\033[91m[ERROR]           : Failed to execute command on {ipaddress}: {e}\033[0m")
         sys.exit(1)
