@@ -486,8 +486,6 @@ def execute_ssh_command(ssh, command, error_message=None):
     if exit_status != 0:
         if error_message:
             print(f"\033[91m[ERROR]           : {error_message}: {error_output}\033[0m")
-        else:
-            print(f"\033[91m[ERROR]           : Command failed with error: {error_output}\033[0m")
         sys.exit(1)
     return stdout.read().decode().strip()
 
@@ -589,15 +587,29 @@ def on_guest_temp_fix_cloudinit_part_2(ssh, values, ipaddress):
     ci_password = values.get("ci_password")  # Use unhashed password directly
 
     try:
-        # Step 1: disable the default ubuntu user
-    #    disable_ubuntu_cmd = f"echo '{ci_password}' | sudo -S deluser ubuntu"
-    #    execute_ssh_command(ssh, disable_ubuntu_cmd, f"Failed to delete 'ubuntu' user")
+        # Step 0: Check for any running processes by the 'ubuntu' user
+        check_processes_cmd = f"echo '{ci_password}' | sudo -S pgrep -u ubuntu"
+        processes = execute_ssh_command(ssh, check_processes_cmd, "")
+
+        if processes:
+            print(f"\033[93m[INFO]            : Processes found for user 'ubuntu': {processes.strip()}\033[0m")
+
+            # Kill all processes belonging to 'ubuntu' user
+            kill_processes_cmd = f"echo '{ci_password}' | sudo -S pkill -u ubuntu"
+            execute_ssh_command(ssh, kill_processes_cmd, f"Failed to kill processes for 'ubuntu' user")
+            print(f"\033[92m[SUCCESS]         : All processes for 'ubuntu' user killed successfully.")
+        else:
+            print(f"\033[92m[INFO]            : No running processes found for user 'ubuntu'.\033[0m")
+
+        # Step 1: Disable the default ubuntu user
+        disable_ubuntu_cmd = f"echo '{ci_password}' | sudo -S deluser --remove-home ubuntu"
+        execute_ssh_command(ssh, disable_ubuntu_cmd, f"Failed to delete 'ubuntu' user")
         print(f"\033[92m[SUCCESS]         : User 'ubuntu' deleted successfully.")
 
-        # Step 1: disable the default ubuntu user
-    #    disable_ubuntu_cmd = f"echo '{ci_password}' | sudo -S deluser --remove-home ubuntu"
-    #    execute_ssh_command(ssh, disable_ubuntu_cmd, f"Failed to delete 'ubuntu' home folder")
-    #    print(f"\033[92m[SUCCESS]         : User 'ubuntu' deleted home folder successfully.")
+        # Step 2: Remove the home directory of the ubuntu user
+        #remove_home_cmd = f"echo '{ci_password}' | sudo -S deluser --remove-home ubuntu"
+        #execute_ssh_command(ssh, remove_home_cmd, f"Failed to delete 'ubuntu' home folder")
+        #print(f"\033[92m[SUCCESS]         : User 'ubuntu' home folder deleted successfully.")
 
     except Exception as e:
         print(f"\033[91m[ERROR]           : Failed to execute command on {ipaddress}: {e}\033[0m")
