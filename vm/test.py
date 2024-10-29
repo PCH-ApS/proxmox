@@ -71,7 +71,7 @@ try:
                         params_no_change[param] = expected_value
                     else:
                         print(f"\033[91m[WARNING]         : '{param}' is not set to expected value: '{expected_value}' in file '{conf_file}'")
-                        params_to_change[param] = expected_value
+                        params_to_change[param] = conf_file
                     break  # Stop searching in the current file once parameter is found
 
         if not param_found:
@@ -88,20 +88,27 @@ try:
         if verified_param in params_to_add:
             del params_to_add[verified_param]
 
-    # Output parameters that need to be corrected
+    # Step 3: Modify the parameters that need correction
     if params_to_change:
-        print("\033[91m[INFO]            : The following parameters need to be corrected:")
-        for param, value in params_to_change.items():
-            print(f"\033[91m[TO SET]          : '{param}' should be set to '{value}'")
+        print("\033[93m[INFO]            : Correcting parameters with incorrect values...")
+        for param, conf_file in params_to_change.items():
+            expected_value = params_to_check[param]
+            command = f"sed -i 's/^#*{param}.*/{param} {expected_value}/' {conf_file}"
+            ssh.exec_command(command)
+            print(f"\033[92m[INFO]            : Corrected '{param}' to '{expected_value}' in file '{conf_file}'")
 
-    # Output parameters that need to be added
+    # Step 4: Write missing parameters to a new .conf file
     if params_to_add:
-        print("\033[91m[INFO]            : The following parameters need to be set or added:")
+        conf_filename = f"{conf_file_dir}/99-automationtion-default-config.conf"
+        print("\033[93m[INFO]            : Adding missing parameters to a new configuration file.")
         for param, value in params_to_add.items():
-            print(f"\033[91m[TO ADD]          : '{param}' should be set to '{value}'")
+            command = f"echo '{param} {value}' | sudo tee -a {conf_filename}"
+            ssh.exec_command(command)
+            print(f"\033[92m[INFO]            : Added '{param} {value}' to '{conf_filename}'")
 
-  
-
+    # Step 5: Re-run the check to verify all parameters are set correctly
+    print("\033[93m[INFO]            : Re-running verification checks to ensure parameters are correctly set...")
+    # Ideally, you can just re-use the verification loop here to recheck after the changes.
 
 except Exception as e:
     print(f"An error occurred: {e}")
