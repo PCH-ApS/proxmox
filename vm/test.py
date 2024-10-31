@@ -9,10 +9,13 @@ from lib import functions
 
 ipaddress = "192.168.254.3"
 ci_username = "pch"
+ci_password = os.getenv("CI_PASSWORD")  # Retrieve the password from an environment variable
 
 config_files = ["/etc/ssh/sshd_config"]
 search_string = "Include "
 conf_file_dir = []
+config_filename = "/99-automation-default-config"
+config_include = False
 
 # Connect to the SSH server
 ssh = functions.ssh_connect(ipaddress, ci_username)
@@ -26,6 +29,7 @@ try:
         for line_number, line in enumerate(stdout, start=1):
             if line.startswith(search_string):
                 print(f"\033[93m[INFO]            : Found '{search_string}' at the beginning of line {line_number}: {line.strip()}")
+                config_include = True
                 elements = line.split()
                 for element in elements:
                     if element.startswith("/"):
@@ -93,18 +97,42 @@ try:
         print("\033[93m[INFO]            : Correcting parameters with incorrect values...")
         for param, conf_file in params_to_change.items():
             expected_value = params_to_check[param]
-            command = f"sed -i 's/^#*{param}.*/{param} {expected_value}/' {conf_file}"
-            ssh.exec_command(command)
+            command = f"sudo -S -i bash -c sed -i 's/^#*{param}.*/{param} {expected_value}/' {conf_file}"
+            stdin, stdout, stderr = ssh.exec_command(command)
+            stdin.write(f"{ci_password}\n")
+            stdin.flush()
             print(f"\033[92m[INFO]            : Corrected '{param}' to '{expected_value}' in file '{conf_file}'")
 
     # Step 4: Write missing parameters to a new .conf file
     if params_to_add:
-        conf_filename = f"{conf_file_dir}/99-automationtion-default-config.conf"
+        # Determine the directory and file type from the first element in conf_file_dir
+        first_include_path = conf_file_dir[0] if conf_file_dir else "/etc/ssh"
+        if not os.path.isdir(first_include_path):
+            conf_directory = os.path.dirname(first_include_path)
+        else:
+            conf_directory = first_include_path
+
+        # Extract the file extension from the first include statement
+        file_extension = os.path.splitext(first_include_path)[1] or ".conf"
+
+        # Create the new configuration file path
+        if not config_include:
+            conf_filename = f"{config_files[0]}{config_filename}{file_extension}"
+        else:
+            conf_filename = f"{conf_directory}{config_filename}{file_extension}"
+
         print("\033[93m[INFO]            : Adding missing parameters to a new configuration file.")
+
         for param, value in params_to_add.items():
-            command = f"echo '{param} {value}' | sudo tee -a {conf_filename}"
-            ssh.exec_command(command)
+            command = f"sudo -S -i bash -c 'echo "{param} {value}" >> {conf_filename}'"
+            stdin, stdout, stderr = ssh.exec_command(command)
+            stdin.write(f"{ci_password}\n")
+            stdin.flush()
             print(f"\033[92m[INFO]            : Added '{param} {value}' to '{conf_filename}'")
+
+        if not config_include:
+            command = f"echo 'Include {conf_filename}' | echo '{ci_password}' | sudo tee -a {config_files[0]}"
+            ssh.exec_command(command)
 
     # Step 5: Re-run the check to verify all parameters are set correctly
     print("\033[93m[INFO]            : Re-running verification checks to ensure parameters are correctly set...")
