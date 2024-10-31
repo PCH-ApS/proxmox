@@ -6,6 +6,7 @@ import paramiko
 import time
 import re
 import getpass
+import os
 
 def end_output_to_shell():
     print("\033[0m-------------------------------------------")
@@ -36,6 +37,38 @@ def execute_ssh_command(ssh, command, error_message=None):
             print(f"\033[91m[ERROR]           : {error_message}: {error_output}\033[0m")
         sys.exit(1)
     return stdout.read().decode().strip()
+
+def execute_ssh_sudo_command(ssh, sudo_env, command, error_message=None):
+    sudo_password = os.getenv(sudo_env)
+
+    if not sudo_password:
+        raise EnvironmentError("The environment variable 'CI_PASSWORD' is not set. Please set it before running the script.")
+
+    # Construct the sudo command with the password
+    #sudo_command = f"echo {sudo_password} | sudo -S -p '' bash -c '{command}'"
+    sudo_command = f"echo {sudo_password} | sudo -S -p '' bash -c '{command}'"
+    try:
+        # Execute the sudo command
+        stdin, stdout, stderr = ssh.exec_command(sudo_command)
+
+        # No need to write password again here; it is piped via the command.
+
+        # Get the command's exit status and output
+        exit_status = stdout.channel.recv_exit_status()
+        output = stdout.read().decode().strip()
+        error_output = stderr.read().decode().strip()
+
+        # Handle command errors
+        if exit_status != 0:
+            if error_message:
+                print(f"\033[91m[ERROR]           : {error_message}: {error_output}\033[0m")
+            sys.exit(1)
+
+        return output
+
+    except Exception as e:
+        print(f"An unexpected error occurred while executing the command: {e}")
+        sys.exit(1)
 
 def wait_for_reboot(host, username, password=None, timeout=300, interval=10):
     start_time = time.time()

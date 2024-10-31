@@ -97,10 +97,9 @@ try:
         print("\033[93m[INFO]            : Correcting parameters with incorrect values...")
         for param, conf_file in params_to_change.items():
             expected_value = params_to_check[param]
-            command = f"sudo -S -i bash -c sed -i 's/^#*{param}.*/{param} {expected_value}/' {conf_file}"
-            stdin, stdout, stderr = ssh.exec_command(command)
-            stdin.write(f"{ci_password}\n")
-            stdin.flush()
+            # Use '|' as delimiter to avoid issues with '/' in paths or values
+            command = f"sed -i 's|^#*{param}.*|{param} {expected_value}|' {conf_file}"
+            functions.execute_ssh_sudo_command(ssh, "CI_PASSWORD", command, f"Failed to sed -i")
             print(f"\033[92m[INFO]            : Corrected '{param}' to '{expected_value}' in file '{conf_file}'")
 
     # Step 4: Write missing parameters to a new .conf file
@@ -124,14 +123,13 @@ try:
         print("\033[93m[INFO]            : Adding missing parameters to a new configuration file.")
 
         for param, value in params_to_add.items():
-            command = f"sudo -S -i bash -c 'echo "{param} {value}" >> {conf_filename}'"
-            stdin, stdout, stderr = ssh.exec_command(command)
-            stdin.write(f"{ci_password}\n")
-            stdin.flush()
+            command = f"echo '{param} {value}' >> {conf_filename}"
+            functions.execute_ssh_sudo_command(ssh, "CI_PASSWORD", command, f"Failed to echo param to file")
             print(f"\033[92m[INFO]            : Added '{param} {value}' to '{conf_filename}'")
 
         if not config_include:
-            command = f"echo 'Include {conf_filename}' | echo '{ci_password}' | sudo tee -a {config_files[0]}"
+            command = f"echo 'Include {conf_filename}' | tee -a {config_files[0]}"
+            functions.execute_ssh_sudo_command(ssh, "CI_PASSWORD", command, f"Failed to echo param to file")
             ssh.exec_command(command)
 
     # Step 5: Re-run the check to verify all parameters are set correctly
