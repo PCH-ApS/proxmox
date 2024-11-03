@@ -45,8 +45,8 @@ def execute_ssh_sudo_command(ssh, sudo_env, command, error_message=None):
         raise EnvironmentError("The environment variable 'CI_PASSWORD' is not set. Please set it before running the script.")
 
     # Construct the sudo command with the password
-    #sudo_command = f"echo {sudo_password} | sudo -S -p '' bash -c '{command}'"
     sudo_command = f"echo {sudo_password} | sudo -S -p '' bash -c '{command}'"
+
     try:
         # Execute the sudo command
         stdin, stdout, stderr = ssh.exec_command(sudo_command)
@@ -246,98 +246,3 @@ def get_current_user(ssh):
     except Exception as e:
         print(f"\033[91m[ERROR]           : Failed to get current user on remote host: {e}")
         return None
-
-
-
-
-def configure_sshd_config(ssh, values):
-    """
-    Check and modify the SSH configuration to ensure it meets the provided criteria.
-    :param ssh: A paramiko SSH client instance.
-    :return: None
-    """
-    params = {
-        "PasswordAuthentication": "no",
-        "ChallengeResponseAuthentication": "no",
-        "PermitEmptyPasswords": "no",
-        "ClientAliveInterval": "3600",
-        "ClientAliveCountMax": "2",
-        "X11Forwarding": "no",
-        "PermitRootLogin": "prohibit-password"
-    }
-    try:
-        # Step 1: Gather list of configuration files
-        config_files = ["/etc/ssh/sshd_config"]
-        config_files += get_included_configs(ssh, "/etc/ssh/sshd_config.d/*.conf")
-
-        # Step 2: Iterate through each configuration file
-        for config_file in config_files:
-            for param, expected_value in params.items():
-                modify_parameter(ssh, values, config_file, param, expected_value)
-
-        # Step 3: Restart the SSH service
-        restart_ssh_service(ssh)
-
-    except Exception as e:
-        print(f"\033[91m[ERROR]           : An error occurred while configuring SSH: {e}")
-
-def get_included_configs(ssh, include_pattern):
-    """
-    Retrieve the list of included SSH configuration files.
-    :param ssh: A paramiko SSH client instance.
-    :param include_pattern: The wildcard pattern for included configuration files.
-    :return: A list of file paths.
-    """
-    try:
-        command = f"ls {include_pattern} 2>/dev/null"
-        stdin, stdout, stderr = ssh.exec_command(command)
-        return stdout.read().decode().splitlines()
-    except Exception as e:
-        print(f"\033[91m[ERROR]           : An error occurred while configuring SSH: {e}")
-        return []
-
-
-def modify_parameter(ssh, values, config_file, param, expected_value):
-    """
-    Modify or add the parameter in the given SSH configuration file.
-    :param ssh: A paramiko SSH client instance.
-    :param config_file: The configuration file to modify.
-    :param param: The parameter name to modify.
-    :param expected_value: The expected value of the parameter.
-    :return: None
-    """
-    ci_password = values.get("ci_password")
-    try:
-        # Check if the parameter exists
-        grep_command = f'grep -E "^{param}\\s+" {config_file} || echo "not_found"'
-        stdin, stdout, stderr = ssh.exec_command(grep_command)
-        output = stdout.read().decode().strip()
-
-        if output == "not_found":
-            # Parameter not found, add it to the file
-            append_command = f'echo "{param} {expected_value}" | sudo tee -a {config_file}'
-            stdin, stdout, stderr = ssh.exec_command(append_command)
-            shell = ssh.invoke_shell()
-            shell.send(f"{values.get('ci_password')}\n")
-            stdin.flush()
-        else:
-            # Parameter found, check if it matches the expected value
-            current_value = re.split(r'\s+', output)[1]
-            if current_value != expected_value:
-                # Update the parameter with the expected value
-                replace_command = f'sudo -S sed -i "s|^{param}\\s+.*|{param} {expected_value}|" {config_file}'
-                ssh.exec_command(replace_command)
-                stdin.write(f"'{ci_password}'")
-                stdin.flush()
-
-    except Exception as e:
-        print(f"\033[91m[ERROR]           : An error occurred while configuring SSH: {e}")
-
-
-def restart_ssh_service(ssh, values):
-    ci_password = values.get("ci_password")
-    try:
-        command = f"echo {ci_password} | sudo -S systemctl restart sshd"
-        ssh.exec_command(command)
-    except Exception as e:
-        print(f"\033[91m[ERROR]           : Failed to restart SSH service: {e}")

@@ -6,15 +6,14 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 # Now you can import the module from lib
 from lib import functions
+from const.vm_const import SSH_CONST, SSHD_CONFIG, SSHD_SEARCHSTRING, SSHD_CUSTOMFILE
 
 ipaddress = "192.168.254.3"
 ci_username = "pch"
 ci_password = os.getenv("CI_PASSWORD")  # Retrieve the password from an environment variable
 
-config_files = ["/etc/ssh/sshd_config"]
-search_string = "Include "
 conf_file_dir = []
-config_filename = "/99-automation-default-config"
+conf_files = []
 config_include = False
 
 # Connect to the SSH server
@@ -23,45 +22,44 @@ ssh = functions.ssh_connect(ipaddress, ci_username)
 try:
     # Step 1: Gather list of configuration files
     # Check if config_file has include statements to other *.conf files
-    for conf_file in config_files:
+    for conf_file in SSHD_CONFIG:
         command = f"cat {conf_file}"
         stdin, stdout, stderr = ssh.exec_command(command)
         for line_number, line in enumerate(stdout, start=1):
-            if line.startswith(search_string):
-                print(f"\033[93m[INFO]            : Found '{search_string}' at the beginning of line {line_number}: {line.strip()}")
+            if line.startswith(SSHD_SEARCHSTRING):
+                print(f"\033[93m[INFO]            : Found '{SSHD_SEARCHSTRING}' at the beginning of line {line_number}: {line.strip()}")
                 config_include = True
                 elements = line.split()
                 for element in elements:
                     if element.startswith("/"):
-                        conf_file_dir.append(element)
+                        if "*" in element:
+                            conf_file_dir.append(element)
+                        else:
+                            SSHD_CONFIG.append(element)
 
     # Find all files matching the pattern specified in include statements
     for pattern in conf_file_dir:
         command = f"ls {pattern} 2>/dev/null"
         stdin, stdout, stderr = ssh.exec_command(command)
         matched_files = stdout.read().decode().splitlines()
-        config_files.extend(matched_files)
+        conf_files.extend(matched_files)
+
+    for file in conf_files:
+            SSHD_CONFIG.append(file)
 
     # Print total found configuration files
-    files_found = len(config_files)
-    print(f"\033[93m[INFO]            : Found {files_found} sshd config files")
+    print(f"\033[93m[INFO]            : Found {len(SSHD_CONFIG)} sshd config files")
 
     # Step 2: Run through all files found to check if parameters have been set
-    params_to_check = {
-        "PasswordAuthentication": "no",
-        "ChallengeResponseAuthentication": "no",
-        "PermitEmptyPasswords": "no",
-        "ClientAliveInterval": "3600",
-        "ClientAliveCountMax": "2",
-        "X11Forwarding": "no",
-        "PermitRootLogin": "prohibit-password"
-    }
     params_no_change = {}  # Tracks parameters that are set correctly
-    params_to_add = params_to_check.copy()  # Tracks parameters that are missing
+    params_to_add = SSH_CONST.copy()  # Tracks parameters that are missing
     params_to_change = {}  # Tracks parameters that need to be changed
 
+    #Er kommet her til !!!!
+
+
     # Check each parameter in every configuration file
-    for param, expected_value in params_to_check.items():
+    for param, expected_value in SSH_CONST.items():
         param_found = False  # Track if parameter was found in any file
         for conf_file in config_files:
             command = f"cat {conf_file}"
@@ -69,12 +67,9 @@ try:
             for line_number, line in enumerate(stdout, start=1):
                 if line.startswith(param):
                     param_found = True
-                    print(f"\033[93m[INFO]            : {param} found in file '{conf_file}' at line {line_number}: {line.strip()}")
                     if expected_value in line:
-                        print(f"\033[92m[OK]              : {param} is set to expected value: '{expected_value}' in file '{conf_file}'. No change needed")
                         params_no_change[param] = expected_value
                     else:
-                        print(f"\033[91m[WARNING]         : '{param}' is not set to expected value: '{expected_value}' in file '{conf_file}'")
                         params_to_change[param] = conf_file
                     break  # Stop searching in the current file once parameter is found
 
@@ -92,49 +87,9 @@ try:
         if verified_param in params_to_add:
             del params_to_add[verified_param]
 
-    # Step 3: Modify the parameters that need correction
-    if params_to_change:
-        print("\033[93m[INFO]            : Correcting parameters with incorrect values...")
-        for param, conf_file in params_to_change.items():
-            expected_value = params_to_check[param]
-            # Use '|' as delimiter to avoid issues with '/' in paths or values
-            command = f"sed -i 's|^#*{param}.*|{param} {expected_value}|' {conf_file}"
-            functions.execute_ssh_sudo_command(ssh, "CI_PASSWORD", command, f"Failed to sed -i")
-            print(f"\033[92m[INFO]            : Corrected '{param}' to '{expected_value}' in file '{conf_file}'")
-
-    # Step 4: Write missing parameters to a new .conf file
-    if params_to_add:
-        # Determine the directory and file type from the first element in conf_file_dir
-        first_include_path = conf_file_dir[0] if conf_file_dir else "/etc/ssh"
-        if not os.path.isdir(first_include_path):
-            conf_directory = os.path.dirname(first_include_path)
-        else:
-            conf_directory = first_include_path
-
-        # Extract the file extension from the first include statement
-        file_extension = os.path.splitext(first_include_path)[1] or ".conf"
-
-        # Create the new configuration file path
-        if not config_include:
-            conf_filename = f"{config_files[0]}{config_filename}{file_extension}"
-        else:
-            conf_filename = f"{conf_directory}{config_filename}{file_extension}"
-
-        print("\033[93m[INFO]            : Adding missing parameters to a new configuration file.")
-
-        for param, value in params_to_add.items():
-            command = f"echo '{param} {value}' >> {conf_filename}"
-            functions.execute_ssh_sudo_command(ssh, "CI_PASSWORD", command, f"Failed to echo param to file")
-            print(f"\033[92m[INFO]            : Added '{param} {value}' to '{conf_filename}'")
-
-        if not config_include:
-            command = f"echo 'Include {conf_filename}' | tee -a {config_files[0]}"
-            functions.execute_ssh_sudo_command(ssh, "CI_PASSWORD", command, f"Failed to echo param to file")
-            ssh.exec_command(command)
-
-    # Step 5: Re-run the check to verify all parameters are set correctly
-    print("\033[93m[INFO]            : Re-running verification checks to ensure parameters are correctly set...")
-    # Ideally, you can just re-use the verification loop here to recheck after the changes.
+    print(f"Parameters that are correct: {params_no_change}")
+    print(f"Parameters that must be changes: {params_to_change}")
+    print(f"Parameters that must be added: {params_to_add}")
 
 except Exception as e:
     print(f"An error occurred: {e}")
