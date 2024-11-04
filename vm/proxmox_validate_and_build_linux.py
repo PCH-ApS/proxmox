@@ -426,14 +426,8 @@ def on_guest_temp_fix_cloudinit(ssh, values, ipaddress):
         sys.exit(1)
 
 def on_guest_temp_fix_cloudinit_part_2(ssh, values, ipaddress):
-    ci_password = values.get("ci_password")  # Use unhashed password directly
-    ci_username = values.get("ci_username")
-
-
     try:
         # Step 0: Check for any running processes by the 'ubuntu' user
-        # check_processes_cmd = f"echo '{ci_password}' | sudo -S pgrep -u ubuntu"
-        # processes = functions.execute_ssh_command(ssh, check_processes_cmd, f"Failed to grep processes for 'ubuntu' user")
         command = f"pgrep -u ubuntu"
         processes = functions.execute_ssh_sudo_command(ssh, "CI_PASSWORD", command, f"Failed to grep processes for 'ubuntu' user")
 
@@ -442,8 +436,6 @@ def on_guest_temp_fix_cloudinit_part_2(ssh, values, ipaddress):
             print(f"\033[93m[CI-FIX]          : Processes found for user 'ubuntu': {processes.strip()}\033[0m")
 
             # Kill all processes belonging to 'ubuntu' user
-            # kill_processes_cmd = f"echo '{ci_password}' | sudo -S pkill -u ubuntu"
-            # functions.execute_ssh_command(ssh, kill_processes_cmd, f"Failed to kill processes for 'ubuntu' user")
             command = f"pkill -u ubuntu"
             functions.execute_ssh_sudo_command(ssh, "CI_PASSWORD", command, f"Failed to kill processes for 'ubuntu' user")
             print(f"\033[92m[CI-FIX]          : All processes for 'ubuntu' user killed successfully.")
@@ -451,8 +443,6 @@ def on_guest_temp_fix_cloudinit_part_2(ssh, values, ipaddress):
             print(f"\033[92m[CI-FIX]          : No running processes found for user 'ubuntu'.\033[0m")
 
         # Step 1: Disable the default ubuntu user
-        # disable_ubuntu_cmd = f"echo '{ci_password}' | sudo -S deluser --remove-home ubuntu"
-        # functions.execute_ssh_command(ssh, disable_ubuntu_cmd, f"Failed to delete 'ubuntu' user")
         command = f"deluser --remove-home ubuntu"
         functions.execute_ssh_sudo_command(ssh, "CI_PASSWORD", command, f"Failed to delete 'ubuntu' user")
         print(f"\033[92m[CI-FIX]          : User 'ubuntu' deleted successfully.")
@@ -463,9 +453,9 @@ def on_guest_temp_fix_cloudinit_part_2(ssh, values, ipaddress):
         sys.exit(1)
 
 def on_guest_configuration(ssh, values, ipaddress):
-    ci_password = values.get("ci_password")  # Use unhashed password directly
-    ci_username = values.get("ci_username")
+    # Set BASH shell on VM
     try:
+        ci_password = values.get("ci_password")
         change_shell_cmd = f"echo '{ci_password}' | chsh -s /bin/bash"
         functions.execute_ssh_command(ssh, change_shell_cmd, f"Failed to change shell to BASH")
         print(f"\033[92m[SUCCESS]         : Shell changed to BASH successfully.")
@@ -475,10 +465,127 @@ def on_guest_configuration(ssh, values, ipaddress):
         functions.end_output_to_shell()
         sys.exit(1)
 
-# config_file = "/home/nije/json-files/create_vm_fixed_ip.json"
-# ipaddress = "192.168.254.3"
+    # Set SSHD_CONFIG setting on VM
+    conf_file_dir = []
+    conf_files = []
+    config_include = False
 
-config_file = sys.argv[1]
+    try:
+        # Step 1: Gather list of configuration files
+        # Check if config_file has include statements to other *.conf files
+        for conf_file in SSHD_CONFIG:
+            command = f"cat {conf_file}"
+            stdin, stdout, stderr = ssh.exec_command(command)
+            for line_number, line in enumerate(stdout, start=1):
+                if line.startswith(SSHD_SEARCHSTRING):
+                    print(f"\033[92m[INFO]            : Found '{SSHD_SEARCHSTRING}' at the beginning of line {line_number}: {line.strip()}")
+                    config_include = True
+                    elements = line.split()
+                    for element in elements:
+                        if element.startswith("/"):
+                            if "*" in element:
+                                conf_file_dir.append(element)
+                            else:
+                                SSHD_CONFIG.append(element)
+
+        # Find all files matching the pattern specified in include statements
+        for pattern in conf_file_dir:
+            command = f"ls {pattern} 2>/dev/null"
+            stdin, stdout, stderr = ssh.exec_command(command)
+            matched_files = stdout.read().decode().splitlines()
+            conf_files.extend(matched_files)
+
+        for file in conf_files:
+                SSHD_CONFIG.append(file)
+
+        # Print total found configuration files
+        print(f"\033[92m[INFO]            : Found {len(SSHD_CONFIG)} sshd config files")
+
+        # Step 2: Run through all files found to check if parameters have been set
+        params_no_change = {}  # Tracks parameters that are set correctly
+        params_to_add = SSH_CONST.copy()  # Tracks parameters that are missing
+        params_to_change = {}  # Tracks parameters that need to be changed
+
+        # Check each parameter in every configuration file
+        for param, expected_value in SSH_CONST.items():
+            param_found = False  # Track if parameter was found in any file
+            for conf_file in SSHD_CONFIG:
+                command = f"cat {conf_file}"
+                stdin, stdout, stderr = ssh.exec_command(command)
+                for line_number, line in enumerate(stdout, start=1):
+                    if line.startswith(param):
+                        param_found = True
+                        if expected_value in line:
+                            params_no_change[param] = expected_value
+                        else:
+                            params_to_change[param] = {
+                                "expected_value": expected_value,
+                                "conf_file": conf_file
+                            }
+                        #break  # Stop searching in the current file once parameter is found
+
+            if not param_found:
+                # Parameter was not found in any of the configuration files
+                print(f"\033[93m[INFO]            : '{param}' is missing in all configuration files.")
+
+        # Remove the verified parameters from params_to_add
+        for verified_param in params_no_change:
+            if verified_param in params_to_add:
+                del params_to_add[verified_param]
+
+        # Remove the parameters that need modification from params_to_add
+        for verified_param in params_to_change:
+            if verified_param in params_to_add:
+                del params_to_add[verified_param]
+
+        if len(params_to_add) > 0:
+            # Add the parameters that are completly missing
+            # Use the parth from first found include in conf_file_dir for SSHD_CUSTOMFILE filename
+            # and if no Include is found then use the path of the initial SSHD_CONFIG file for the SSHD_CUSTOMFILE filename
+            if conf_file_dir:
+                # Use the directory from the first Include found as the target directory for the custom file
+                include_dir = os.path.dirname(conf_file_dir[0])
+            else:
+                # Use the directory of the first SSHD_CONFIG file as the fallback
+                include_dir = os.path.dirname(SSHD_CONFIG[0])
+
+            # SSHD_CUSTOMFILE = f"{include_dir}{SSHD_CUSTOMFILE}"
+            local_sshd_customfile = os.path.join(include_dir, os.path.basename(SSHD_CUSTOMFILE))
+
+            if local_sshd_customfile not in SSHD_CONFIG:
+                command = f"touch {local_sshd_customfile}"
+                functions.execute_ssh_sudo_command(ssh, "CI_PASSWORD", command, f"Failed to touch {local_sshd_customfile}")
+                command = f"chmod 644 {local_sshd_customfile}"
+                functions.execute_ssh_sudo_command(ssh, "CI_PASSWORD", command, f"Failed to change permissions on {local_sshd_customfile}")
+                command = f"echo Include {local_sshd_customfile} >> {SSHD_CONFIG[0]}"
+                functions.execute_ssh_sudo_command(ssh, "CI_PASSWORD", command, f"Failed to include {local_sshd_customfile} in {SSHD_CONFIG[0]}")
+
+            for param, expected_value in params_to_add.items():
+                command = f"echo {param} {expected_value} >> {local_sshd_customfile}"
+                functions.execute_ssh_sudo_command(ssh, "CI_PASSWORD", command, f"Failed to add paramter: {param} {expected_value} to {local_sshd_customfile}")
+
+        if len(params_to_change) > 0:
+            for param, values in params_to_change.items():
+                expected_value = values["expected_value"]
+                path_value = values["conf_file"]
+                param_found = False  # Track if parameter was found in any file
+                command = f"cat {path_value}"
+                stdin, stdout, stderr = ssh.exec_command(command)
+                for line_number, line in enumerate(stdout, start=1):
+                    if line.startswith(param):
+                        param_found = True
+                        if param in line:
+                            command = f"sed -i 's/^{param} .*/{param} {expected_value}/' {path_value}"
+                            functions.execute_ssh_sudo_command(ssh, "CI_PASSWORD", command, f"Failed to modify paramter: {param} {expected_value} in {path_value}")
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+
+config_file = "/home/nije/json-files/create_vm_fixed_ip.json"
+ipaddress = "192.168.254.3"
+
+#config_file = sys.argv[1]
 script_directory = os.path.dirname(os.path.abspath(__file__))
 print("-------------------------------------------")
 print(f"Parameter filename: {config_file}")
@@ -506,29 +613,29 @@ print("-------------------------------------------")
 check_conditional_values(values)
 
 # Establish SSH connection to Proxmox server
-ssh = functions.ssh_connect(values.get("host"), values.get("user"))
+# ssh = functions.ssh_connect(values.get("host"), values.get("user"))
 
 # Create and configure the VM
-create_server(ssh, values)
-create_ci_options(ssh, values)
-create_cloudinit(ssh, values)
-start_vm(ssh, values)
+# create_server(ssh, values)
+# create_ci_options(ssh, values)
+# create_cloudinit(ssh, values)
+# start_vm(ssh, values)
 
 # Wait and get the VM's IPv4 address
-ipaddress = get_vm_ipv4_address(ssh, values)
-temp_fix_cloudinit(ssh, values)
-ssh.close()
+# ipaddress = get_vm_ipv4_address(ssh, values)
+# temp_fix_cloudinit(ssh, values)
+# ssh.close()
 
 # login as the local default user
-ssh = functions.ssh_connect(ipaddress, "ubuntu")
-on_guest_temp_fix_cloudinit(ssh, values, ipaddress)
-ssh.close()
+# ssh = functions.ssh_connect(ipaddress, "ubuntu")
+# on_guest_temp_fix_cloudinit(ssh, values, ipaddress)
+# ssh.close()
 
 # login as user cloud-init shpuld have created
 ci_username = values.get("ci_username")
 os.environ["CI_PASSWORD"] = values.get("ci_password")
 ssh = functions.ssh_connect(ipaddress, ci_username)
-on_guest_temp_fix_cloudinit_part_2(ssh, values, ipaddress)
+# on_guest_temp_fix_cloudinit_part_2(ssh, values, ipaddress)
 on_guest_configuration(ssh, values, ipaddress)
 #functions.configure_sshd_config(ssh, values)
 ssh.close()
