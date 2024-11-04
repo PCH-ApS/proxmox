@@ -557,12 +557,17 @@ def on_guest_configuration(ssh, values, ipaddress):
                 functions.execute_ssh_sudo_command(ssh, "CI_PASSWORD", command, f"Failed to touch {local_sshd_customfile}")
                 command = f"chmod 644 {local_sshd_customfile}"
                 functions.execute_ssh_sudo_command(ssh, "CI_PASSWORD", command, f"Failed to change permissions on {local_sshd_customfile}")
+                print(f"\033[92m[SUCCESS]         : Successfully created {local_sshd_customfile}")
+
+            if os.path.dirname(local_sshd_customfile) == os.path.dirname(SSHD_CONFIG[0]):
                 command = f"echo Include {local_sshd_customfile} >> {SSHD_CONFIG[0]}"
                 functions.execute_ssh_sudo_command(ssh, "CI_PASSWORD", command, f"Failed to include {local_sshd_customfile} in {SSHD_CONFIG[0]}")
+                print(f"\033[92m[SUCCESS]         : Successfully included {local_sshd_customfile} in {SSHD_CONFIG[0]}")
 
             for param, expected_value in params_to_add.items():
                 command = f"echo {param} {expected_value} >> {local_sshd_customfile}"
                 functions.execute_ssh_sudo_command(ssh, "CI_PASSWORD", command, f"Failed to add paramter: {param} {expected_value} to {local_sshd_customfile}")
+                print(f"\033[92m[SUCCESS]         : Successfully added paramter: {param} {expected_value} to {local_sshd_customfile}")
 
         if len(params_to_change) > 0:
             for param, values in params_to_change.items():
@@ -577,9 +582,17 @@ def on_guest_configuration(ssh, values, ipaddress):
                         if param in line:
                             command = f"sed -i 's/^{param} .*/{param} {expected_value}/' {path_value}"
                             functions.execute_ssh_sudo_command(ssh, "CI_PASSWORD", command, f"Failed to modify paramter: {param} {expected_value} in {path_value}")
+                            print(f"\033[92m[SUCCESS]         : Successfully modified paramter: {param} {expected_value} in {path_value}")
 
     except Exception as e:
         print(f"An error occurred: {e}")
+
+    finally:
+        print(f"\033[92m[SUCCESS]         : sshd_config has the exoected configuration")
+        command = f"systemctl restart ssh"
+        functions.execute_ssh_sudo_command(ssh, "CI_PASSWORD", command, f"Failed to restart SSH service")
+        print(f"\033[92m[SUCCESS]         : Successfully restarted SSH service")
+
 
 
 config_file = "/home/nije/json-files/create_vm_fixed_ip.json"
