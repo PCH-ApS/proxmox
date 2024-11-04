@@ -11,6 +11,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 # Now you can import the module from lib
 from lib import functions
 from lib import json_test
+from const.vm_const import MANDATORY_KEYS, OPTIONAL_KEYS, INTEGER_KEYS, SSH_CONST, SSHD_CONFIG, SSHD_SEARCHSTRING, SSHD_CUSTOMFILE
 
 def load_config(config_file):
     """Load configuration from a JSON file."""
@@ -217,7 +218,7 @@ runcmd:
 
         command = f"qm set {vm_id} --cicustom 'user=local:snippets/{remote_filename}'"
         functions.execute_ssh_command(ssh, command, f"Failed to set custom cloud-init file")
-        print(f"\033[92m[SUCCESS]         : Custom cloud-init file set for {vm_id }successfully.")
+        print(f"\033[92m[SUCCESS]         : Custom cloud-init file set for {vm_id } successfully.")
 
     except Exception as e:
         print(f"\033[91m[ERROR]           : Failed to create cloud-init file: {e}")
@@ -328,8 +329,9 @@ def temp_fix_cloudinit(ssh, values):
         sys.exit(1)
 
 def on_guest_temp_fix_cloudinit(ssh, values, ipaddress):
+    # runs as the default ubuntu user with passwordless sudo priviliges
     ci_username = values.get("ci_username")
-    ci_password = values.get("ci_password")  # Use unhashed password directly
+    ci_password = values.get("ci_password")
     ci_publickey = values.get("ci_publickey")
 
     try:
@@ -430,22 +432,29 @@ def on_guest_temp_fix_cloudinit_part_2(ssh, values, ipaddress):
 
     try:
         # Step 0: Check for any running processes by the 'ubuntu' user
-        check_processes_cmd = f"echo '{ci_password}' | sudo -S pgrep -u ubuntu"
-        processes = functions.execute_ssh_command(ssh, check_processes_cmd, f"Failed to grep processes for 'ubuntu' user")
+        # check_processes_cmd = f"echo '{ci_password}' | sudo -S pgrep -u ubuntu"
+        # processes = functions.execute_ssh_command(ssh, check_processes_cmd, f"Failed to grep processes for 'ubuntu' user")
+        command = f"pgrep -u ubuntu"
+        processes = functions.execute_ssh_sudo_command(ssh, "CI_PASSWORD", command, f"Failed to grep processes for 'ubuntu' user")
+
 
         if processes:
             print(f"\033[93m[CI-FIX]          : Processes found for user 'ubuntu': {processes.strip()}\033[0m")
 
             # Kill all processes belonging to 'ubuntu' user
-            kill_processes_cmd = f"echo '{ci_password}' | sudo -S pkill -u ubuntu"
-            functions.execute_ssh_command(ssh, kill_processes_cmd, f"Failed to kill processes for 'ubuntu' user")
+            # kill_processes_cmd = f"echo '{ci_password}' | sudo -S pkill -u ubuntu"
+            # functions.execute_ssh_command(ssh, kill_processes_cmd, f"Failed to kill processes for 'ubuntu' user")
+            command = f"pkill -u ubuntu"
+            functions.execute_ssh_sudo_command(ssh, "CI_PASSWORD", command, f"Failed to kill processes for 'ubuntu' user")
             print(f"\033[92m[CI-FIX]          : All processes for 'ubuntu' user killed successfully.")
         else:
             print(f"\033[92m[CI-FIX]          : No running processes found for user 'ubuntu'.\033[0m")
 
         # Step 1: Disable the default ubuntu user
-        disable_ubuntu_cmd = f"echo '{ci_password}' | sudo -S deluser --remove-home ubuntu"
-        functions.execute_ssh_command(ssh, disable_ubuntu_cmd, f"Failed to delete 'ubuntu' user")
+        # disable_ubuntu_cmd = f"echo '{ci_password}' | sudo -S deluser --remove-home ubuntu"
+        # functions.execute_ssh_command(ssh, disable_ubuntu_cmd, f"Failed to delete 'ubuntu' user")
+        command = f"deluser --remove-home ubuntu"
+        functions.execute_ssh_sudo_command(ssh, "CI_PASSWORD", command, f"Failed to delete 'ubuntu' user")
         print(f"\033[92m[CI-FIX]          : User 'ubuntu' deleted successfully.")
 
     except Exception as e:
@@ -466,6 +475,9 @@ def on_guest_configuration(ssh, values, ipaddress):
         functions.end_output_to_shell()
         sys.exit(1)
 
+# config_file = "/home/nije/json-files/create_vm_fixed_ip.json"
+# ipaddress = "192.168.254.3"
+
 config_file = sys.argv[1]
 script_directory = os.path.dirname(os.path.abspath(__file__))
 print("-------------------------------------------")
@@ -479,46 +491,12 @@ print("-------------------------------------------")
 
 config = load_config(config_file)
 values = get_json_values(config)
-
-# Define mandatory and optional keys to pass to check_parameters function
-MANDATORY_KEYS = {
-    "USER": "username",
-    "HOST": "host_ip",
-    "TEMPLATE": "clone_id",
-    "ID": "id",
-    "NAME": "name",
-    "CORES": "cores",
-    "MEM": "memory",
-    "DISK": "disk",
-    "NET_DRIVER": "driver",
-    "BRIDGE": "bridge",
-    "VLAN": "vlan",
-    "CLOUDINIT_NET": "ci_network",
-    "CLOUDINIT_UPGRADE": "ci_upgrade"
-}
-
-OPTIONAL_KEYS = {
-    "BALLOON": "balloon",
-    "START_AT_BOOT": "boot_start",
-    "CLOUDINIT_USER": "ci_username",
-    "CLOUDINIT_PW": "ci_password",
-    "CLOUDINIT_PUB_KEY": "ci_publickey",
-    "CLOUDINIT_DNS_DOMAIN": "ci_domain",
-    "CLOUDINIT_DNS_SERVER": "ci_dns_server",
-    "CLOUDINIT_IP": "ci_ipaddress",
-    "CLOUDINIT_GW": "ci_gwadvalue",
-    "CLOUDINIT_MASK": "ci_netmask"
-}
-
 # Use json_test to validate JSON structure
 json_test.check_parameters(config, MANDATORY_KEYS, OPTIONAL_KEYS)
 
 print("-------------------------------------------")
 print("--          Validate JSON values         --")
 print("-------------------------------------------")
-# Define keys that are expected to be integers
-INTEGER_KEYS = ["TEMPLATE", "ID", "CORES", "MEM", "VLAN", "CLOUDINIT_UPGRADE", "CLOUDINIT_MASK"]
-
 # Validate JSON values to ensure proper types
 json_test.check_values(config, integer_keys=INTEGER_KEYS)
 
@@ -548,6 +526,7 @@ ssh.close()
 
 # login as user cloud-init shpuld have created
 ci_username = values.get("ci_username")
+os.environ["CI_PASSWORD"] = values.get("ci_password")
 ssh = functions.ssh_connect(ipaddress, ci_username)
 on_guest_temp_fix_cloudinit_part_2(ssh, values, ipaddress)
 on_guest_configuration(ssh, values, ipaddress)

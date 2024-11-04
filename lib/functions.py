@@ -45,7 +45,8 @@ def execute_ssh_sudo_command(ssh, sudo_env, command, error_message=None):
         raise EnvironmentError("The environment variable 'CI_PASSWORD' is not set. Please set it before running the script.")
 
     # Construct the sudo command with the password
-    sudo_command = f"echo {sudo_password} | sudo -S -p '' bash -c '{command}'"
+    # sudo_command = f"echo {sudo_password} | sudo -S -p '' bash -c '{command}'"
+    sudo_command = f'echo {sudo_password} | sudo -S -p "" bash -c "{command}"'
 
     try:
         # Execute the sudo command

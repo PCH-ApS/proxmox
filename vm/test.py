@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import sys
 import os
 
@@ -10,7 +12,7 @@ from const.vm_const import SSH_CONST, SSHD_CONFIG, SSHD_SEARCHSTRING, SSHD_CUSTO
 
 ipaddress = "192.168.254.3"
 ci_username = "pch"
-ci_password = os.getenv("CI_PASSWORD")  # Retrieve the password from an environment variable
+#ci_password = os.getenv("CI_PASSWORD")  # Retrieve the password from an environment variable
 
 conf_file_dir = []
 conf_files = []
@@ -55,13 +57,10 @@ try:
     params_to_add = SSH_CONST.copy()  # Tracks parameters that are missing
     params_to_change = {}  # Tracks parameters that need to be changed
 
-    #Er kommet her til !!!!
-
-
-    # Check each parameter in every configuration file
+        # Check each parameter in every configuration file
     for param, expected_value in SSH_CONST.items():
         param_found = False  # Track if parameter was found in any file
-        for conf_file in config_files:
+        for conf_file in SSHD_CONFIG:
             command = f"cat {conf_file}"
             stdin, stdout, stderr = ssh.exec_command(command)
             for line_number, line in enumerate(stdout, start=1):
@@ -70,8 +69,11 @@ try:
                     if expected_value in line:
                         params_no_change[param] = expected_value
                     else:
-                        params_to_change[param] = conf_file
-                    break  # Stop searching in the current file once parameter is found
+                        params_to_change[param] = {
+                            "expected_value": expected_value,
+                            "conf_file": conf_file
+                        }
+                    #break  # Stop searching in the current file once parameter is found
 
         if not param_found:
             # Parameter was not found in any of the configuration files
@@ -87,13 +89,56 @@ try:
         if verified_param in params_to_add:
             del params_to_add[verified_param]
 
+    # Debug information - to be removed
     print(f"Parameters that are correct: {params_no_change}")
     print(f"Parameters that must be changes: {params_to_change}")
     print(f"Parameters that must be added: {params_to_add}")
+
+
+    if len(params_to_add) > 0:
+        # Add the parameters that are completly missing
+        # Use the parth from first found include in conf_file_dir for SSHD_CUSTOMFILE filename
+        # and if no Include is found then use the path of the initial SSHD_CONFIG file for the SSHD_CUSTOMFILE filename
+        if conf_file_dir:
+            # Use the directory from the first Include found as the target directory for the custom file
+            include_dir = os.path.dirname(conf_file_dir[0])
+        else:
+            # Use the directory of the first SSHD_CONFIG file as the fallback
+            include_dir = os.path.dirname(SSHD_CONFIG[0])
+
+        # SSHD_CUSTOMFILE = f"{include_dir}{SSHD_CUSTOMFILE}"
+        SSHD_CUSTOMFILE = os.path.join(include_dir, os.path.basename(SSHD_CUSTOMFILE))
+
+        if not SSHD_CUSTOMFILE in SSHD_CONFIG:
+            command = f"touch {SSHD_CUSTOMFILE}"
+            functions.execute_ssh_sudo_command(ssh, "CI_PASSWORD", command, f"Failed to touch {SSHD_CUSTOMFILE}")
+            command = f"chmod 644 {SSHD_CUSTOMFILE}"
+            functions.execute_ssh_sudo_command(ssh, "CI_PASSWORD", command, f"Failed to change permissions on {SSHD_CUSTOMFILE}")
+            command = f"echo Include {SSHD_CUSTOMFILE} >> {SSHD_CONFIG[0]}"
+            functions.execute_ssh_sudo_command(ssh, "CI_PASSWORD", command, f"Failed to {SSHD_CUSTOMFILE} in {SSHD_CONFIG[0]}")
+
+        for param, expected_value in params_to_add.items():
+            command = f"echo {param} {expected_value} >> {SSHD_CUSTOMFILE}"
+            functions.execute_ssh_sudo_command(ssh, "CI_PASSWORD", command, f"Failed to add paramter: {param} {expected_value} to {SSHD_CUSTOMFILE}")
+
+    if len(params_to_change) > 0:
+        for param, values in params_to_change.items():
+            expected_value = values["expected_value"]
+            path_value = values["conf_file"]
+            param_found = False  # Track if parameter was found in any file
+            command = f"cat {path_value}"
+            stdin, stdout, stderr = ssh.exec_command(command)
+            for line_number, line in enumerate(stdout, start=1):
+                if line.startswith(param):
+                    param_found = True
+                    if param in line:
+                        command = f"sed -i 's/^{param} .*/{param} {expected_value}/' {path_value}"
+                        functions.execute_ssh_sudo_command(ssh, "CI_PASSWORD", command, f"Failed to add paramter: {param} {expected_value} to {SSHD_CUSTOMFILE}")
 
 except Exception as e:
     print(f"An error occurred: {e}")
 
 finally:
-    ssh.close()
+    #ssh.close()
     print("SSH connection closed")
+    ssh.close()
