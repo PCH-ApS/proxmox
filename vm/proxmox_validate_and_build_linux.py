@@ -4,6 +4,7 @@ import os
 import json
 import sys
 import time
+import getpass
 
 # Add the parent directory to the Python path to make `lib` available
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -466,134 +467,151 @@ def on_guest_configuration(ssh, values, ipaddress):
         sys.exit(1)
 
     # Set SSHD_CONFIG setting on VM
-    conf_file_dir = []
-    conf_files = []
-    config_include = False
-
-    try:
-        # Step 1: Gather list of configuration files
-        # Check if config_file has include statements to other *.conf files
-        for conf_file in SSHD_CONFIG:
-            command = f"cat {conf_file}"
-            stdin, stdout, stderr = ssh.exec_command(command)
-            for line_number, line in enumerate(stdout, start=1):
-                if line.startswith(SSHD_SEARCHSTRING):
-                    print(f"\033[92m[INFO]            : Found '{SSHD_SEARCHSTRING}' at the beginning of line {line_number}: {line.strip()}")
-                    config_include = True
-                    elements = line.split()
-                    for element in elements:
-                        if element.startswith("/"):
-                            if "*" in element:
-                                conf_file_dir.append(element)
-                            else:
-                                SSHD_CONFIG.append(element)
-
-        # Find all files matching the pattern specified in include statements
-        for pattern in conf_file_dir:
-            command = f"ls {pattern} 2>/dev/null"
-            stdin, stdout, stderr = ssh.exec_command(command)
-            matched_files = stdout.read().decode().splitlines()
-            conf_files.extend(matched_files)
-
-        for file in conf_files:
-                SSHD_CONFIG.append(file)
-
-        # Print total found configuration files
-        print(f"\033[92m[INFO]            : Found {len(SSHD_CONFIG)} sshd config files")
-
-        # Step 2: Run through all files found to check if parameters have been set
-        params_no_change = {}  # Tracks parameters that are set correctly
-        params_to_add = SSH_CONST.copy()  # Tracks parameters that are missing
-        params_to_change = {}  # Tracks parameters that need to be changed
-
-        # Check each parameter in every configuration file
-        for param, expected_value in SSH_CONST.items():
-            param_found = False  # Track if parameter was found in any file
+    for iteration in range(2):
+        conf_file_dir = []
+        conf_files = []
+        config_include = False
+        try:
+            # Step 1: Gather list of configuration files
+            # Check if config_file has include statements to other *.conf files
             for conf_file in SSHD_CONFIG:
                 command = f"cat {conf_file}"
                 stdin, stdout, stderr = ssh.exec_command(command)
                 for line_number, line in enumerate(stdout, start=1):
-                    if line.startswith(param):
-                        param_found = True
-                        if expected_value in line:
-                            params_no_change[param] = expected_value
-                        else:
-                            params_to_change[param] = {
-                                "expected_value": expected_value,
-                                "conf_file": conf_file
-                            }
-                        #break  # Stop searching in the current file once parameter is found
+                    if line.startswith(SSHD_SEARCHSTRING):
+                        print(f"\033[92m[INFO]            : In {conf_file} found '{SSHD_SEARCHSTRING}' at the beginning of line {line_number}: {line.strip()}")
+                        config_include = True
+                        elements = line.split()
+                        for element in elements:
+                            if element.startswith("/"):
+                                if "*" in element:
+                                    conf_file_dir.append(element)
+                                else:
+                                    SSHD_CONFIG.append(element)
 
-            if not param_found:
-                # Parameter was not found in any of the configuration files
-                print(f"\033[93m[INFO]            : '{param}' is missing in all configuration files.")
-
-        # Remove the verified parameters from params_to_add
-        for verified_param in params_no_change:
-            if verified_param in params_to_add:
-                del params_to_add[verified_param]
-
-        # Remove the parameters that need modification from params_to_add
-        for verified_param in params_to_change:
-            if verified_param in params_to_add:
-                del params_to_add[verified_param]
-
-        if len(params_to_add) > 0:
-            # Add the parameters that are completly missing
-            # Use the parth from first found include in conf_file_dir for SSHD_CUSTOMFILE filename
-            # and if no Include is found then use the path of the initial SSHD_CONFIG file for the SSHD_CUSTOMFILE filename
-            if conf_file_dir:
-                # Use the directory from the first Include found as the target directory for the custom file
-                include_dir = os.path.dirname(conf_file_dir[0])
-            else:
-                # Use the directory of the first SSHD_CONFIG file as the fallback
-                include_dir = os.path.dirname(SSHD_CONFIG[0])
-
-            # SSHD_CUSTOMFILE = f"{include_dir}{SSHD_CUSTOMFILE}"
-            local_sshd_customfile = os.path.join(include_dir, os.path.basename(SSHD_CUSTOMFILE))
-
-            if local_sshd_customfile not in SSHD_CONFIG:
-                command = f"touch {local_sshd_customfile}"
-                functions.execute_ssh_sudo_command(ssh, "CI_PASSWORD", command, f"Failed to touch {local_sshd_customfile}")
-                command = f"chmod 644 {local_sshd_customfile}"
-                functions.execute_ssh_sudo_command(ssh, "CI_PASSWORD", command, f"Failed to change permissions on {local_sshd_customfile}")
-                print(f"\033[92m[SUCCESS]         : Successfully created {local_sshd_customfile}")
-
-            if os.path.dirname(local_sshd_customfile) == os.path.dirname(SSHD_CONFIG[0]):
-                command = f"echo Include {local_sshd_customfile} >> {SSHD_CONFIG[0]}"
-                functions.execute_ssh_sudo_command(ssh, "CI_PASSWORD", command, f"Failed to include {local_sshd_customfile} in {SSHD_CONFIG[0]}")
-                print(f"\033[92m[SUCCESS]         : Successfully included {local_sshd_customfile} in {SSHD_CONFIG[0]}")
-
-            for param, expected_value in params_to_add.items():
-                command = f"echo {param} {expected_value} >> {local_sshd_customfile}"
-                functions.execute_ssh_sudo_command(ssh, "CI_PASSWORD", command, f"Failed to add paramter: {param} {expected_value} to {local_sshd_customfile}")
-                print(f"\033[92m[SUCCESS]         : Successfully added paramter: {param} {expected_value} to {local_sshd_customfile}")
-
-        if len(params_to_change) > 0:
-            for param, values in params_to_change.items():
-                expected_value = values["expected_value"]
-                path_value = values["conf_file"]
-                param_found = False  # Track if parameter was found in any file
-                command = f"cat {path_value}"
+            # Find all files matching the pattern specified in include statements
+            for pattern in conf_file_dir:
+                command = f"ls {pattern} 2>/dev/null"
                 stdin, stdout, stderr = ssh.exec_command(command)
-                for line_number, line in enumerate(stdout, start=1):
-                    if line.startswith(param):
-                        param_found = True
-                        if param in line:
-                            command = f"sed -i 's/^{param} .*/{param} {expected_value}/' {path_value}"
-                            functions.execute_ssh_sudo_command(ssh, "CI_PASSWORD", command, f"Failed to modify paramter: {param} {expected_value} in {path_value}")
-                            print(f"\033[92m[SUCCESS]         : Successfully modified paramter: {param} {expected_value} in {path_value}")
+                matched_files = stdout.read().decode().splitlines()
+                conf_files.extend(matched_files)
 
+            for file in conf_files:
+                    SSHD_CONFIG.append(file)
+
+            # Step 2: Run through all files found to check if parameters have been set
+            params_no_change = {}  # Tracks parameters that are set correctly
+            params_to_add = SSH_CONST.copy()  # Tracks parameters that are missing
+            params_to_change = {}  # Tracks parameters that need to be changed
+
+            # Check each parameter in every configuration file
+            for param, expected_value in SSH_CONST.items():
+                param_found = False  # Track if parameter was found in any file
+                for conf_file in SSHD_CONFIG:
+                    command = f"cat {conf_file}"
+                    stdin, stdout, stderr = ssh.exec_command(command)
+                    for line_number, line in enumerate(stdout, start=1):
+                        if line.startswith(param):
+                            param_found = True
+                            if expected_value in line:
+                                params_no_change[param] = expected_value
+                            else:
+                                params_to_change[param] = {
+                                    "expected_value": expected_value,
+                                    "conf_file": conf_file
+                                }
+                            #break  # Stop searching in the current file once parameter is found
+
+                if not param_found:
+                    # Parameter was not found in any of the configuration files
+                    print(f"\033[93m[INFO]            : '{param}' is missing in all configuration files.")
+
+            # Remove the verified parameters from params_to_add
+            for verified_param in params_no_change:
+                if verified_param in params_to_add:
+                    del params_to_add[verified_param]
+
+            # Remove the parameters that need modification from params_to_add
+            for verified_param in params_to_change:
+                if verified_param in params_to_add:
+                    del params_to_add[verified_param]
+
+            if len(params_to_add) > 0:
+                # Add the parameters that are completly missing
+                # Use the parth from first found include in conf_file_dir for SSHD_CUSTOMFILE filename
+                # and if no Include is found then use the path of the initial SSHD_CONFIG file for the SSHD_CUSTOMFILE filename
+                if conf_file_dir:
+                    # Use the directory from the first Include found as the target directory for the custom file
+                    include_dir = os.path.dirname(conf_file_dir[0])
+                else:
+                    # Use the directory of the first SSHD_CONFIG file as the fallback
+                    include_dir = os.path.dirname(SSHD_CONFIG[0])
+
+                # SSHD_CUSTOMFILE = f"{include_dir}{SSHD_CUSTOMFILE}"
+                local_sshd_customfile = os.path.join(include_dir, os.path.basename(SSHD_CUSTOMFILE))
+
+                if local_sshd_customfile not in SSHD_CONFIG:
+                    command = f"touch {local_sshd_customfile}"
+                    functions.execute_ssh_sudo_command(ssh, "CI_PASSWORD", command, f"Failed to touch {local_sshd_customfile}")
+                    command = f"chmod 644 {local_sshd_customfile}"
+                    functions.execute_ssh_sudo_command(ssh, "CI_PASSWORD", command, f"Failed to change permissions on {local_sshd_customfile}")
+                    print(f"\033[92m[SUCCESS]         : Successfully created {local_sshd_customfile}")
+
+                if os.path.dirname(local_sshd_customfile) == os.path.dirname(SSHD_CONFIG[0]):
+                    command = f"echo Include {local_sshd_customfile} >> {SSHD_CONFIG[0]}"
+                    functions.execute_ssh_sudo_command(ssh, "CI_PASSWORD", command, f"Failed to include {local_sshd_customfile} in {SSHD_CONFIG[0]}")
+                    print(f"\033[92m[SUCCESS]         : Successfully included {local_sshd_customfile} in {SSHD_CONFIG[0]}")
+
+                for param, expected_value in params_to_add.items():
+                    command = f"echo {param} {expected_value} >> {local_sshd_customfile}"
+                    functions.execute_ssh_sudo_command(ssh, "CI_PASSWORD", command, f"Failed to add paramter: {param} {expected_value} to {local_sshd_customfile}")
+                    print(f"\033[92m[SUCCESS]         : Successfully added paramter: {param} {expected_value} to {local_sshd_customfile}")
+
+            if len(params_to_change) > 0:
+                for param, values in params_to_change.items():
+                    expected_value = values["expected_value"]
+                    path_value = values["conf_file"]
+                    param_found = False  # Track if parameter was found in any file
+                    command = f"cat {path_value}"
+                    stdin, stdout, stderr = ssh.exec_command(command)
+                    for line_number, line in enumerate(stdout, start=1):
+                        if line.startswith(param):
+                            param_found = True
+                            if param in line:
+                                command = f"sed -i 's/^{param} .*/{param} {expected_value}/' {path_value}"
+                                functions.execute_ssh_sudo_command(ssh, "CI_PASSWORD", command, f"Failed to modify paramter: {param} {expected_value} in {path_value}")
+                                print(f"\033[92m[SUCCESS]         : Successfully modified paramter: {param} {expected_value} in {path_value}")
+
+        except Exception as e:
+            print(f"An error occurred: {e}")
+
+        finally:
+            command = f"systemctl restart ssh"
+            functions.execute_ssh_sudo_command(ssh, "CI_PASSWORD", command, f"Failed to restart SSH service")
+            print(f"\033[92m[SUCCESS]         : Successfully restarted SSH service")
+
+        if iteration == 0:
+            print(f"\033[92m[INFO]            : Waiting for 5 seconds before running iteration 2")
+            time.sleep(5)
+
+    print(f"\033[92m[SUCCESS]         : sshd_config has the exoected configuration")
+
+    # Change the password of ci_username
+    try:
+        # Connection to the remote host is key based
+        # Prompt for the new password and store it in an evironment variable
+        # construct a command: command = f"command to change password for the username i {ci_username}"
+        # that will be executes by functions.execute_ssh_sudo_command(ssh, "CI_PASSWORD", command, f"Failed to change password on {ci_username}e}")
+        # the function will execute the command on the remote host with sudo priveliges
+        os.environ["NEW_PASSWORD"] = getpass.getpass(f"Enter new password for user '{ci_username}': ")
+        functions.change_remote_password(ssh, "CI_PASSWORD", "NEW_PASSWORD", {ci_username})
+        print(f"\033[92m[SUCCESS]         : Password for user '{ci_username}' has been changed successfully.")
+        
     except Exception as e:
-        print(f"An error occurred: {e}")
+         print(f"An error occurred: {e}")
 
     finally:
-        print(f"\033[92m[SUCCESS]         : sshd_config has the exoected configuration")
-        command = f"systemctl restart ssh"
-        functions.execute_ssh_sudo_command(ssh, "CI_PASSWORD", command, f"Failed to restart SSH service")
-        print(f"\033[92m[SUCCESS]         : Successfully restarted SSH service")
-
-
+        os.environ.pop("NEW_PASSWORD", None)
 
 config_file = "/home/nije/json-files/create_vm_fixed_ip.json"
 ipaddress = "192.168.254.3"
@@ -626,31 +644,30 @@ print("-------------------------------------------")
 check_conditional_values(values)
 
 # Establish SSH connection to Proxmox server
-# ssh = functions.ssh_connect(values.get("host"), values.get("user"))
+ssh = functions.ssh_connect(values.get("host"), values.get("user"))
 
 # Create and configure the VM
-# create_server(ssh, values)
-# create_ci_options(ssh, values)
-# create_cloudinit(ssh, values)
-# start_vm(ssh, values)
+create_server(ssh, values)
+create_ci_options(ssh, values)
+create_cloudinit(ssh, values)
+start_vm(ssh, values)
 
 # Wait and get the VM's IPv4 address
-# ipaddress = get_vm_ipv4_address(ssh, values)
-# temp_fix_cloudinit(ssh, values)
-# ssh.close()
+ipaddress = get_vm_ipv4_address(ssh, values)
+temp_fix_cloudinit(ssh, values)
+ssh.close()
 
 # login as the local default user
-# ssh = functions.ssh_connect(ipaddress, "ubuntu")
-# on_guest_temp_fix_cloudinit(ssh, values, ipaddress)
-# ssh.close()
+ssh = functions.ssh_connect(ipaddress, "ubuntu")
+on_guest_temp_fix_cloudinit(ssh, values, ipaddress)
+ssh.close()
 
 # login as user cloud-init shpuld have created
 ci_username = values.get("ci_username")
 os.environ["CI_PASSWORD"] = values.get("ci_password")
 ssh = functions.ssh_connect(ipaddress, ci_username)
-# on_guest_temp_fix_cloudinit_part_2(ssh, values, ipaddress)
+on_guest_temp_fix_cloudinit_part_2(ssh, values, ipaddress)
 on_guest_configuration(ssh, values, ipaddress)
-#functions.configure_sshd_config(ssh, values)
 ssh.close()
 
 functions.end_output_to_shell()
