@@ -4,7 +4,6 @@ import os
 import json
 import sys
 import time
-import getpass
 
 # Add the parent directory to the Python path to make `lib` available
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))

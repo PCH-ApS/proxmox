@@ -2,19 +2,15 @@
 
 import json
 import sys
-import re
-import paramiko
-import subprocess
-import time
-import getpass
+import os
 
-print("-------------------------------------------")
-print("--   Validate JSON and build template    --")
-print("-------------------------------------------")
+# Add the parent directory to the Python path to make `lib` available
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-def end_output_to_shell():
-    print("\033[0m-------------------------------------------")
-    print("")
+# Now you can import the module from lib
+from lib import functions
+from lib import json_test
+from const.template_const import MANDATORY_KEYS, OPTIONAL_KEYS, INTEGER_KEYS
 
 def load_config(config_file):
     """Load configuration from a JSON file."""
@@ -24,7 +20,7 @@ def load_config(config_file):
         return config
     except Exception as e:
         print(f"\033[91m[ERROR]           : Error reading the configuration file: {e}")
-        end_output_to_shell()
+        functions.end_output_to_shell()
         sys.exit(1)
 
 def get_json_values(config):
@@ -42,21 +38,6 @@ def get_json_values(config):
         "bridge": config.get("NETWORK_BRIDGE").get("bridge"),
         "image": config.get("DISKIMAGE").get("image")
     }
-
-def ssh_connect(host, username, password=None):
-    """Establish SSH connection to the remote host securely using key-based auth."""
-    try:
-        ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        if password:
-            ssh.connect(hostname=host, username=username, password=password)
-        else:
-            ssh.connect(hostname=host, username=username)
-        print(f"\033[92m[SUCCESS]         : Successfully connected to {host} as {username}.")
-        return ssh
-    except Exception as e:
-        print(f"\033[91m[ERROR]           : Failed to connect to {host} as {username}: {e}")
-        sys.exit(1)
 
 def check_template_id_in_use(ssh, values):
     template_id = values.get("id")
@@ -124,14 +105,35 @@ def create_template(ssh, values):
         sys.exit(1)
 
 config_file = sys.argv[1]
+script_directory = os.path.dirname(os.path.abspath(__file__))
+print("-------------------------------------------")
+print(f"Parameter filename: {config_file}")
+print(f"Script directory  : {script_directory}")
+print("-------------------------------------------")
+print("")
+print("-------------------------------------------")
+print("--        Validate JSON structure        --")
+print("-------------------------------------------")
+
 config = load_config(config_file)
 values = get_json_values(config)
+# Use json_test to validate JSON structure
+json_test.check_parameters(config, MANDATORY_KEYS, OPTIONAL_KEYS)
 
-# Establish SSH connection to Proxmox server
-ssh = ssh_connect(values.get("host"), values.get("user"))
+print("-------------------------------------------")
+print("--          Validate JSON values         --")
+print("-------------------------------------------")
+# Validate JSON values to ensure proper types
+json_test.check_values(config, integer_keys=INTEGER_KEYS)
+
+print("-------------------------------------------")
+print("--             Build template            --")
+print("-------------------------------------------")
+
+ssh = functions.ssh_connect(values.get("host"), values.get("user"))
 
 # Create and configure the VM
 create_template(ssh, values)
-
 ssh.close()
-end_output_to_shell()
+
+functions.end_output_to_shell()
