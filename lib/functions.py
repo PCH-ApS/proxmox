@@ -78,13 +78,13 @@ def wait_for_reboot(host, username, password=None, timeout=300, interval=10):
             ssh = paramiko.SSHClient()
             ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             if password:
-                ssh.connect(hostname=host, username=username, password=password)
+                ssh.connect(host, username, password)
             else:
-                ssh.connect(hostname=host, username=username)
+                ssh.connect(host, username)
             print(f"\033[92m[SUCCESS]         : Successfully reconnected to {host} after reboot.")
             return ssh
         except Exception:
-            print(f"\033[93m[INFO]            : Waiting for VM '{host}' to reboot...")
+            print(f"\033[93m[INFO]            : Waiting for '{host}' to reboot...")
             time.sleep(interval)
     print(f"\033[91m[ERROR]           : Timeout while waiting for {host} to reboot.")
     sys.exit(1)
