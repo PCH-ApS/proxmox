@@ -5,6 +5,7 @@ import json
 import sys
 import time
 import paramiko
+import getpass
 
 # Add the parent directory to the Python path to make `lib` available
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -12,7 +13,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 # Now you can import the module from lib
 from lib import functions
 from lib import json_test
-from const.host_const import MANDATORY_KEYS, OPTIONAL_KEYS, INTEGER_KEYS
+from const.host_const import MANDATORY_KEYS, OPTIONAL_KEYS, INTEGER_KEYS, SSH_CONST, SSHD_CONFIG, SSHD_SEARCHSTRING, SSHD_CUSTOMFILE
 
 def load_config(config_file):
     """Load configuration from a JSON file."""
@@ -92,12 +93,10 @@ def check_hostname(ssh, values):
                 # Close the SSH connection because the host is going down for reboot
                 ssh.close()
 
-                # Wait for 60 seconds before attempting to reconnect
-                time.sleep(10)
-
                 # Attempt to reconnect after reboot
                 print(f"\033[92m[INFO]            : Waiting for {pve_hostip} to reboot...")
                 ssh_up = None
+                time.sleep(10)
 
                 while total_waited < max_wait_time:
                     try:
@@ -240,19 +239,19 @@ def configure_sshd(ssh, values):
 
                 if local_sshd_customfile not in SSHD_CONFIG:
                     command = f"touch {local_sshd_customfile}"
-                    functions.execute_ssh_sudo_command(ssh, "CI_PASSWORD", command, f"Failed to touch {local_sshd_customfile}")
+                    functions.execute_ssh_command(ssh, command, f"Failed to touch {local_sshd_customfile}")
                     command = f"chmod 644 {local_sshd_customfile}"
-                    functions.execute_ssh_sudo_command(ssh, "CI_PASSWORD", command, f"Failed to change permissions on {local_sshd_customfile}")
+                    functions.execute_ssh_command(ssh, command, f"Failed to change permissions on {local_sshd_customfile}")
                     print(f"\033[92m[SUCCESS]         : Successfully created {local_sshd_customfile}")
 
                 if os.path.dirname(local_sshd_customfile) == os.path.dirname(SSHD_CONFIG[0]):
                     command = f"echo Include {local_sshd_customfile} >> {SSHD_CONFIG[0]}"
-                    functions.execute_ssh_sudo_command(ssh, "CI_PASSWORD", command, f"Failed to include {local_sshd_customfile} in {SSHD_CONFIG[0]}")
+                    functions.execute_ssh_command(ssh, command, f"Failed to include {local_sshd_customfile} in {SSHD_CONFIG[0]}")
                     print(f"\033[92m[SUCCESS]         : Successfully included {local_sshd_customfile} in {SSHD_CONFIG[0]}")
 
                 for param, expected_value in params_to_add.items():
                     command = f"echo {param} {expected_value} >> {local_sshd_customfile}"
-                    functions.execute_ssh_sudo_command(ssh, "CI_PASSWORD", command, f"Failed to add paramter: {param} {expected_value} to {local_sshd_customfile}")
+                    functions.execute_ssh_command(ssh, command, f"Failed to add paramter: {param} {expected_value} to {local_sshd_customfile}")
                     print(f"\033[92m[SUCCESS]         : Successfully added paramter: {param} {expected_value} to {local_sshd_customfile}")
 
             if len(params_to_change) > 0:
@@ -267,7 +266,7 @@ def configure_sshd(ssh, values):
                             param_found = True
                             if param in line:
                                 command = f"sed -i 's/^{param} .*/{param} {expected_value}/' {path_value}"
-                                functions.execute_ssh_sudo_command(ssh, "CI_PASSWORD", command, f"Failed to modify paramter: {param} {expected_value} in {path_value}")
+                                functions.execute_ssh_command(ssh, command, f"Failed to modify paramter: {param} {expected_value} in {path_value}")
                                 print(f"\033[92m[SUCCESS]         : Successfully modified paramter: {param} {expected_value} in {path_value}")
 
         except Exception as e:
@@ -275,7 +274,7 @@ def configure_sshd(ssh, values):
 
         finally:
             command = f"systemctl restart ssh"
-            functions.execute_ssh_sudo_command(ssh, "CI_PASSWORD", command, f"Failed to restart SSH service")
+            functions.execute_ssh_command(ssh, command, f"Failed to restart SSH service")
             print(f"\033[92m[SUCCESS]         : Successfully restarted SSH service")
 
         if iteration == 0:
@@ -284,21 +283,181 @@ def configure_sshd(ssh, values):
 
     print(f"\033[92m[SUCCESS]         : sshd_config has the exoected configuration")
 
+def set_pve_no_subscription(ssh, values):
+    pve_hostip = values.get("pve_host")
+    pve_username = values.get("pve_user")
 
+    """Check and modify the pve_no_subscription setting."""
+    try:
+        # Step 1: Check if the pve-no-subscription repository is enabled or commented
+        check_repo_cmd = 'grep -q "^deb .*pve-no-subscription" /etc/apt/sources.list && echo "enabled" || grep -q "^# deb .*pve-no-subscription" /etc/apt/sources.list && echo "commented" || echo "not_found"'
+        stdin, stdout, stderr = ssh.exec_command(check_repo_cmd)
 
+        result = stdout.read().decode().strip()
 
+        if result == "enabled":
+            print("\033[92m[INFO]            : pve-no-subscription repository is already enabled.")
 
+        elif result == "commented":
+            print("\033[91m[INFO]            : pve-no-subscription repository is found but not enabled. Enabling it now...")
+            # Step 2: Enable the pve-no-subscription repository (uncomment it)
+            enable_repo_cmd = "sed -i 's/^# deb \\(.*pve-no-subscription\\)/deb \\1/' /etc/apt/sources.list"
+            ssh.exec_command(enable_repo_cmd)
+            print(f"\033[92m[SUCCESS]         : pve-no-subscription repository has been enabled.")
 
+        elif result == "not_found":
+            print("\033[91m[INFO]            : pve-no-subscription repository not found. Adding it now...")
+            # Step 3: Add the pve-no-subscription repository to sources.list
+            add_repo_cmd = 'echo "deb http://download.proxmox.com/debian/pve bookworm pve-no-subscription" | tee -a /etc/apt/sources.list > /dev/null'
+            ssh.exec_command(add_repo_cmd)
+            print(f"\033[92m[SUCCESS]         : pve-no-subscription repository has been added to /etc/apt/sources.list.")
 
+        # Step 4: Check and disable enterprise repository if not already disabled
+        check_enterprise_repo_cmd = 'grep -q "^deb .*bookworm pve-enterprise" /etc/apt/sources.list.d/pve-enterprise.list && echo "enabled" || echo "disabled"'
+        stdin, stdout, stderr = ssh.exec_command(check_enterprise_repo_cmd)
+        enterprise_result = stdout.read().decode().strip()
 
+        if enterprise_result == "enabled":
+            print("\033[91m[INFO]            : Enterprise repository is enabled. Disabling it now by commenting it out...")
+            disable_enterprise_repo_cmd = r"sed -i 's/^\(deb .*bookworm pve-enterprise\)/# \1/' /etc/apt/sources.list.d/pve-enterprise.list"
+            ssh.exec_command(disable_enterprise_repo_cmd)
+            print(f"\033[92m[SUCCESS]         : Enterprise repository has been disabled by commenting it out.")
+        else:
+            print("\033[92m[INFO]            : Enterprise repository is already disabled.")
 
+        # Step 5: Comment out Ceph-related entries in ceph.list
+        check_ceph_list_cmd = 'grep -q "^deb .*ceph-quincy bookworm enterprise" /etc/apt/sources.list.d/ceph.list && echo "enabled" || echo "disabled"'
+        stdin, stdout, stderr = ssh.exec_command(check_ceph_list_cmd)
+        ceph_list_result = stdout.read().decode().strip()
 
+        if ceph_list_result == "enabled":
+            print("\033[91m[INFO]            : ceph.list found. Commenting out ceph-quincy, bookworm, or enterprise entries...")
+            comment_ceph_entries_cmd = r"sed -i 's/^\(deb .*bookworm enterprise\)/# \1/' /etc/apt/sources.list.d/ceph.list"
+            ssh.exec_command(comment_ceph_entries_cmd)
+            print(f"\033[92m[SUCCESS]         : Ceph-related entries have been commented out in ceph.list.")
+        else:
+            print("\033[92m[INFO]            : ceph.list is already disabled.")
 
+        # Step 6: Apply pve-no-subscription patch
+        print("\033[92m[INFO]            : Attempting pve-no-subscription patch...")
 
-# DEBUG
-config_file = "/home/nije/json-files/test.json"
+        file_path = '/usr/share/perl5/PVE/API2/Subscription.pm'
+        find_str = 'NotFound'
+        replace_str = 'Active'
 
-#config_file = sys.argv[1]
+        # Check if the file exists
+        check_file_cmd = f'test -f "{file_path}" && echo "exists" || echo "not_exists"'
+        stdin, stdout, stderr = ssh.exec_command(check_file_cmd)
+        file_exists = stdout.read().decode().strip()
+
+        if file_exists == "not_exists":
+            print(f"\033[91m[ERROR]           : {file_path} does not exist! Are you sure this is PVE?")
+            ssh.close()
+            sys.exit(1)
+        else:
+            # Check if the file contains 'NotFound'
+            check_find_cmd = f'grep -i "{find_str}" "{file_path}" && echo "found" || echo "not_found"'
+            stdin, stdout, stderr = ssh.exec_command(check_find_cmd)
+            find_result = stdout.read().decode().strip()
+
+            if find_result == "not_found":
+                print(f"\033[92m[INFO]            : PVE appears to be patched.")
+            else:
+                # Apply the patch (replace 'NotFound' with 'Active')
+                print(f"\033[92m[INFO]            : Applying pve-no-subscription patch in {file_path}...")
+                apply_patch_cmd = f'sed -i "s/{find_str}/{replace_str}/gi" "{file_path}"'
+                ssh.exec_command(apply_patch_cmd)
+
+                # Restart the services
+                print(f"\033[92m[INFO]            : Restarting services...")
+                ssh.exec_command('systemctl restart pvedaemon')
+                ssh.exec_command('systemctl restart pveproxy')
+
+                print(f"\033[92m[SUCCESS]         : Subscription updated from {find_str} to {replace_str}.")
+
+    except Exception as e:
+        print(f"\033[91m[ERROR]           : Error connecting to Proxmox host via SSH: {e}")
+        sys.exit(1)
+
+def download_iso(ssh, values):
+    pve_iso_urls = values.get("pve_iso")  # Correct access to 'pve_iso' key
+
+    if not pve_iso_urls:
+        print(f"\033[91m[ERROR]           : No ISO URLs provided in the configuration file.")
+        sys.exit(1)
+
+    try:
+        # Step 1: Ensure the directory exists
+        print(f"\033[92m[INFO]            : Ensuring /var/lib/vz/template/iso exists on the remote host...")
+        ssh.exec_command("mkdir -p /var/lib/vz/template/iso")
+
+        # Step 2: Check if each ISO image already exists and download if not
+        for url in pve_iso_urls:
+            iso_filename = url.split('/')[-1]
+            iso_filepath = f"/var/lib/vz/template/iso/{iso_filename}"
+
+            # Check if the file already exists on the remote host
+            check_file_cmd = f"test -f {iso_filepath} && echo 'exists' || echo 'not_exists'"
+            stdin, stdout, stderr = ssh.exec_command(check_file_cmd)
+            file_exists = stdout.read().decode().strip()
+
+            if file_exists == "exists":
+                print(f"\033[93m[INFO]            : {iso_filename} already exists, skipping download.")
+            else:
+                print(f"\033[92m[INFO]            : Downloading {iso_filename} to /var/lib/vz/template/iso...")
+
+                # Execute wget and wait for it to complete
+                download_cmd = f"wget -q -P /var/lib/vz/template/iso {url}"
+                stdin, stdout, stderr = ssh.exec_command(download_cmd)
+
+                # Wait for the command to complete and check if any errors occurred
+                exit_status = stdout.channel.recv_exit_status()  # Wait for the command to finish
+                if exit_status == 0:
+                    print(f"\033[92m[SUCCESS]         : {iso_filename} has been successfully downloaded.")
+                else:
+                    error_message = stderr.read().decode().strip()
+                    print(f"\033[91m[ERROR]           : Failed to download {iso_filename}. Error: {error_message}")
+
+        # Close the SSH connection
+        ssh.close()
+
+    except Exception as e:
+        print(f"\033[91m[ERROR]           : Error connecting to Proxmox host via SSH: {e}")
+        sys.exit(1)
+
+def change_remote_password(ssh, values):
+    pve_hostip = values.get("pve_host")
+    pve_username = values.get("pve_user")
+    """Change the password of a remote user on the Proxmox host."""
+    new_password = getpass.getpass(f"Enter new password for '{pve_username}': ")
+    if not new_password:
+        print(f"\033[91m[ERROR]           : New password value is not set\033[0m")
+
+    try:
+        # Command to change the password on the remote host
+        change_password_cmd = f'echo "{pve_username}:{new_password}" | chpasswd'
+
+        # Execute the command
+        print(f"\033[92m[INFO]            : Changing password on {pve_hostip}...")
+        stdin, stdout, stderr = ssh.exec_command(change_password_cmd)
+
+        # Wait for the command to finish and check for errors
+        exit_status = stdout.channel.recv_exit_status()
+        if exit_status == 0:
+            print(f"\033[92m[SUCCESS]         : Password for user {pve_username} on {pve_hostip} has been updated successfully.")
+        else:
+            error_message = stderr.read().decode().strip()
+            print(f"\033[91m[ERROR]           : Failed to update password. Error: {error_message}")
+            sys.exit(1)
+
+        # Close the SSH connection
+        ssh.close()
+
+    except Exception as e:
+        print(f"\033[91m[ERROR]           : Error connecting to {pve_hostip}: {e}")
+        sys.exit(1)
+
+config_file = sys.argv[1]
 script_directory = os.path.dirname(os.path.abspath(__file__))
 print("-------------------------------------------")
 print(f"Parameter filename: {config_file}")
@@ -329,7 +488,10 @@ ssh = functions.ssh_connect(values.get("pve_host"), values.get("pve_user"))
 add_snippets_folder(ssh, values)
 check_hostname(ssh,values)
 ssh = functions.ssh_connect(values.get("pve_host"), values.get("pve_user"))
-
+configure_sshd(ssh, values)
+set_pve_no_subscription(ssh, values)
+download_iso(ssh, values)
+change_remote_password(ssh, values)
 ssh.close()
 
 functions.end_output_to_shell()
