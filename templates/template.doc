@@ -1,0 +1,88 @@
+# Full Documentation for Template Creation Script
+
+## Overview
+This script automates the creation of a VM template on a Proxmox host. It reads configuration from a JSON file, validates it, and connects to the Proxmox server to create a VM that is subsequently converted into a reusable template. The script ensures that all necessary resources (storage, bridge, etc.) are available before proceeding with the template creation.
+
+### Prerequisites
+- Python 3.x installed to run the script.
+- A Proxmox server with SSH access enabled.
+- Access to the `lib` directory containing helper modules: `functions` and `json_test`.
+
+### Dependencies
+- **paramiko**: For SSH connectivity to the Proxmox host.
+- **json**: For loading and parsing configuration files.
+
+### Key Modules and Configuration Files
+- **lib/functions**: Contains helper functions, e.g., for SSH command execution and connection handling.
+- **lib/json_test**: Used for validating the structure and values of the JSON configuration.
+- **const/template_const**: Contains constants like `MANDATORY_KEYS` and `OPTIONAL_KEYS` that are used for validation.
+
+## Script Usage
+This script reads the configuration from a JSON file and proceeds with various validation and VM template creation tasks. Below is the explanation of each function and step-by-step usage instructions.
+
+### Usage Instructions
+1. **Prepare the JSON Configuration File**
+   - Ensure the JSON configuration file exists and contains mandatory keys such as USER, HOST, ID, NAME, etc.
+
+2. **Run the Script**
+   Execute the script using the following command:
+   ```bash
+   ./your_script_name.py /path/to/configuration.json
+   ```
+   Replace `/path/to/configuration.json` with the path to your JSON configuration file.
+
+### Configuration File Keys
+The JSON configuration file must contain keys for the VM settings, including:
+- **USER**: Username to access Proxmox server.
+- **HOST**: Host IP of the Proxmox server.
+- **ID**: Unique identifier for the template.
+- **NAME**: Name of the template.
+- **CORES**: Number of CPU cores for the template.
+- **MEMORY**: Amount of memory for the template.
+- **STORAGE_CONTROLLER**: Type of storage controller.
+- **LOCAL_STORAGE**: Storage location on Proxmox.
+- **NETWORK_CONTROLLER**: Network interface controller.
+- **NETWORK_BRIDGE**: Network bridge.
+- **DISKIMAGE**: Disk image to be used for the template.
+
+### Main Functions
+
+#### 1. **load_config(config_file)**
+   Loads the configuration from the given JSON file. Exits the script with an error message if the file cannot be read.
+
+#### 2. **get_json_values(config)**
+   Extracts needed values from the loaded configuration for VM setup, such as host, memory, cores, storage, and network settings.
+
+#### 3. **check_template_id_in_use(ssh, values)**
+   Checks if the given template ID is already in use on the Proxmox host. If so, exits the script with an error.
+
+#### 4. **check_bridge_exists(ssh, values)**
+   Verifies if the specified network bridge exists and is active on the Proxmox server.
+
+#### 5. **check_storage_exists(ssh, values)**
+   Confirms that the given storage exists on the Proxmox host.
+
+#### 6. **create_template(ssh, values)**
+   Creates a new VM on the Proxmox server and converts it into a reusable template. This includes:
+   - Setting CPU, memory, and storage configuration.
+   - Setting up networking and boot options.
+   - Executing each configuration step via SSH to the Proxmox server.
+
+### Error Handling
+- **[ERROR]**: Any critical issues during the configuration or template creation will print an error message and stop the script.
+- **[SUCCESS]**: Successful steps are logged for better traceability.
+
+### Example JSON Configuration File
+See the create_template_master.json
+
+### Exiting the Script
+The script ends with `functions.end_output_to_shell()` to gracefully close any output streams.
+
+### Security Note
+Avoid storing sensitive credentials like passwords in plaintext. Use secure methods to handle such information.
+
+### Logging and Output
+- The script provides log messages for informational purposes (`[INFO]`), success (`[SUCCESS]`), and errors (`[ERROR]`).
+
+## Conclusion
+This script simplifies the process of creating VM templates in Proxmox. By using a JSON configuration file, it ensures consistency and ease of reuse for multiple template creations. Proper setup of SSH connectivity and JSON configuration is critical for the successful execution of this script.
