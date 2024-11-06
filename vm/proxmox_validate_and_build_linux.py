@@ -596,27 +596,10 @@ def on_guest_configuration(ssh, values, ipaddress):
 
     print(f"\033[92m[SUCCESS]         : sshd_config has the exoected configuration")
 
-    # Change the password of ci_username
-    try:
-        # Connection to the remote host is key based
-        # Prompt for the new password and store it in an evironment variable
-        # construct a command: command = f"command to change password for the username i {ci_username}"
-        # that will be executes by functions.execute_ssh_sudo_command(ssh, "CI_PASSWORD", command, f"Failed to change password on {ci_username}e}")
-        # the function will execute the command on the remote host with sudo priveliges
-        os.environ["NEW_PASSWORD"] = getpass.getpass(f"Enter new password for user '{ci_username}': ")
-        functions.change_remote_password(ssh, "CI_PASSWORD", "NEW_PASSWORD", {ci_username})
-        print(f"\033[92m[SUCCESS]         : Password for user '{ci_username}' has been changed successfully.")
-        
-    except Exception as e:
-         print(f"An error occurred: {e}")
+    # Change the password on the remote host to something else then the default from .json
+    functions.change_remote_password(ssh, ci_username, ci_password)
 
-    finally:
-        os.environ.pop("NEW_PASSWORD", None)
-
-config_file = "/home/nije/json-files/create_vm_fixed_ip.json"
-ipaddress = "192.168.254.3"
-
-#config_file = sys.argv[1]
+config_file = sys.argv[1]
 script_directory = os.path.dirname(os.path.abspath(__file__))
 print("-------------------------------------------")
 print(f"Parameter filename: {config_file}")

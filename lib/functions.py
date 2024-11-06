@@ -71,45 +71,6 @@ def execute_ssh_sudo_command(ssh, sudo_env, command, error_message=None):
         print(f"An unexpected error occurred while executing the command: {e}")
         sys.exit(1)
 
-def change_remote_password(ssh, sudo_env, new_password, ci_username):
-    sudo_password = os.getenv(sudo_env)
-    new_password = os.getenv(new_password)
-
-    if not sudo_password:
-        raise EnvironmentError("The environment variable 'CI_PASSWORD' is not set. Please set it before running the script.")
-
-    if not new_password:
-        raise EnvironmentError("The environment variable 'NEW_PASSWORD' is not set. Please set it before running the script.")
-
-    # Construct the sudo command with the password
-    #command = f"echo '{ci_username}:{new_password}' | sudo chpasswd"
-    #sudo_command = f'echo {sudo_password} | sudo -S -p "" bash -c "{command}"'
-    #sudo_command = echo password | sudo -S -p "" bash -c "echo 'pch:password1' | chpasswd"
-    sudo_command = f"echo {sudo_password} | sudo -S -p \"\" bash -c \"echo '{ci_username}:{new_password}' | chpasswd\""
-
-
-    try:
-        # Execute the sudo command
-        stdin, stdout, stderr = ssh.exec_command(sudo_command)
-
-        # No need to write password again here; it is piped via the command.
-
-        # Get the command's exit status and output
-        exit_status = stdout.channel.recv_exit_status()
-        output = stdout.read().decode().strip()
-        error_output = stderr.read().decode().strip()
-
-        # Handle command errors
-        if exit_status != 0:
-            print(f"\033[91m[ERROR]           : Failed to change password on {ci_username}: {error_output}\033[0m")
-            sys.exit(1)
-
-        return output
-
-    except Exception as e:
-        print(f"An unexpected error occurred while executing the command: {e}")
-        sys.exit(1)
-
 def wait_for_reboot(host, username, password=None, timeout=300, interval=10):
     start_time = time.time()
     while time.time() - start_time < timeout:
@@ -225,64 +186,39 @@ def check_vlan(values):
 
     print(f"\033[92m[INFO]            : VLAN id '{value_string}' is a valid VLAN.")
 
-def change_remote_password(remote_host, remote_user, new_password, ssh=None):
+def change_remote_password(ssh, remote_user, current_password):
 
+    # Change the password of ci_username
     try:
-        # Create an SSH client if none is provided
-        if ssh is None:
-            ssh = ssh_connect(remote_host, remote_user)
+        # Prompt for the new password and store it in an environment variable
+        new_password = getpass.getpass(f"Enter new password for user '{remote_user}': ")
+        if not new_password:
+            print(f"\033[91m[ERROR]           : New password value is not set\033[0m")
 
-        # Determine if the password is for the current user or a different user
-        current_user = get_current_user(ssh)
-        if current_user is None:
-            print(f"\033[91m[ERROR]           : Unable to determine the current user.")
-            return False
+        # Construct the command to change the password
+        # Make sure to properly format the string and include the environment variable correctly
+        sudo_command = f"echo {current_password} | sudo -S -p '' bash -c \"echo '{remote_user}:{new_password}' | chpasswd\""
 
-        if remote_user == current_user:
-            change_password_cmd = f'echo "{remote_user}:{new_password}" | chpasswd'
+        # Execute the sudo command
+        stdin, stdout, stderr = ssh.exec_command(sudo_command)
 
-        else:
-            # Prompt for sudo password for changing another user's password
-            print(f"\033[93m[INFO]            : Changing password for user '{remote_user}' on {remote_host} requires sudo privileges.")
-            sudo_password = getpass.getpass(prompt="Enter sudo password: ")
+        # No need to write password again here; it is piped via the command
 
-            # Use expect script to change the password for another user using sudo
-            change_password_cmd = f"echo '{sudo_password}' | sudo -S sh -c \"echo '{remote_user}:{new_password}' | chpasswd\""
-
-        # Execute the command
-        print(f"\033[92m[INFO]            : Changing password for user '{remote_user}' on {remote_host}...")
-        stdin, stdout, stderr = ssh.exec_command(change_password_cmd)
-
-        # Wait for the command to finish and check for errors
+        # Get the command's exit status and output
         exit_status = stdout.channel.recv_exit_status()
-        if exit_status == 0:
-            print(f"\033[92m[SUCCESS]         : Password for user '{remote_user}' on {remote_host} has been updated successfully.")
-            return True
-        else:
-            error_message = stderr.read().decode().strip()
-            print(f"\033[91m[ERROR]           : Failed to update password. Error: {error_message}")
-            return False
+        output = stdout.read().decode().strip()
+        error_output = stderr.read().decode().strip()
+
+        # Handle command errors
+        if exit_status != 0:
+            print(f"\033[91m[ERROR]           : Failed to change password on {remote_user}: {error_output}\033[0m")
+            sys.exit(1)
+
+        print(f"\033[92m[SUCCESS]         : Password for user '{remote_user}' has been changed successfully.")
 
     except Exception as e:
-        print(f"\033[91m[ERROR]           : Error updating password on {remote_host}: {e}")
-        return False
+        print(f"An error occurred: {e}")
 
     finally:
-        if ssh is not None:
-            ssh.close()
-            print(f"\033[92m[INFO]            : SSH connection to {remote_host} closed.")
-
-def get_new_password(remote_user, remote_host):
-    """Prompt user to enter a new password."""
-    print(f"\033[93m[INFO]            : Enter the new password for the user '{remote_user}' on '{remote_host}':")
-    new_password = getpass.getpass(prompt="New Password: ")
-    return new_password
-
-def get_current_user(ssh):
-    try:
-        stdin, stdout, stderr = ssh.exec_command("whoami")
-        current_user = stdout.read().decode().strip()
-        return current_user
-    except Exception as e:
-        print(f"\033[91m[ERROR]           : Failed to get current user on remote host: {e}")
-        return None
+        # Remove the NEW_PASSWORD from environment variables
+        new_password = ""
