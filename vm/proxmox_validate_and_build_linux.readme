@@ -1,0 +1,41 @@
+# README for VM Creation Script
+
+## Overview
+
+This script automates the creation and configuration of a virtual machine (VM) on a Proxmox host. It reads a JSON configuration file, establishes SSH connections to the Proxmox server and guest VM, and applies the necessary settings to prepare the VM for deployment, including cloud-init configurations.
+
+## Prerequisites
+
+- Python 3.x installed.
+- Ensure access to the `lib` directory containing `functions` and `json_test` modules.
+- Proxmox server with SSH enabled and a compatible VM template.
+- Install required Python dependencies (`paramiko`).
+
+## Usage
+
+1. **Set up the JSON Configuration File**: Prepare a JSON file (`create_vm_master.json`) containing details about the VM to be created (e.g., username, memory, cores).
+2. **Run the Script**: Use the following command to run the script:
+   ```bash
+   ./your_script_name.py /path/to/configuration.json
+   ```
+3. **Monitor the Process**: The script will log all actions and report any errors during execution.
+
+## Key Functions
+
+- **VM Creation**: Clone a template and assign memory, CPU, and other configurations.
+- **Cloud-init Setup**: Apply networking, user, and SSH settings.
+- **SSH Configuration**: Update SSHD configurations and set up secure access.
+- **Change user password**: Prompt for new pssword to replace the default specified in the .json
+
+## Example Configuration
+see create_vm_master.json
+
+## Notes
+
+- **Security**: Store sensitive data like passwords securely. Avoid plaintext storage in public repositories.
+- **Logging**: The script provides console logs for progress and error messages.
+
+## Conclusion
+
+This script simplifies VM provisioning in Proxmox, especially for environments requiring cloud-init configurations. Modify the JSON file to tailor VMs to your specific needs.
+
