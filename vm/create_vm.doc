@@ -1,0 +1,85 @@
+# VM Creation and Configuration Script Documentation
+
+## Overview
+This script is designed to automate the creation and configuration of virtual machines (VMs) on a Proxmox Virtual Environment. It reads configuration values from a JSON file, interacts with Proxmox through SSH, and sets up a VM with specified cloud-init options. It handles tasks such as cloning a VM, configuring hardware, adding SSH keys, and configuring cloud-init settings.
+
+### Prerequisites
+- Python 3.x installed.
+- Access to a Proxmox server.
+- Ensure that the `lib` directory is available and contains `functions.py` and `json_test.py`.
+- A JSON configuration file with all the required parameters.
+- Dependencies: Python packages such as `paramiko` may be used (check `functions.py`).
+
+### How to Run the Script
+
+1. **Prepare the Configuration JSON**
+   - The script uses a JSON file as its input. This file must define all necessary parameters such as the VM name, disk size, cores, cloud-init options, etc.
+   - Required JSON keys are:
+     - `USER`, `HOST`, `TEMPLATE`, `ID`, `NAME`, `DISK`, `CORES`, `MEM`, `BRIDGE`, etc.
+   - Paths should be updated to point to the correct JSON file.
+
+2. **Configure SSH Access**
+   - The script establishes an SSH connection to the Proxmox server to execute commands such as cloning VMs and modifying configuration settings.
+   - Ensure SSH keys or password authentication are correctly set up between the host running this script and the Proxmox server.
+
+3. **Execution**
+   - Make sure the script is executable by running:
+     ```bash
+     chmod +x proxmox_validate_and_build_linux.py
+     ```
+   - Run the script:
+     ```bash
+     ./proxmox_validate_and_build_linux.py
+     ```
+   - You can also pass a custom JSON configuration file as an argument:
+     ```bash
+     ./proxmox_validate_and_build_linux.py /path/to/your_config.json
+     ```
+
+### Script Workflow
+
+1. **Load Configuration**
+   - Reads the JSON configuration file to load VM parameters.
+   - If the file cannot be read, the script outputs an error message and terminates.
+
+2. **Validate JSON**
+   - Validates the presence of required keys and the types of values using `json_test`.
+
+3. **Conditional Checks**
+   - Checks certain parameters like ballooning, boot options, and network configuration.
+   - Network configuration (`dhcp` or `static`) is validated and `vlan`, `netmask`, etc., are verified.
+
+4. **VM Creation and Cloud-Init Configuration**
+   - Creates a VM by cloning an existing template.
+   - Sets the number of CPU cores, memory, and other VM settings.
+   - Applies cloud-init configurations including user credentials, dhcp/static IP settings, and SSH keys.
+   - Creates a cloud-init script file on the Proxmox server.
+
+5. **Temporary Cloud-Init Fix**
+   - Attempts to resolve cloud-init-related issues by manually adding users and keys if the default configuration fails.
+
+6. **SSH Configuration**
+   - Modifies SSHD configuration files on the VM to align with desired parameters.
+   - If certain SSH parameters are missing, they are added to ensure compliance.
+
+7. **Final Setup**
+   - Changes the default user password and adds SSH keys.
+   - Verifies that a new user with sudo privileges is able to log in.
+   - Deletes the default `ubuntu` user for security reasons.
+
+### JSON Configuration Example
+See create_vm_master.json
+
+### Error Handling
+- The script uses colored output to indicate progress and errors:
+  - Green ([92m) for successful operations.
+  - Red ([91m) for errors.
+  - Yellow ([93m) for warnings.
+- If any critical error is encountered, the script terminates using `sys.exit(1)`.
+
+### Notes
+- It is crucial to modify the JSON configuration file to suit your VM needs before running the script.
+- Ensure all necessary keys and configurations are provided, or the script will terminate with an error.
+
+### Disclaimer
+Use this script with caution as it performs direct operations on your Proxmox server, which may impact existing VMs if not used properly.
