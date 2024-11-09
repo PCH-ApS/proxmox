@@ -12,7 +12,6 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 # Now you can import the module from lib
 from lib import functions
-from lib import json_test
 from const.host_const import MANDATORY_KEYS, OPTIONAL_KEYS, INTEGER_KEYS, SSH_CONST, SSHD_CONFIG, SSHD_SEARCHSTRING, SSHD_CUSTOMFILE
 
 def load_config(config_file):
@@ -22,9 +21,8 @@ def load_config(config_file):
             config = json.load(file)
         return config
     except Exception as e:
-        print(f"\033[91m[ERROR]           : Error reading the configuration file: {e}")
+        functions.output_message(f"Error reading the configuration file: {e}", "e")
         functions.end_output_to_shell()
-        sys.exit(1)
 
 def get_json_values(config):
     # Extract needed variables from JSON file
@@ -34,7 +32,8 @@ def get_json_values(config):
         "pve_name": config.get("PVE_NAME").get("hostname"),
         "pve_domain": config.get("PVE_DOMAIN").get("domain_string"),
         "pve_sshkey": config.get("PVE_SSHKEY").get("publickey"),
-        "pve_iso": config.get("PVE_ISO").get("urls")
+        "pve_iso": config.get("PVE_ISO").get("urls"),
+        "pve_changepwd": config.get("PVE_PWCAHNGE").get("change_pwd")
     }
 
 def add_snippets_folder(ssh, values):
@@ -44,7 +43,7 @@ def add_snippets_folder(ssh, values):
     # Define the commands
     command = "if [ ! -d '/var/lib/vz/snippets' ]; then mkdir /var/lib/vz/snippets; fi"
     functions.execute_ssh_command(ssh, command, f"Failed to create snippets folder.")
-    print(f"\033[92m[SUCCESS]         : Snippets folder created or already exists on {pve_hostip}.")
+    functions.output_message(f"Snippets folder created or already exists on {pve_hostip}.", "s")
 
 def check_hostname(ssh, values):
     pve_hostname = values.get("pve_name")
@@ -55,18 +54,18 @@ def check_hostname(ssh, values):
     check_interval = 10  # time interval between retries in seconds
     total_waited = 0
 
-    print(f"\033[92m[INFO]            : Expected hostname '{pve_hostname}'.")
+    functions.output_message(f"Expected hostname '{pve_hostname}'.", "i")
     """Check the hostname of the Proxmox host via SSH using key authentication."""
     try:
         # Get current hostname
         command = f"hostname"
         current_hostname = functions.execute_ssh_command(ssh, command, f"Failed to get current hostname from {pve_hostip}")
-        print(f"\033[92m[INFO]            : Current hostname '{current_hostname}'.")
+        functions.output_message(f"Current hostname '{current_hostname}'.", "i")
 
         if current_hostname == pve_hostname:
-            print(f"\033[92m[SUCCESS]         : Hostname matches the expected value.")
+            functions.output_message(f"Hostname matches the expected value.","s")
         else:
-            print(f"\033[93m[INFO]            : Hostname mismatch! Expected '{pve_hostname}', but got '{current_hostname}'.")
+            functions.output_message(f"Hostname mismatch! Expected '{pve_hostname}', but got '{current_hostname}'.","w")
             fqdn = f"{pve_hostname}.{pve_domain}"
 
             # Check if Proxmox node is empty
@@ -77,7 +76,7 @@ def check_hostname(ssh, values):
             node_status = functions.execute_ssh_command(ssh, command, f"Failed to check if node is empty on {pve_hostip}")
 
             if node_status == "":
-                print(f"\033[92m[INFO]            : Proxmox node is empty. Proceeding with hostname change.")
+                functions.output_message(f"Proxmox node is empty. Proceeding with hostname change.","i")
 
                 # Perform the hostname change on the remote host
                 command = f"""
@@ -88,13 +87,13 @@ def check_hostname(ssh, values):
                 reboot
                 """
                 functions.execute_ssh_command(ssh, command, f"Failed to change hostname on {pve_hostip}")
-                print(f"\033[92m[SUCCESS]         : Hostname on {pve_hostip} has been changed from {current_hostname} to {fqdn}")
+                functions.output_message(f"Hostname on {pve_hostip} has been changed from {current_hostname} to {fqdn}","s")
 
                 # Close the SSH connection because the host is going down for reboot
                 ssh.close()
 
                 # Attempt to reconnect after reboot
-                print(f"\033[92m[INFO]            : Waiting for {pve_hostip} to reboot...")
+                functions.output_message(f"Waiting for {pve_hostip} to reboot...","i")
                 ssh_up = None
                 time.sleep(10)
 
@@ -114,28 +113,28 @@ def check_hostname(ssh, values):
                         error_output = stderr.read().decode('utf-8').strip()
 
                         if error_output:
-                            print(f"\033[93m[INFO]            : {pve_hostip} is not ready - retrying in {check_interval} sec.")
+                            functions.output_message(f"{pve_hostip} is not ready - retrying in {check_interval} sec.","i")
                             total_waited += check_interval
                             time.sleep(check_interval)
                             continue
 
                         if output == pve_hostname:
-                            print(f"\033[92m[SUCCESS]         : {pve_hostip} now has hostname '{output}'.")
+                            functions.output_message(f"{pve_hostip} now has hostname '{output}'.","s")
                             ssh_up.close()
                             return output
                         else:
-                            print(f"\033[91m[ERROR]           : Hostname was not changed successfully.")
+                            functions.output_message(f"Hostname was not changed successfully.","e")
                             total_waited += check_interval
                             time.sleep(check_interval)
 
                     except (paramiko.ssh_exception.NoValidConnectionsError, paramiko.ssh_exception.SSHException, TimeoutError):
                         # Handle exception when connection fails
-                        print(f"\033[93m[INFO]            : Host is still rebooting or connection failed, retrying in {check_interval} seconds...")
+                        functions.output_message(f"Host is still rebooting or connection failed, retrying in {check_interval} seconds...","i")
                         total_waited += check_interval
                         time.sleep(check_interval)
 
                     except Exception as e:
-                        print(f"\033[91m[ERROR]           : Exception occurred: {e}, retrying...")
+                        functions.output_message(f"Exception occurred: {e}, retrying...","w")
                         total_waited += check_interval
                         time.sleep(check_interval)
 
@@ -145,12 +144,10 @@ def check_hostname(ssh, values):
                             ssh_up.close()
 
                 # If max wait time is exceeded
-                print(f"\033[91m[ERROR]           : Failed to reconnect within {max_wait_time} seconds.")
-                sys.exit(1)
+                functions.output_message(f"Failed to reconnect within {max_wait_time} seconds.","e")
 
     except Exception as e:
-        print(f"\033[91m[ERROR]           : Failed to set hostname: {e}")
-        sys.exit(1)
+        functions.output_message(f"Failed to set hostname: {e}","e")
 
 def configure_sshd(ssh, values):
     # Set SSHD_CONFIG setting on VM
@@ -166,7 +163,7 @@ def configure_sshd(ssh, values):
                 stdin, stdout, stderr = ssh.exec_command(command)
                 for line_number, line in enumerate(stdout, start=1):
                     if line.startswith(SSHD_SEARCHSTRING):
-                        print(f"\033[92m[INFO]            : In {conf_file} found '{SSHD_SEARCHSTRING}' at the beginning of line {line_number}: {line.strip()}")
+                        functions.output_message(f"In {conf_file} found '{SSHD_SEARCHSTRING}' at the beginning of line {line_number}: {line.strip()}","i")
                         config_include = True
                         elements = line.split()
                         for element in elements:
@@ -211,7 +208,7 @@ def configure_sshd(ssh, values):
 
                 if not param_found:
                     # Parameter was not found in any of the configuration files
-                    print(f"\033[93m[INFO]            : '{param}' is missing in all configuration files.")
+                    functions.output_message(f"'{param}' is missing in all configuration files.","i")
 
             # Remove the verified parameters from params_to_add
             for verified_param in params_no_change:
@@ -242,17 +239,17 @@ def configure_sshd(ssh, values):
                     functions.execute_ssh_command(ssh, command, f"Failed to touch {local_sshd_customfile}")
                     command = f"chmod 644 {local_sshd_customfile}"
                     functions.execute_ssh_command(ssh, command, f"Failed to change permissions on {local_sshd_customfile}")
-                    print(f"\033[92m[SUCCESS]         : Successfully created {local_sshd_customfile}")
+                    functions.output_message(f"Successfully created {local_sshd_customfile}","s")
 
                 if os.path.dirname(local_sshd_customfile) == os.path.dirname(SSHD_CONFIG[0]):
                     command = f"echo Include {local_sshd_customfile} >> {SSHD_CONFIG[0]}"
                     functions.execute_ssh_command(ssh, command, f"Failed to include {local_sshd_customfile} in {SSHD_CONFIG[0]}")
-                    print(f"\033[92m[SUCCESS]         : Successfully included {local_sshd_customfile} in {SSHD_CONFIG[0]}")
+                    functions.output_message(f"Successfully included {local_sshd_customfile} in {SSHD_CONFIG[0]}","s")
 
                 for param, expected_value in params_to_add.items():
                     command = f"echo {param} {expected_value} >> {local_sshd_customfile}"
                     functions.execute_ssh_command(ssh, command, f"Failed to add paramter: {param} {expected_value} to {local_sshd_customfile}")
-                    print(f"\033[92m[SUCCESS]         : Successfully added paramter: {param} {expected_value} to {local_sshd_customfile}")
+                    functions.output_message(f"Successfully added paramter: {param} {expected_value} to {local_sshd_customfile}","s")
 
             if len(params_to_change) > 0:
                 for param, values in params_to_change.items():
@@ -267,21 +264,21 @@ def configure_sshd(ssh, values):
                             if param in line:
                                 command = f"sed -i 's/^{param} .*/{param} {expected_value}/' {path_value}"
                                 functions.execute_ssh_command(ssh, command, f"Failed to modify paramter: {param} {expected_value} in {path_value}")
-                                print(f"\033[92m[SUCCESS]         : Successfully modified paramter: {param} {expected_value} in {path_value}")
+                                functions.output_message(f"Successfully modified paramter: {param} {expected_value} in {path_value}","s")
 
         except Exception as e:
-            print(f"An error occurred: {e}")
+            functions.output_message(f"An error occurred: {e}","e")
 
         finally:
             command = f"systemctl restart ssh"
             functions.execute_ssh_command(ssh, command, f"Failed to restart SSH service")
-            print(f"\033[92m[SUCCESS]         : Successfully restarted SSH service")
+            functions.output_message(f"Successfully restarted SSH service","s")
 
         if iteration == 0:
-            print(f"\033[92m[INFO]            : Waiting for 5 seconds before running iteration 2")
+            functions.output_message(f"Waiting for 5 seconds before running iteration 2","i")
             time.sleep(5)
 
-    print(f"\033[92m[SUCCESS]         : sshd_config has the exoected configuration")
+    functions.output_message(f"sshd_config has the exoected configuration","s")
 
 def set_pve_no_subscription(ssh, values):
     pve_hostip = values.get("pve_host")
@@ -296,21 +293,21 @@ def set_pve_no_subscription(ssh, values):
         result = stdout.read().decode().strip()
 
         if result == "enabled":
-            print("\033[92m[INFO]            : pve-no-subscription repository is already enabled.")
+            functions.output_message(f"pve-no-subscription repository is already enabled.","i")
 
         elif result == "commented":
-            print("\033[91m[INFO]            : pve-no-subscription repository is found but not enabled. Enabling it now...")
+            functions.output_message(f"pve-no-subscription repository is found but not enabled. Enabling it now...","w")
             # Step 2: Enable the pve-no-subscription repository (uncomment it)
             enable_repo_cmd = "sed -i 's/^# deb \\(.*pve-no-subscription\\)/deb \\1/' /etc/apt/sources.list"
             ssh.exec_command(enable_repo_cmd)
-            print(f"\033[92m[SUCCESS]         : pve-no-subscription repository has been enabled.")
+            functions.output_message(f"pve-no-subscription repository has been enabled.","s")
 
         elif result == "not_found":
-            print("\033[91m[INFO]            : pve-no-subscription repository not found. Adding it now...")
+            functions.output_message(f"pve-no-subscription repository not found. Adding it now...","i")
             # Step 3: Add the pve-no-subscription repository to sources.list
             add_repo_cmd = 'echo "deb http://download.proxmox.com/debian/pve bookworm pve-no-subscription" | tee -a /etc/apt/sources.list > /dev/null'
             ssh.exec_command(add_repo_cmd)
-            print(f"\033[92m[SUCCESS]         : pve-no-subscription repository has been added to /etc/apt/sources.list.")
+            functions.output_message(f"pve-no-subscription repository has been added to /etc/apt/sources.list.","s")
 
         # Step 4: Check and disable enterprise repository if not already disabled
         check_enterprise_repo_cmd = 'grep -q "^deb .*bookworm pve-enterprise" /etc/apt/sources.list.d/pve-enterprise.list && echo "enabled" || echo "disabled"'
@@ -318,12 +315,12 @@ def set_pve_no_subscription(ssh, values):
         enterprise_result = stdout.read().decode().strip()
 
         if enterprise_result == "enabled":
-            print("\033[91m[INFO]            : Enterprise repository is enabled. Disabling it now by commenting it out...")
+            functions.output_message(f"Enterprise repository is enabled. Disabling it now by commenting it out...","w")
             disable_enterprise_repo_cmd = r"sed -i 's/^\(deb .*bookworm pve-enterprise\)/# \1/' /etc/apt/sources.list.d/pve-enterprise.list"
             ssh.exec_command(disable_enterprise_repo_cmd)
-            print(f"\033[92m[SUCCESS]         : Enterprise repository has been disabled by commenting it out.")
+            functions.output_message(f"Enterprise repository has been disabled by commenting it out.","s")
         else:
-            print("\033[92m[INFO]            : Enterprise repository is already disabled.")
+            functions.output_message(f"Enterprise repository is already disabled.","s")
 
         # Step 5: Comment out Ceph-related entries in ceph.list
         check_ceph_list_cmd = 'grep -q "^deb .*ceph-quincy bookworm enterprise" /etc/apt/sources.list.d/ceph.list && echo "enabled" || echo "disabled"'
@@ -331,15 +328,15 @@ def set_pve_no_subscription(ssh, values):
         ceph_list_result = stdout.read().decode().strip()
 
         if ceph_list_result == "enabled":
-            print("\033[91m[INFO]            : ceph.list found. Commenting out ceph-quincy, bookworm, or enterprise entries...")
+            functions.output_message(f"ceph.list found. Commenting out ceph-quincy, bookworm, or enterprise entries...","w")
             comment_ceph_entries_cmd = r"sed -i 's/^\(deb .*bookworm enterprise\)/# \1/' /etc/apt/sources.list.d/ceph.list"
             ssh.exec_command(comment_ceph_entries_cmd)
-            print(f"\033[92m[SUCCESS]         : Ceph-related entries have been commented out in ceph.list.")
+            functions.output_message(f"Ceph-related entries have been commented out in ceph.list.","s")
         else:
-            print("\033[92m[INFO]            : ceph.list is already disabled.")
+            functions.output_message(f"ceph.list is already disabled.","s")
 
         # Step 6: Apply pve-no-subscription patch
-        print("\033[92m[INFO]            : Attempting pve-no-subscription patch...")
+        functions.output_message(f"Attempting pve-no-subscription patch...","i")
 
         file_path = '/usr/share/perl5/PVE/API2/Subscription.pm'
         find_str = 'NotFound'
@@ -351,9 +348,8 @@ def set_pve_no_subscription(ssh, values):
         file_exists = stdout.read().decode().strip()
 
         if file_exists == "not_exists":
-            print(f"\033[91m[ERROR]           : {file_path} does not exist! Are you sure this is PVE?")
+            functions.output_message(f"{file_path} does not exist! Are you sure this is PVE?","e")
             ssh.close()
-            sys.exit(1)
         else:
             # Check if the file contains 'NotFound'
             check_find_cmd = f'grep -i "{find_str}" "{file_path}" && echo "found" || echo "not_found"'
@@ -361,127 +357,125 @@ def set_pve_no_subscription(ssh, values):
             find_result = stdout.read().decode().strip()
 
             if find_result == "not_found":
-                print(f"\033[92m[INFO]            : PVE appears to be patched.")
+                functions.output_message(f"PVE appears to be patched.","s")
             else:
                 # Apply the patch (replace 'NotFound' with 'Active')
-                print(f"\033[92m[INFO]            : Applying pve-no-subscription patch in {file_path}...")
+                functions.output_message(f"Applying pve-no-subscription patch in {file_path}...","i")
                 apply_patch_cmd = f'sed -i "s/{find_str}/{replace_str}/gi" "{file_path}"'
                 ssh.exec_command(apply_patch_cmd)
 
                 # Restart the services
-                print(f"\033[92m[INFO]            : Restarting services...")
+                functions.output_message(f"Restarting services...","i")
                 ssh.exec_command('systemctl restart pvedaemon')
                 ssh.exec_command('systemctl restart pveproxy')
 
-                print(f"\033[92m[SUCCESS]         : Subscription updated from {find_str} to {replace_str}.")
+                functions.output_message(f"Subscription updated from {find_str} to {replace_str}.","S")
 
     except Exception as e:
-        print(f"\033[91m[ERROR]           : Error connecting to Proxmox host via SSH: {e}")
-        sys.exit(1)
+        functions.output_message(f"Error connecting to Proxmox host via SSH: {e}","e")
 
 def download_iso(ssh, values):
     pve_iso_urls = values.get("pve_iso")  # Correct access to 'pve_iso' key
 
-    if not pve_iso_urls:
-        print(f"\033[91m[ERROR]           : No ISO URLs provided in the configuration file.")
-        sys.exit(1)
 
     try:
-        # Step 1: Ensure the directory exists
-        print(f"\033[92m[INFO]            : Ensuring /var/lib/vz/template/iso exists on the remote host...")
-        ssh.exec_command("mkdir -p /var/lib/vz/template/iso")
+        if not pve_iso_urls:
+            functions.output_message(f"No ISO URLs provided in the configuration file.","w")
+        else:
+            # Step 1: Ensure the directory exists
+            functions.output_message(f"Ensuring /var/lib/vz/template/iso exists on the remote host...","s")
+            ssh.exec_command("mkdir -p /var/lib/vz/template/iso")
 
-        # Step 2: Check if each ISO image already exists and download if not
-        for url in pve_iso_urls:
-            iso_filename = url.split('/')[-1]
-            iso_filepath = f"/var/lib/vz/template/iso/{iso_filename}"
+            # Step 2: Check if each ISO image already exists and download if not
+            for url in pve_iso_urls:
+                iso_filename = url.split('/')[-1]
+                iso_filepath = f"/var/lib/vz/template/iso/{iso_filename}"
 
-            # Check if the file already exists on the remote host
-            check_file_cmd = f"test -f {iso_filepath} && echo 'exists' || echo 'not_exists'"
-            stdin, stdout, stderr = ssh.exec_command(check_file_cmd)
-            file_exists = stdout.read().decode().strip()
+                # Check if the file already exists on the remote host
+                check_file_cmd = f"test -f {iso_filepath} && echo 'exists' || echo 'not_exists'"
+                stdin, stdout, stderr = ssh.exec_command(check_file_cmd)
+                file_exists = stdout.read().decode().strip()
 
-            if file_exists == "exists":
-                print(f"\033[93m[INFO]            : {iso_filename} already exists, skipping download.")
-            else:
-                print(f"\033[92m[INFO]            : Downloading {iso_filename} to /var/lib/vz/template/iso...")
-
-                # Execute wget and wait for it to complete
-                download_cmd = f"wget -q -P /var/lib/vz/template/iso {url}"
-                stdin, stdout, stderr = ssh.exec_command(download_cmd)
-
-                # Wait for the command to complete and check if any errors occurred
-                exit_status = stdout.channel.recv_exit_status()  # Wait for the command to finish
-                if exit_status == 0:
-                    print(f"\033[92m[SUCCESS]         : {iso_filename} has been successfully downloaded.")
+                if file_exists == "exists":
+                    functions.output_message(f"{iso_filename} already exists, skipping download.","s")
                 else:
-                    error_message = stderr.read().decode().strip()
-                    print(f"\033[91m[ERROR]           : Failed to download {iso_filename}. Error: {error_message}")
+                    functions.output_message(f"Downloading {iso_filename} to /var/lib/vz/template/iso...","i")
 
-        # Close the SSH connection
-        ssh.close()
+                    # Execute wget and wait for it to complete
+                    download_cmd = f"wget -q -P /var/lib/vz/template/iso {url}"
+                    stdin, stdout, stderr = ssh.exec_command(download_cmd)
+
+                    # Wait for the command to complete and check if any errors occurred
+                    exit_status = stdout.channel.recv_exit_status()  # Wait for the command to finish
+                    if exit_status == 0:
+                        functions.output_message(f"{iso_filename} has been successfully downloaded.","s")
+                    else:
+                        error_message = stderr.read().decode().strip()
+                        functions.output_message(f"Failed to download {iso_filename}. Error: {error_message}","e")
 
     except Exception as e:
-        print(f"\033[91m[ERROR]           : Error connecting to Proxmox host via SSH: {e}")
-        sys.exit(1)
+        functions.output_message(f"Error connecting to Proxmox host via SSH: {e}","e")
 
 def change_remote_password(ssh, values):
     pve_hostip = values.get("pve_host")
     pve_username = values.get("pve_user")
+    pve_changepwd = values.get("pve_changepwd")
+
     """Change the password of a remote user on the Proxmox host."""
-    new_password = getpass.getpass(f"Enter new password for '{pve_username}': ")
-    if not new_password:
-        print(f"\033[91m[ERROR]           : New password value is not set\033[0m")
+    if not pve_changepwd == False:
+        try:
+            new_password = getpass.getpass(f"Enter new password for '{pve_username}': ")
+            if not new_password:
+                functions.output_message(f"New password value is not set.","e")
+            # Command to change the password on the remote host
+            change_password_cmd = f'echo "{pve_username}:{new_password}" | chpasswd'
 
-    try:
-        # Command to change the password on the remote host
-        change_password_cmd = f'echo "{pve_username}:{new_password}" | chpasswd'
+            # Execute the command
+            functions.output_message(f"Changing password on {pve_hostip}...","i")
+            stdin, stdout, stderr = ssh.exec_command(change_password_cmd)
 
-        # Execute the command
-        print(f"\033[92m[INFO]            : Changing password on {pve_hostip}...")
-        stdin, stdout, stderr = ssh.exec_command(change_password_cmd)
+            # Wait for the command to finish and check for errors
+            exit_status = stdout.channel.recv_exit_status()
+            if exit_status == 0:
+                functions.output_message(f"Password for user {pve_username} on {pve_hostip} has been updated successfully.","s")
+            else:
+                error_message = stderr.read().decode().strip()
+                functions.output_message(f"Failed to update password. Error: {error_message}","e")
 
-        # Wait for the command to finish and check for errors
-        exit_status = stdout.channel.recv_exit_status()
-        if exit_status == 0:
-            print(f"\033[92m[SUCCESS]         : Password for user {pve_username} on {pve_hostip} has been updated successfully.")
-        else:
-            error_message = stderr.read().decode().strip()
-            print(f"\033[91m[ERROR]           : Failed to update password. Error: {error_message}")
-            sys.exit(1)
+            # Close the SSH connection
+            ssh.close()
 
-        # Close the SSH connection
-        ssh.close()
+        except Exception as e:
+            functions.output_message(f"Error connecting to {pve_hostip}: {e}","e")
 
-    except Exception as e:
-        print(f"\033[91m[ERROR]           : Error connecting to {pve_hostip}: {e}")
-        sys.exit(1)
-
+os.system('cls' if os.name == 'nt' else 'clear')
 config_file = sys.argv[1]
 script_directory = os.path.dirname(os.path.abspath(__file__))
-print("-------------------------------------------")
-print(f"Parameter filename: {config_file}")
-print(f"Script directory  : {script_directory}")
-print("-------------------------------------------")
-print("")
-print("-------------------------------------------")
-print("--        Validate JSON structure        --")
-print("-------------------------------------------")
 
+functions.output_message()
+functions.output_message(f"script info:","h")
+functions.output_message()
+functions.output_message(f"Parameter filename: {config_file}")
+functions.output_message(f"Script directory  : {script_directory}")
+functions.output_message()
+
+print("")
 config = load_config(config_file)
 values = get_json_values(config)
-# Use json_test to validate JSON structure
-json_test.check_parameters(config, MANDATORY_KEYS, OPTIONAL_KEYS)
 
-print("-------------------------------------------")
-print("--          Validate JSON values         --")
-print("-------------------------------------------")
-# Validate JSON values to ensure proper types
-json_test.check_values(config, integer_keys=INTEGER_KEYS)
+functions.output_message()
+functions.output_message(f"Validate JSON structure","h")
+functions.output_message()
+functions.check_parameters(config, MANDATORY_KEYS, OPTIONAL_KEYS)
 
-print("-------------------------------------------")
-print("--        Configure PROXMOX host         --")
-print("-------------------------------------------")
+functions.output_message()
+functions.output_message(f"Validate JSON values","h")
+functions.output_message()
+functions.check_values(config, integer_keys=INTEGER_KEYS)
+
+functions.output_message()
+functions.output_message(f"Configure PROXMOX host","h")
+functions.output_message()
 
 # Establish SSH connection to Proxmox server
 ssh = functions.ssh_connect(values.get("pve_host"), values.get("pve_user"))

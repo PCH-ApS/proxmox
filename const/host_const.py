@@ -6,7 +6,8 @@ MANDATORY_KEYS = {
     "PVE_SSHKEY": "publickey"
 }
 OPTIONAL_KEYS = {
-    "PVE_ISO": "urls"
+    "PVE_ISO": "urls",
+    "PVE_PWCAHNGE": "change_pwd"
 }
 INTEGER_KEYS = []
 SSH_CONST = {

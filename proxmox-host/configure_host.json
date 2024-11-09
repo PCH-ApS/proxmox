@@ -1,32 +1,32 @@
 {
   "PVE_USER":{
     "username"      : "root",
-    "allow_blank"   : "false",
-    "allow_spaces"  : "false",
+    "allow_blank"   : false,
+    "allow_spaces"  : false,
     "comment"       : "username used by script to ssh to proxmox host"
   },
   "PVE_HOST":{
     "host_ip"       : "<Your PVE host ip-address>",
-    "allow_blank"   : "false",
-    "allow_spaces"  : "false",
+    "allow_blank"   : false,
+    "allow_spaces"  : false,
     "comment"       : "ip-address of proxmox host used by script to ssh to host"
   },
   "PVE_NAME":{
     "hostname"      : "<Your PVE hostname goes here>",
-    "allow_blank"   : "false",
-    "allow_spaces"  : "false",
+    "allow_blank"   : false,
+    "allow_spaces"  : false,
     "comment"       : "the desired hostname of proxmox host"
   },
   "PVE_DOMAIN":{
     "domain_string" : "<Your dns domain goes here>",
-    "allow_blank"   : "false",
-    "allow_spaces"  : "false",
+    "allow_blank"   : false,
+    "allow_spaces"  : false,
     "comment"       : "the domain part of the desired FQDN of the proxmox host"
   },
   "PVE_SSHKEY":{
     "publickey"     : "<Your ssh public key goes here>",
-    "allow_blank"   : "false",
-    "allow_spaces"  : "true",
+    "allow_blank"   : false,
+    "allow_spaces"  : true,
     "comment"       : "the public key used to allow ssh login to root on the proxmox host"
   },
   "PVE_ISO":{
@@ -34,9 +34,15 @@
                       "https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img",
                       "https://releases.ubuntu.com/24.04/ubuntu-24.04.1-live-server-amd64.iso"
     ],
-    "allow_blank"   : "true",
-    "allow_spaces"  : "true",
+    "allow_blank"   : true,
+    "allow_spaces"  : true,
     "comment"       : "List of iso images to import into the proxmox host"
+  },
+  "PVE_PWCAHNGE":{
+    "change_pwd"    : false,
+    "allow_blank"   : false,
+    "allow_spaces"  : false,
+    "comment"       : "should the scrip prompt for a new password to set for the root user on the PVE host. set to true to change password. default is true, if blank."
   }
 }
 
