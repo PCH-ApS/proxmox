@@ -222,3 +222,26 @@ def change_remote_password(ssh, remote_user, current_password):
     finally:
         # Remove the NEW_PASSWORD from environment variables
         new_password = ""
+
+def output_message(message, type=None):
+        # Set pre_message to the correct prefix based on 'type'
+        if type == "s" or type == "S":
+            pre_message = "[✓]"
+            color = '\033[32m'
+        elif type == "i" or type == "I":
+            pre_message = "[-]"
+            color = '\033[32m'
+        elif type == "w" or type == "W":
+            pre_message = "[*]"
+            color = '\033[33m'
+        elif type == "e" or type == "E":
+            pre_message = "[x]"
+            color = '\033[31m'
+        else:
+            pre_message = "[?]"
+            color = '\033[0m'
+
+        reset = '\033[0m'
+
+        # Now print the formatted message
+        print(f"{color}{pre_message} {message}{reset}")
