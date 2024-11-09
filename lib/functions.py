@@ -34,7 +34,7 @@ def execute_ssh_command(ssh, command, error_message=None):
     error_output = stderr.read().decode().strip()
     if exit_status != 0:
         if error_message:
-            print(f"\033[91m[ERROR]           : {error_message}: {error_output}\033[0m")
+            output_message(f"{error_message}: {error_output}","e")
         sys.exit(1)
     return stdout.read().decode().strip()
 

@@ -38,12 +38,18 @@ def get_json_values(config):
 
 def add_snippets_folder(ssh, values):
     pve_hostip = values.get("pve_host")
-    pve_username = values.get("pve_user")
 
-    # Define the commands
+    # Create the snippet folder on the Proxmox host
     command = "if [ ! -d '/var/lib/vz/snippets' ]; then mkdir /var/lib/vz/snippets; fi"
     functions.execute_ssh_command(ssh, command, f"Failed to create snippets folder.")
     functions.output_message(f"Snippets folder created or already exists on {pve_hostip}.", "s")
+
+    # Add the snipptes folder to Proxmox config
+    command = "pvesm set local --content iso,vztmpl,backup,snippets"
+    functions.execute_ssh_command(ssh, command, f"Failed to set snippets folder on Proxmox host.")
+    functions.output_message(f"Snippets folder added to configuration on {pve_hostip}.", "s")
+
+
 
 def check_hostname(ssh, values):
     pve_hostname = values.get("pve_name")
@@ -54,16 +60,14 @@ def check_hostname(ssh, values):
     check_interval = 10  # time interval between retries in seconds
     total_waited = 0
 
-    functions.output_message(f"Expected hostname '{pve_hostname}'.", "i")
     """Check the hostname of the Proxmox host via SSH using key authentication."""
     try:
         # Get current hostname
         command = f"hostname"
         current_hostname = functions.execute_ssh_command(ssh, command, f"Failed to get current hostname from {pve_hostip}")
-        functions.output_message(f"Current hostname '{current_hostname}'.", "i")
 
         if current_hostname == pve_hostname:
-            functions.output_message(f"Hostname matches the expected value.","s")
+            functions.output_message(f"Hostname is correct.","s")
         else:
             functions.output_message(f"Hostname mismatch! Expected '{pve_hostname}', but got '{current_hostname}'.","w")
             fqdn = f"{pve_hostname}.{pve_domain}"
@@ -163,7 +167,6 @@ def configure_sshd(ssh, values):
                 stdin, stdout, stderr = ssh.exec_command(command)
                 for line_number, line in enumerate(stdout, start=1):
                     if line.startswith(SSHD_SEARCHSTRING):
-                        functions.output_message(f"In {conf_file} found '{SSHD_SEARCHSTRING}' at the beginning of line {line_number}: {line.strip()}","i")
                         config_include = True
                         elements = line.split()
                         for element in elements:
@@ -270,27 +273,22 @@ def configure_sshd(ssh, values):
             functions.output_message(f"An error occurred: {e}","e")
 
         finally:
-            command = f"systemctl restart ssh"
-            functions.execute_ssh_command(ssh, command, f"Failed to restart SSH service")
-            functions.output_message(f"Successfully restarted SSH service","s")
+            if params_to_add or params_to_change:
+                command = f"systemctl restart ssh"
+                functions.execute_ssh_command(ssh, command, f"Failed to restart SSH service")
+                functions.output_message(f"Successfully restarted SSH service","s")
 
         if iteration == 0:
-            functions.output_message(f"Waiting for 5 seconds before running iteration 2","i")
-            time.sleep(5)
+            time.sleep(2)
 
     functions.output_message(f"sshd_config has the exoected configuration","s")
 
 def set_pve_no_subscription(ssh, values):
-    pve_hostip = values.get("pve_host")
-    pve_username = values.get("pve_user")
-
     """Check and modify the pve_no_subscription setting."""
     try:
         # Step 1: Check if the pve-no-subscription repository is enabled or commented
-        check_repo_cmd = 'grep -q "^deb .*pve-no-subscription" /etc/apt/sources.list && echo "enabled" || grep -q "^# deb .*pve-no-subscription" /etc/apt/sources.list && echo "commented" || echo "not_found"'
-        stdin, stdout, stderr = ssh.exec_command(check_repo_cmd)
-
-        result = stdout.read().decode().strip()
+        command = 'grep -q "^deb .*pve-no-subscription" /etc/apt/sources.list && echo "enabled" || grep -q "^# deb .*pve-no-subscription" /etc/apt/sources.list && echo "commented" || echo "not_found"'
+        result = functions.execute_ssh_command(ssh, command)
 
         if result == "enabled":
             functions.output_message(f"pve-no-subscription repository is already enabled.","i")
@@ -298,71 +296,64 @@ def set_pve_no_subscription(ssh, values):
         elif result == "commented":
             functions.output_message(f"pve-no-subscription repository is found but not enabled. Enabling it now...","w")
             # Step 2: Enable the pve-no-subscription repository (uncomment it)
-            enable_repo_cmd = "sed -i 's/^# deb \\(.*pve-no-subscription\\)/deb \\1/' /etc/apt/sources.list"
-            ssh.exec_command(enable_repo_cmd)
+            command = "sed -i 's/^# deb \\(.*pve-no-subscription\\)/deb \\1/' /etc/apt/sources.list"
+            functions.execute_ssh_command(ssh, command, f"pve-no-subscription repository NOT enabled.")
             functions.output_message(f"pve-no-subscription repository has been enabled.","s")
 
         elif result == "not_found":
             functions.output_message(f"pve-no-subscription repository not found. Adding it now...","i")
             # Step 3: Add the pve-no-subscription repository to sources.list
-            add_repo_cmd = 'echo "deb http://download.proxmox.com/debian/pve bookworm pve-no-subscription" | tee -a /etc/apt/sources.list > /dev/null'
-            ssh.exec_command(add_repo_cmd)
+            command= 'echo "deb http://download.proxmox.com/debian/pve bookworm pve-no-subscription" | tee -a /etc/apt/sources.list > /dev/null'
+            functions.execute_ssh_command(ssh, command, f"pve-no-subscription repository NOT added to /etc/apt/sources.list.")
             functions.output_message(f"pve-no-subscription repository has been added to /etc/apt/sources.list.","s")
 
         # Step 4: Check and disable enterprise repository if not already disabled
-        check_enterprise_repo_cmd = 'grep -q "^deb .*bookworm pve-enterprise" /etc/apt/sources.list.d/pve-enterprise.list && echo "enabled" || echo "disabled"'
-        stdin, stdout, stderr = ssh.exec_command(check_enterprise_repo_cmd)
-        enterprise_result = stdout.read().decode().strip()
+        command = 'grep -q "^deb .*bookworm pve-enterprise" /etc/apt/sources.list.d/pve-enterprise.list && echo "enabled" || echo "disabled"'
+        enterprise_result = functions.execute_ssh_command(ssh, command)
 
         if enterprise_result == "enabled":
             functions.output_message(f"Enterprise repository is enabled. Disabling it now by commenting it out...","w")
-            disable_enterprise_repo_cmd = r"sed -i 's/^\(deb .*bookworm pve-enterprise\)/# \1/' /etc/apt/sources.list.d/pve-enterprise.list"
-            ssh.exec_command(disable_enterprise_repo_cmd)
-            functions.output_message(f"Enterprise repository has been disabled by commenting it out.","s")
+            command = r"sed -i 's/^\(deb .*bookworm pve-enterprise\)/# \1/' /etc/apt/sources.list.d/pve-enterprise.list"
+            functions.execute_ssh_command(ssh, command, f"Enterprise repository NOT disabled.")
+            functions.output_message(f"Enterprise repository has been disabled.","s")
         else:
-            functions.output_message(f"Enterprise repository is already disabled.","s")
+            functions.output_message(f"Enterprise repository is disabled.","s")
 
         # Step 5: Comment out Ceph-related entries in ceph.list
-        check_ceph_list_cmd = 'grep -q "^deb .*ceph-quincy bookworm enterprise" /etc/apt/sources.list.d/ceph.list && echo "enabled" || echo "disabled"'
-        stdin, stdout, stderr = ssh.exec_command(check_ceph_list_cmd)
-        ceph_list_result = stdout.read().decode().strip()
+        command = 'grep -q "^deb .*ceph-quincy bookworm enterprise" /etc/apt/sources.list.d/ceph.list && echo "enabled" || echo "disabled"'
+        ceph_list_result = functions.execute_ssh_command(ssh, command)
 
         if ceph_list_result == "enabled":
             functions.output_message(f"ceph.list found. Commenting out ceph-quincy, bookworm, or enterprise entries...","w")
-            comment_ceph_entries_cmd = r"sed -i 's/^\(deb .*bookworm enterprise\)/# \1/' /etc/apt/sources.list.d/ceph.list"
-            ssh.exec_command(comment_ceph_entries_cmd)
-            functions.output_message(f"Ceph-related entries have been commented out in ceph.list.","s")
+            command = r"sed -i 's/^\(deb .*bookworm enterprise\)/# \1/' /etc/apt/sources.list.d/ceph.list"
+            functions.execute_ssh_command(ssh, command, f"Ceph-related entries NOT disabled.")
+            functions.output_message(f"Ceph-related entries has been disabled.","s")
         else:
-            functions.output_message(f"ceph.list is already disabled.","s")
+            functions.output_message(f"ceph.list is disabled.","s")
 
         # Step 6: Apply pve-no-subscription patch
-        functions.output_message(f"Attempting pve-no-subscription patch...","i")
-
         file_path = '/usr/share/perl5/PVE/API2/Subscription.pm'
         find_str = 'NotFound'
         replace_str = 'Active'
 
         # Check if the file exists
-        check_file_cmd = f'test -f "{file_path}" && echo "exists" || echo "not_exists"'
-        stdin, stdout, stderr = ssh.exec_command(check_file_cmd)
-        file_exists = stdout.read().decode().strip()
+        command = f'test -f "{file_path}" && echo "exists" || echo "not_exists"'
+        file_exists = functions.execute_ssh_command(ssh, command)
 
         if file_exists == "not_exists":
-            functions.output_message(f"{file_path} does not exist! Are you sure this is PVE?","e")
-            ssh.close()
+            functions.output_message(f"pve-no-subscription patch error: {file_path} does not exist! Are you sure this is PVE?","e")
         else:
             # Check if the file contains 'NotFound'
-            check_find_cmd = f'grep -i "{find_str}" "{file_path}" && echo "found" || echo "not_found"'
-            stdin, stdout, stderr = ssh.exec_command(check_find_cmd)
-            find_result = stdout.read().decode().strip()
+            command = f'grep -i "{find_str}" "{file_path}" && echo "found" || echo "not_found"'
+            find_result = functions.execute_ssh_command(ssh, command)
 
             if find_result == "not_found":
-                functions.output_message(f"PVE appears to be patched.","s")
+                functions.output_message(f"pve-no-subscription patch applied.","s")
             else:
                 # Apply the patch (replace 'NotFound' with 'Active')
-                functions.output_message(f"Applying pve-no-subscription patch in {file_path}...","i")
-                apply_patch_cmd = f'sed -i "s/{find_str}/{replace_str}/gi" "{file_path}"'
-                ssh.exec_command(apply_patch_cmd)
+                command = f'sed -i "s/{find_str}/{replace_str}/gi" "{file_path}"'
+                functions.execute_ssh_command(ssh, command, f"pve-no-subscription patch NOT applied.")
+                functions.output_message(f"Applied pve-no-subscription patch in {file_path}...","i")
 
                 # Restart the services
                 functions.output_message(f"Restarting services...","i")
@@ -372,19 +363,18 @@ def set_pve_no_subscription(ssh, values):
                 functions.output_message(f"Subscription updated from {find_str} to {replace_str}.","S")
 
     except Exception as e:
-        functions.output_message(f"Error connecting to Proxmox host via SSH: {e}","e")
+        functions.output_message(f"Error with ve-no-subscription patch: {e}","e")
 
 def download_iso(ssh, values):
     pve_iso_urls = values.get("pve_iso")  # Correct access to 'pve_iso' key
-
-
     try:
         if not pve_iso_urls:
             functions.output_message(f"No ISO URLs provided in the configuration file.","w")
         else:
             # Step 1: Ensure the directory exists
-            functions.output_message(f"Ensuring /var/lib/vz/template/iso exists on the remote host...","s")
-            ssh.exec_command("mkdir -p /var/lib/vz/template/iso")
+            command = f"mkdir -p /var/lib/vz/template/iso"
+            functions.execute_ssh_command(ssh, command, f"Unable to create var/lib/vz/template/iso on proxmox host.")
+            functions.output_message(f"Checkkng /var/lib/vz/template/iso exists on the remote host...","s")
 
             # Step 2: Check if each ISO image already exists and download if not
             for url in pve_iso_urls:
@@ -392,9 +382,8 @@ def download_iso(ssh, values):
                 iso_filepath = f"/var/lib/vz/template/iso/{iso_filename}"
 
                 # Check if the file already exists on the remote host
-                check_file_cmd = f"test -f {iso_filepath} && echo 'exists' || echo 'not_exists'"
-                stdin, stdout, stderr = ssh.exec_command(check_file_cmd)
-                file_exists = stdout.read().decode().strip()
+                command = f"test -f {iso_filepath} && echo 'exists' || echo 'not_exists'"
+                file_exists = functions.execute_ssh_command(ssh, command, f"Unable to get ISO file lsit.")
 
                 if file_exists == "exists":
                     functions.output_message(f"{iso_filename} already exists, skipping download.","s")
@@ -487,5 +476,5 @@ set_pve_no_subscription(ssh, values)
 download_iso(ssh, values)
 change_remote_password(ssh, values)
 ssh.close()
-
-functions.end_output_to_shell()
+functions.output_message(f"Succesfully applied configuration: {config_file}","s")
+functions.output_message()
