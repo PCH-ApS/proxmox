@@ -94,71 +94,56 @@ def is_valid_hostname(value_str):
 
     # First, check if value_str is a string
     if not isinstance(value_str, str):
-        return False
+        output_message(f"{value_str}' is NOT a string value.","e")
 
     # Split the hostname into labels
     labels = value_str.split('.')
 
     # Check total length of the hostname
     if len(value_str) > 253:
-        return False
+        output_message(f"hostname has exceeded the masximum length of 253 characters.","e")
 
     # If there are multiple labels, validate each label
     for label in labels:
         if len(label) > 63:  # Each label must not exceed 63 characters
-            return False
+            output_message(f"a label has exceeded the masximum length of 63 characters.","e")
         if not hostname_regex.match(label):  # Each label must match the regex
-            return False
+            output_message(f"a label contains invalid characters.","e")
 
     # If there is only one label, still need to validate it
     if len(labels) == 1:
         # Validate the single label (without considering it as multiple labels)
         if not hostname_regex.match(value_str):
-            return False
+            output_message(f"{value_str}' contains invalid characters.","e")
 
-    return True
+    output_message(f"{value_str}' is a valid hostname.","s")
 
-def check_valid_ip_address(values, which_ip):
-    if which_ip == "host":
-      value_string = values.get("ci_ipaddress")
-    if which_ip == "gw":
-      value_string = values.get("ci_gwadvalue")
-    if which_ip == "dns":
-      value_string = values.get("ci_dns_server")
-    parts = value_string.split('.')
-    vlan = values.get("vlan")
-
+def check_valid_ip_address(which_ip,vlan=None):
+    parts = which_ip.split('.')
     if len(parts) != 4:
-        print(f"\033[91m[ERROR]           : Invalid IP address '{value_string}'. IP address should have exactly four parts.")
-        end_output_to_shell()
-        sys.exit(1)
+        output_message(f"Invalid IP address '{which_ip}'. IP address should have exactly four parts.","E")
 
     for part in parts:
         try:
             part_int = int(part)
             if not 0 <= part_int <= 255:
-                print(f"\033[91m[ERROR]           : Invalid IP address '{value_string}'. Each part should be between 0 and 255.")
-                end_output_to_shell()
-                sys.exit(1)
+                output_message(f"Invalid IP address '{which_ip}'. Each part should be between 0 and 255.","E")
         except ValueError:
-            print(f"\033[91m[ERROR]           : Invalid IP address '{value_string}'. Each part should be an integer.")
-            end_output_to_shell()
-            sys.exit(1)
+            output_message(f"Invalid IP address '{which_ip}'. Each part should be an integer.","E")
 
-    print(f"\033[92m[INFO]            : IP address '{value_string}' is a valid ip-address.")
+    output_message(f"IP address '{which_ip}' is a valid ip-address.","s")
 
-    if which_ip == "dns":
-      if not int(vlan) == int(parts[2]):
-          print(f"\033[92m[INFO]            : DNS IP address 3rd octect '{parts[2]}' does not match VLAN ID '{vlan}'. Continuing...")
+    if vlan:
+        try:
+            if int(vlan) == int(parts[2]):
+                output_message(f"IP address 3rd octect '{parts[2]}' match VLAN ID '{vlan}'.","s")
+            else:
+                output_message(f"IP address 3rd octect '{parts[2]}' does not match VLAN ID '{vlan}'. Continuing...","w")
 
-    if not which_ip == "dns":
-      if not int(vlan) == int(parts[2]):
-        print(f"\033[91m[ERROR]           : IP address 3rd octect '{parts[2]}' does not match VLAN ID '{vlan}'.")
-        end_output_to_shell()
-        sys.exit(1)
+        except ValueError:
+            output_message(f"Error occured checking VLAN.","E")
 
-def check_netmask(values):
-    value_string = values.get("ci_netmask")
+def check_netmask(value_string):
     try:
         netmask = int(value_string)
         if not netmask in range(23, 30):
@@ -168,20 +153,18 @@ def check_netmask(values):
         output_message(f"Invalid netmask '{value_string}'. Netmask is not a number value.","E")
         return
 
-    output_message(f"Netmask '/{netmask}' is a valid netmask.","I")
+    output_message(f"Netmask '/{netmask}' is a valid netmask.","s")
 
-def check_vlan(values):
-    value_string = values.get("vlan")
+def check_vlan(vlanid):
     try:
-        vlan= int(value_string)
-        if not vlan in range(2, 4095):
-            output_message(f"Invalid VLAN '{vlan}'. Vlan should be a number between 2 and 4094.","E")
+        if not int(vlanid) in range(2, 4095):
+            output_message(f"Invalid VLAN '{vlanid}'. Vlan should be a number between 2 and 4094.","E")
 
 
     except ValueError:
-        output_message(f"Invalid VLAN '{value_string}'. Vlan id must be a number.", "E")
+        output_message(f"Invalid VLAN '{vlanid}'. Vlan id must be a number.", "E")
 
-    output_message(f"VLAN id '{value_string}' is a valid VLAN.", "i")
+    output_message(f"VLAN id '{vlanid}' is a valid VLAN.", "s")
 
 def change_remote_password(ssh, remote_user, current_password):
 
@@ -262,6 +245,7 @@ def output_message(message=None, type=None):
     # Now print the formatted message
     print(f"{color}{pre_message}{message}{reset}")
     if type == "e" or type == "E":
+        message = "--------------------------------------------------------------------------------"
         sys.exit(1)
 
 def validate_boolean(value, field_name):
@@ -339,3 +323,20 @@ def check_values(config, integer_keys=None):
             output_message(f"{error}", "e")
 
     output_message(f"All values are the correct type", "s")
+
+def check_if_id_in_use(ssh, pve_id):
+    command = f"qm list | awk '{{print $1}}' | grep -q '^{pve_id}$' && echo 'in_use' || echo 'not_in_use'"
+    result = execute_ssh_command(ssh, command, f"Unable to query ID {pve_id} on proxmox host.")
+    """Check if TEMPLATE_ID is already in use on the Proxmox host"""
+    #stdin, stdout, stderr = ssh.exec_command(f"qm list | awk '{{print $1}}' | grep -q '^{template_id}$' && echo 'in_use' || echo 'not_in_use'")
+    #result = stdout.read().decode().strip()
+    if result == "in_use":
+        output_message(f"ID '{pve_id}' is already in use on the Proxmox host. Not creating new instance..","W")
+        return True
+    else:
+        output_message(f"ID '{pve_id}' is not in use on the Proxmox host. continue to create new instance...","s")
+        return False
+
+def query_vm_disksize(ssh, vm_id):
+    ommand = f"qm list | awk '{{print $1}}' | grep -q '^{pve_id}$' && echo 'in_use' || echo 'not_in_use'"
+    result = execute_ssh_command(ssh, command, f"Unable to query ID {pve_id} on proxmox host.")
