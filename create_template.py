@@ -38,22 +38,6 @@ def get_json_values(config):
         "image": config.get("DISKIMAGE").get("image")
     }
 
-def check_template_id_in_use(ssh, values):
-    template_id = values.get("id")
-    command = f"qm list | awk '{{print $1}}' | grep -q '^{template_id}$' && echo 'in_use' || echo 'not_in_use'"
-    result = functions.execute_ssh_command(ssh, command, f"Unable to query template ID {template_id} on proxmox host.")
-    """Check if TEMPLATE_ID is already in use on the Proxmox host"""
-    #stdin, stdout, stderr = ssh.exec_command(f"qm list | awk '{{print $1}}' | grep -q '^{template_id}$' && echo 'in_use' || echo 'not_in_use'")
-    #result = stdout.read().decode().strip()
-    if result == "in_use":
-        functions.output_message(f"ID '{template_id}' is already in use on the Proxmox host. Not creating new template..","W")
-        values["skip_create"] = True
-        skip_create = True
-    else:
-        functions.output_message(f"ID '{template_id}' is not in use on the Proxmox host. continue to create new template...","s")
-        values["skip_create"] = False
-        skip_create = False
-
 def check_bridge_exists(ssh, values):
     bridge = values.get("bridge")
     command = f"brctl show | grep -w '{bridge}'"
@@ -74,9 +58,9 @@ def check_storage_exists(ssh, values):
 
 def create_template(ssh, values):
     template_id = values.get("id")
-    skip_create = values.get("skip_create", False)
+    result = functions.check_if_id_in_use(ssh, template_id)
 
-    if skip_create == False:
+    if result == False:
         command = f"qm create {template_id} --name {values['name']}"
         functions.execute_ssh_command(ssh, command, f"'{command}' failed on the Proxmox host.")
         functions.output_message(f"Started building template on proxmox host.","s")
@@ -104,12 +88,13 @@ def create_template(ssh, values):
     except Exception as e:
         functions.output_message(f"Failed to create server template: {e}","e")
 
-    if skip_create == False:
+    if result == False:
         command =  f"qm set {template_id} --ide2 {values['local_storage']}:cloudinit"
         functions.execute_ssh_command(ssh, command, f"'{command}' failed on the Proxmox host.")
         command = f"qm template {template_id}"
         functions.execute_ssh_command(ssh, command, f"'{command}' failed on the Proxmox host.")
 
+os.system('cls' if os.name == 'nt' else 'clear')
 config_file = sys.argv[1]
 script_directory = os.path.dirname(os.path.abspath(__file__))
 functions.output_message()
@@ -138,7 +123,7 @@ functions.output_message(f"build template","h")
 functions.output_message()
 
 ssh = functions.ssh_connect(values.get("host"), values.get("user"))
-check_template_id_in_use(ssh, values)
+# check_template_id_in_use(ssh, values)
 check_bridge_exists(ssh, values)
 check_storage_exists(ssh, values)
 create_template(ssh, values)

@@ -20,9 +20,7 @@ def load_config(config_file):
             config = json.load(file)
         return config
     except Exception as e:
-        print(f"\033[91m[ERROR]           : Error reading the configuration file: {e}")
-        functions.end_output_to_shell()
-        sys.exit(1)
+        functions.output_message(f"Error reading the configuration file: {e}","e")
 
 def get_json_values(config):
     # Extract needed variables from JSON file
@@ -65,18 +63,23 @@ def check_conditional_values(values):
     ci_network = values.get("ci_network")
     if ci_network in ["dhcp", "static"]:
         if ci_network == "static":
-            functions.check_vlan(values)
-            functions.check_valid_ip_address(values, "host")
-            functions.check_valid_ip_address(values, "gw")
-            functions.check_netmask(values)
+            functions.check_vlan(values.get("vlan"))
+            functions.check_valid_ip_address(values.get("ci_ipaddress"),values.get("vlan"))
+            functions.check_valid_ip_address(values.get("ci_gwadvalue"),values.get("vlan"))
+            functions.check_netmask(values.get("ci_netmask"))
     else:
-        print(f"\033[91m[ERROR]           : Invalid network type '{ci_network}', expected 'dhcp' or 'static'")
+        functions.output_message(f"Invalid network type '{ci_network}', expected 'dhcp' or 'static'","e")
 
     vm_name = values.get("name")
-    if not functions.is_valid_hostname(vm_name):
-        print(f"\033[91m[ERROR]           : '{vm_name}' is not a valid hostname. Only A-Z, a-z, 0-9 and '-' allowed.\033[0m")
-        functions.end_output_to_shell()
-        sys.exit(1)
+    ci_domain = values.get("ci_domain")
+    if vm_name:
+        if ci_domain:
+            fqdn = f"{vm_name}.{ci_domain}"
+            functions.is_valid_hostname(fqdn)
+        else:
+            functions.is_valid_hostname(vm_name)
+
+
 
 def create_server(ssh, values):
     """Create the server template on the Proxmox host."""
@@ -598,37 +601,43 @@ def on_guest_configuration(ssh, values, ipaddress):
     # Change the password on the remote host to something else then the default from .json
     functions.change_remote_password(ssh, ci_username, ci_password)
 
+os.system('cls' if os.name == 'nt' else 'clear')
 config_file = sys.argv[1]
 script_directory = os.path.dirname(os.path.abspath(__file__))
-print("-------------------------------------------")
-print(f"Parameter filename: {config_file}")
-print(f"Script directory  : {script_directory}")
-print("-------------------------------------------")
-print("")
-print("-------------------------------------------")
-print("--        Validate JSON structure        --")
-print("-------------------------------------------")
 
+functions.output_message()
+functions.output_message(f"script info:","h")
+functions.output_message()
+functions.output_message(f"Parameter filename: {config_file}")
+functions.output_message(f"Script directory  : {script_directory}")
+functions.output_message()
+
+print("")
 config = load_config(config_file)
 values = get_json_values(config)
-# Use json_test to validate JSON structure
-json_test.check_parameters(config, MANDATORY_KEYS, OPTIONAL_KEYS)
 
-print("-------------------------------------------")
-print("--          Validate JSON values         --")
-print("-------------------------------------------")
-# Validate JSON values to ensure proper types
-json_test.check_values(config, integer_keys=INTEGER_KEYS)
+functions.output_message()
+functions.output_message(f"Validate JSON structure","h")
+functions.output_message()
+functions.check_parameters(config, MANDATORY_KEYS, OPTIONAL_KEYS)
 
-print("-------------------------------------------")
-print("-- Validate JSON conditions and build VM --")
-print("-------------------------------------------")
+functions.output_message()
+functions.output_message(f"Validate JSON values","h")
+functions.output_message()
+functions.check_values(config, integer_keys=INTEGER_KEYS)
+
+functions.output_message()
+functions.output_message(f"Evaluate configuration","h")
+functions.output_message()
 check_conditional_values(values)
 
-# Establish SSH connection to Proxmox server
-ssh = functions.ssh_connect(values.get("host"), values.get("user"))
+functions.output_message()
+functions.output_message(f"Build virtual server","h")
+functions.output_message()
 
-# Create and configure the VM
+ssh = functions.ssh_connect(values.get("host"), values.get("user"))
+sys.exit(1)
+
 create_server(ssh, values)
 create_ci_options(ssh, values)
 create_cloudinit(ssh, values)
