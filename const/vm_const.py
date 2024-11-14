@@ -1,5 +1,4 @@
 # const/constants.py
-
 MANDATORY_KEYS = {
     "USER": "username",
     "HOST": "host_ip",
@@ -14,7 +13,7 @@ MANDATORY_KEYS = {
     "VLAN": "vlan",
     "CLOUDINIT_NET": "ci_network",
     "CLOUDINIT_UPGRADE": "ci_upgrade"
-}
+    }
 OPTIONAL_KEYS = {
     "BALLOON": "balloon",
     "START_AT_BOOT": "boot_start",
@@ -26,8 +25,10 @@ OPTIONAL_KEYS = {
     "CLOUDINIT_IP": "ci_ipaddress",
     "CLOUDINIT_GW": "ci_gwadvalue",
     "CLOUDINIT_MASK": "ci_netmask"
-}
-INTEGER_KEYS = ["TEMPLATE", "ID", "CORES", "MEM", "VLAN", "CLOUDINIT_UPGRADE", "CLOUDINIT_MASK"]
+    }
+INTEGER_KEYS = ["TEMPLATE", "ID", "CORES", "MEM", "VLAN",
+                "CLOUDINIT_UPGRADE", "CLOUDINIT_MASK"
+                ]
 SSH_CONST = {
     "PasswordAuthentication": "no",
     "ChallengeResponseAuthentication": "no",
@@ -36,9 +37,15 @@ SSH_CONST = {
     "ClientAliveCountMax": "2",
     "X11Forwarding": "no",
     "PermitRootLogin": "prohibit-password"
-}
+    }
 SSHD_CONFIG = [
     "/etc/ssh/sshd_config"
-]
+    ]
 SSHD_SEARCHSTRING = "Include "
 SSHD_CUSTOMFILE = "/99-automation-default-config.conf"
+DEFAULT_BALLOON = "0"
+DEFAULT_START_AT_BOOT = "0"
+DEFAULT_CI_UPGRADE = "1"
+DEFAULT_USER = "ubuntu"
+DEFAULT_NIC = "eth0"
+PVE_KEYFILE = "/home/nije/.ssh/infrastructure/proxmox-root"
