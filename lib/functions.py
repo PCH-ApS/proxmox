@@ -8,25 +8,52 @@ import re
 import getpass
 import os
 
-def end_output_to_shell():
-    print("\033[0m-------------------------------------------")
-    print("")
 
-def ssh_connect(host, username, password=None):
-    """Establish SSH connection to the remote host securely using key-based auth."""
+def ssh_connect(host, username, password=None, key_filename=None):
+    # Establish SSH connection to the remote
+    # host securely using key-based auth.
     try:
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         if password:
-            ssh.connect(hostname=host, username=username, password=password)
+            ssh.connect(
+                hostname=host,
+                username=username,
+                password=password
+            )
+        elif key_filename:
+            ssh.connect(
+                hostname=host,
+                username=username,
+                key_filename=key_filename
+            )
         else:
-            ssh.connect(hostname=host, username=username)
-        output_message(f"Successfully connected to {host} as {username}.", "s")
+            ssh.connect(
+                hostname=host,
+                username=username
+            )
+        output_message(
+            f"Successfully connected to {host} as {username}.",
+            "s"
+        )
         return ssh
+    except paramiko.AuthenticationException:
+        output_message(
+            f"Authentication failed when connecting to {host}.",
+            "Please check your credentials.",
+            "e"
+        )
+    except paramiko.SSHException as e:
+        output_message(
+            f"Unable to establish SSH connection to {host}: {e}",
+            "e"
+        )
     except Exception as e:
-        output_message(f"Failed to connect to {host} as {username}: {e}", "e")
-        end_output_to_shell()
-        sys.exit(1)
+        output_message(
+            f"Unexpected error while connecting to {host}: {e}",
+            "e"
+        )
+    return None
 
 def execute_ssh_command(ssh, command, error_message=None):
     stdin, stdout, stderr = ssh.exec_command(command)
@@ -34,18 +61,21 @@ def execute_ssh_command(ssh, command, error_message=None):
     error_output = stderr.read().decode().strip()
     if exit_status != 0:
         if error_message:
-            output_message(f"{error_message}: {error_output}","e")
+            output_message(f"{error_message}: {error_output}", "e")
         sys.exit(1)
     return stdout.read().decode().strip()
+
 
 def execute_ssh_sudo_command(ssh, sudo_env, command, error_message=None):
     sudo_password = os.getenv(sudo_env)
 
     if not sudo_password:
-        raise EnvironmentError("The environment variable 'CI_PASSWORD' is not set. Please set it before running the script.")
+        raise EnvironmentError(
+            "The environment variable 'CI_PASSWORD' is not set.",
+            " Please set it before running the script."
+        )
 
     # Construct the sudo command with the password
-    # sudo_command = f"echo {sudo_password} | sudo -S -p '' bash -c '{command}'"
     sudo_command = f'echo {sudo_password} | sudo -S -p "" bash -c "{command}"'
 
     try:
@@ -62,14 +92,14 @@ def execute_ssh_sudo_command(ssh, sudo_env, command, error_message=None):
         # Handle command errors
         if exit_status != 0:
             if error_message:
-                print(f"\033[91m[ERROR]           : {error_message}: {error_output}\033[0m")
+                output_message(f"{error_message}: {error_output}", "e")
             sys.exit(1)
 
         return output
 
     except Exception as e:
         print(f"An unexpected error occurred while executing the command: {e}")
-        sys.exit(1)
+
 
 def wait_for_reboot(host, username, password=None, timeout=300, interval=10):
     start_time = time.time()
@@ -81,13 +111,17 @@ def wait_for_reboot(host, username, password=None, timeout=300, interval=10):
                 ssh.connect(host, username, password)
             else:
                 ssh.connect(host, username)
-            print(f"\033[92m[SUCCESS]         : Successfully reconnected to {host} after reboot.")
+            output_message(
+                f"Successfully reconnected to {host} after reboot.",
+                "s"
+                )
             return ssh
         except Exception:
             print(f"\033[93m[INFO]            : Waiting for '{host}' to reboot...")
             time.sleep(interval)
     print(f"\033[91m[ERROR]           : Timeout while waiting for {host} to reboot.")
     sys.exit(1)
+
 
 def is_valid_hostname(value_str):
     hostname_regex = re.compile(r'^(?!-)[A-Za-z0-9-]{1,63}(?<!-)$')
@@ -118,6 +152,7 @@ def is_valid_hostname(value_str):
 
     output_message(f"{value_str}' is a valid hostname.","s")
 
+
 def check_valid_ip_address(which_ip,vlan=None):
     parts = which_ip.split('.')
     if len(parts) != 4:
@@ -143,6 +178,7 @@ def check_valid_ip_address(which_ip,vlan=None):
         except ValueError:
             output_message(f"Error occured checking VLAN.","E")
 
+
 def check_netmask(value_string):
     try:
         netmask = int(value_string)
@@ -155,6 +191,7 @@ def check_netmask(value_string):
 
     output_message(f"Netmask '/{netmask}' is a valid netmask.","s")
 
+
 def check_vlan(vlanid):
     try:
         if not int(vlanid) in range(2, 4095):
@@ -165,6 +202,7 @@ def check_vlan(vlanid):
         output_message(f"Invalid VLAN '{vlanid}'. Vlan id must be a number.", "E")
 
     output_message(f"VLAN id '{vlanid}' is a valid VLAN.", "s")
+
 
 def change_remote_password(ssh, remote_user, current_password):
 
@@ -200,6 +238,7 @@ def change_remote_password(ssh, remote_user, current_password):
     finally:
         # Remove the NEW_PASSWORD from environment variables
         new_password = ""
+
 
 def output_message(message=None, type=None):
     # Set pre_message to the correct prefix based on 'type'
@@ -240,19 +279,22 @@ def output_message(message=None, type=None):
     reset = '\033[0m'
 
     if not message:
-        message = "--------------------------------------------------------------------------------"
+        message = "-" * 80
 
     # Now print the formatted message
     print(f"{color}{pre_message}{message}{reset}")
     if type == "e" or type == "E":
-        message = "--------------------------------------------------------------------------------"
+        message = "-" * 80
+        print(f"{message}")
         sys.exit(1)
+
 
 def validate_boolean(value, field_name):
     if not isinstance(value, bool):
         output_message(f"'{field_name}' must be a boolean (true/false)", "e")
         return False
     return True
+
 
 def check_parameters(config, mandatory_keys, optional_keys):
     allowed_keys = set(mandatory_keys.keys()).union(optional_keys.keys())
@@ -290,6 +332,7 @@ def check_parameters(config, mandatory_keys, optional_keys):
     except Exception as e:
         output_message(f"Error while validating the structure in JSON file: {e}", "e")
 
+
 def check_values(config, integer_keys=None):
     errors = []
 
@@ -324,6 +367,7 @@ def check_values(config, integer_keys=None):
 
     output_message(f"All values are the correct type", "s")
 
+
 def check_if_id_in_use(ssh, pve_id):
     command = f"qm list | awk '{{print $1}}' | grep -q '^{pve_id}$' && echo 'in_use' || echo 'not_in_use'"
     result = execute_ssh_command(ssh, command, f"Unable to query ID {pve_id} on proxmox host.")
@@ -337,6 +381,7 @@ def check_if_id_in_use(ssh, pve_id):
         output_message(f"ID '{pve_id}' is not in use on the Proxmox host. continue to create new instance...","s")
         return False
 
+
 def query_vm_disksize(ssh, vm_id):
-    ommand = f"qm list | awk '{{print $1}}' | grep -q '^{pve_id}$' && echo 'in_use' || echo 'not_in_use'"
+    command = f"qm list | awk '{{print $1}}' | grep -q '^{pve_id}$' && echo 'in_use' || echo 'not_in_use'"
     result = execute_ssh_command(ssh, command, f"Unable to query ID {pve_id} on proxmox host.")
