@@ -30,22 +30,22 @@
     "comment"       : "VM name in Proxmox GUI"
   },
   "DISK":{
-    "disk"          : "8G",
+    "disk"          : 8,
     "allow_blank"   : false,
     "allow_spaces"  : false,
-    "comment"       : "How much the VM HDD should be expanded to during cloning. Size is in GB"
+    "comment"       : "How much the VM HDD should be expanded to during cloning. Size is in GB. Value must be integer"
   },
   "CORES":{
     "cores"         : 4,
     "allow_blank"   : false,
     "allow_spaces"  : false,
-    "comment"       : "Memory assigned to the VM in MB"
+    "comment"       : "vCPU cores assigned to the VM. Value must be integer"
   },
   "MEM":{
     "memory"        : 4096,
     "allow_blank"   : false,
     "allow_spaces"  : false,
-    "comment"       : "Memory assigned to the VM in MB"
+    "comment"       : "Memory assigned to the VM in MB. Value must be integer"
   },
   "BALLOON":{
     "balloon"       : "",
