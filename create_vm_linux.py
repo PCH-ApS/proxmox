@@ -210,7 +210,13 @@ def create_server(ssh, values):
             else:
                 memory_size_mb = None
 
-            if not vm_mem == memory_size_mb or vm_mem and memory_size_mb is None:
+            vm_update = False
+            if not vm_mem == memory_size_mb:
+                vm_update = True
+            if vm_mem is not None and memory_size_mb is None:
+                vm_update = True
+
+            if vm_update:
                 command = f"qm set {vm_id} --memory {vm_mem}"
                 functions.execute_ssh_command(
                     ssh,
@@ -237,8 +243,14 @@ def create_server(ssh, values):
             else:
                 disk_size_gb = None
 
-            if vm_disk > disk_size_gb or vm_disk and disk_size_gb is None:
-                command = f"qm disk resize {vm_id} scsi0 {values.get('disk')}"
+            vm_update = False
+            if vm_disk > disk_size_gb:
+                vm_update = True
+            if vm_disk is not None and disk_size_gb is None:
+                vm_update = True
+
+            if vm_update:
+                command = f"qm disk resize {vm_id} scsi0 {values.get('disk')}G"
                 functions.execute_ssh_command(
                     ssh,
                     command,
@@ -409,10 +421,15 @@ def create_ssh_public_key(ssh, values):
 
 def create_ci_options(ssh, values):
     vm_id = values.get("id")
+    ci_upgrade = values.get('ci_upgrade')
+    ci_password = values.get("ci_password")
+    ci_upgrade = values.get("ci_upgrade")
+    ci_username = values.get("ci_username")
     vm_name = values.get("name")
-    ci_gwadvalue = values.get('ci_gwadvalue')
-    ci_ipaddress = values.get('ci_ipaddress')
-    ci_netmask = values.get('ci_netmask')
+    ci_gwadvalue = values.get("ci_gwadvalue")
+    ci_ipaddress = values.get("ci_ipaddress")
+    ci_netmask = values.get("ci_netmask")
+
     functions.output_message(
         f"Checking Cloud-Init input for '{vm_name}'.",
         "i"
@@ -426,6 +443,81 @@ def create_ci_options(ssh, values):
     )
 
     try:
+
+        pwd_str = functions.get_status_info("cipassword", scr_config_info)
+        if pwd_str is not None:
+            pwd = str(pwd_str)
+        else:
+            pwd = None
+
+        pwd_update = False
+        if ci_password and not pwd == "**********":
+            pwd_update = True
+            # Password value set in JSON
+            # and no password set in ci setting
+            # in VM
+
+        if pwd_update:
+            command = (
+                f"qm set {vm_id} --cipassword {ci_password}"
+            )
+            functions.execute_ssh_command(
+                ssh,
+                command,
+                "Failed to set password"
+            )
+
+        if ci_upgrade:
+            upg_str = functions.get_status_info("ciupgrade", scr_config_info)
+            if upg_str is not None:
+                upgrade = int(upg_str)
+            else:
+                upgrade = None
+
+            upg_update = False
+            if not ci_upgrade == upgrade:
+                upg_update = True
+
+            if upg_update:
+                command = (
+                    f"qm set {vm_id} --ciupgrade {ci_upgrade}"
+                )
+                functions.execute_ssh_command(
+                    ssh,
+                    command,
+                    "Failed to set update flag"
+                )
+                functions.output_message(
+                    f"Changing 'Upgrade' to {ci_upgrade}.",
+                    "i"
+                )
+
+        if ci_username:
+            usr_str = functions.get_status_info("ciuser", scr_config_info)
+            if usr_str is not None:
+                user = int(upg_str)
+            else:
+                user = None
+
+            usr_update = False
+            if not ci_username == user:
+                usr_update = True
+
+            if usr_update:
+                command = (
+                    f"qm set {vm_id} --ciuser {values.get('ci_username')}"
+                )
+                functions.execute_ssh_command(
+                    ssh,
+                    command,
+                    "Failed to set user"
+                )
+                functions.output_message(
+                    f"Changing 'Username' to {ci_username}.",
+                    "i"
+                )
+
+
         if values.get('ci_network') == "dhcp":
             command = f"qm set {vm_id} --ipconfig0 ip=dhcp"
             functions.execute_ssh_command(
@@ -521,7 +613,8 @@ def create_ci_options(ssh, values):
         if values.get("ci_publickey"):
             create_ssh_public_key(ssh, values)
 
-        if values.get("ci_username"):
+
+   if values.get("ci_username"):
             command = (
                 f"qm set {vm_id} --ciuser {values.get('ci_username')}"
             )
@@ -531,38 +624,7 @@ def create_ci_options(ssh, values):
                 "Failed to set user"
             )
 
-        if values.get("ci_password"):
-            command = (
-                f"qm set {vm_id} --cipassword {values.get('ci_password')}"
-            )
-            functions.execute_ssh_command(
-                ssh,
-                command,
-                "Failed to set password"
-            )
 
-        if values.get("ci_upgrade"):
-            upg_str = functions.get_status_info("ciupgrade", scr_config_info)
-            if upg_str is not None:
-                upgrade = str(upg_str)
-            else:
-                upgrade = None
-
-            ci_upgrade = values.get('ci_upgrade')
-
-            if not ci_upgrade == upgrade:
-                command = (
-                    f"qm set {vm_id} --ciupgrade {ci_upgrade}"
-                )
-                functions.execute_ssh_command(
-                    ssh,
-                    command,
-                    "Failed to set update flag"
-                )
-                functions.output_message(
-                    f"Changing 'Upgrade' to {ci_upgrade}.",
-                    "i"
-                )
 
         functions.output_message(
             f"Cloud-Init settings for '{vm_name}' set successfully.",
