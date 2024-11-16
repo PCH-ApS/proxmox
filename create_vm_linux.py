@@ -12,14 +12,12 @@ import os
 import json
 import sys
 import time
-import re
 
 # Add the parent directory to the Python path to make `lib` available
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 
 def load_config(config_file):
-    """Load configuration from a JSON file."""
     try:
         with open(config_file, 'r') as file:
             config = json.load(file)
@@ -102,130 +100,266 @@ def create_server(ssh, values):
     vm_id = values.get("id")
     template_id = values.get("template_id")
     vm_name = values.get("name")
+    vm_cores = values.get("cores")
+    vm_mem = values.get("mem")
+    vm_disk = values.get("disk")
+    vm_balloon = values.get('balloon')
+    vm_onboot = values.get('start_at_boot')
+    vm_driver = values.get('driver')
+    vm_bridge = values.get('bridge')
+    vm_vlan = values.get('vlan')
 
-    command = f"qm status {vm_id} --verbose"
-    scr_string = functions.execute_ssh_command(
-        ssh,
-        command,
-        f"Failed to get status for {vm_name}."
-    )
+    vm_id_in_use = functions.check_if_id_in_use(ssh, vm_id)
 
-    def get_status_info(ssh, search_string, scr_string):
-        pattern = rf'{search_string}:\s*(.+)'
-        match = re.search(pattern, scr_string)
-        if match:
-            search_string_value = match.group(1).strip()
-        else:
-            search_string_value = None
-        return search_string_value
+    scr_string = None
+    scr_config_info = None
+
+    if vm_id_in_use:
+        command = f"qm status {vm_id} --verbose"
+        scr_string = functions.execute_ssh_command(
+            ssh,
+            command,
+            f"Failed to get status for {vm_name}."
+        )
+
+        command = f"qm config {vm_id}"
+        scr_config_info = functions.execute_ssh_command(
+            ssh,
+            command,
+            f"Failed to get status for {vm_name}."
+        )
 
     try:
         functions.output_message(
             f"Provisioning of virtual server '{vm_name}' started.",
             "s"
             )
-        result = functions.check_if_id_in_use(ssh, vm_id)
 
-        if result is False:
+        if vm_id_in_use is False:
             command = f"qm clone {template_id} {vm_id} --full 1"
             functions.execute_ssh_command(
                 ssh,
                 command,
                 f"Failed to clone {vm_name} from {template_id}."
             )
-        if result is True:
+
+        if vm_id_in_use:
             functions.output_message(
                 f"Cont. checking virtual server settings for '{vm_name}'.",
                 "i"
             )
 
-        core_value_str = get_status_info(ssh, "cpus", scr_string)
-        if core_value_str is not None:
-            core_value = int(core_value_str)
-        else:
-            core_value = None
+        if vm_name:
+            if scr_string is not None:
+                name_value_str = functions.get_status_info("name", scr_string)
+            else:
+                name_value_str = None
 
-        vm_cores = values.get("cores")
+            if name_value_str is not None:
+                name_value = name_value_str
+            else:
+                name_value = None
 
-        if not vm_cores == core_value or core_value is None:
-            command = f"qm set {vm_id} --cores {vm_cores}"
-            functions.execute_ssh_command(
-                ssh,
-                command,
-                f"'{command}' failed on the Proxmox host."
-            )
+            if not vm_name == name_value or vm_name and name_value is None:
+                command = f"qm set {vm_id} --name {vm_name}"
+                functions.execute_ssh_command(
+                    ssh,
+                    command,
+                    f"'{command}' failed on the Proxmox host."
+                )
+                functions.output_message(
+                    f"Changing name to: {vm_name}.",
+                    "s"
+                )
 
-        name_value_str = get_status_info(ssh, "name", scr_string)
-        if name_value_str is not None:
-            name_value = name_value_str
-        else:
-            name_value = None
+        if vm_cores:
+            if scr_string is not None:
+                core_value_str = functions.get_status_info("cpus", scr_string)
+            else:
+                core_value_str = None
 
-        if not vm_name == name_value or name_value is None:
-            command = f"qm set {vm_id} --name {vm_name}"
-            functions.execute_ssh_command(
-                ssh,
-                command,
-                f"'{command}' failed on the Proxmox host."
-            )
+            if core_value_str is not None:
+                core_value = int(core_value_str)
+            else:
+                core_value = None
 
-        memory_size_str = get_status_info(ssh, "maxmem", scr_string)
-        if memory_size_str is not None:
-            memory_size = int(memory_size_str)
-            memory_size_mb = memory_size / (1024 * 1024)
-        else:
-            memory_size_mb = None
+            if not vm_cores == core_value or vm_cores and core_value is None:
+                command = f"qm set {vm_id} --cores {vm_cores}"
+                functions.execute_ssh_command(
+                    ssh,
+                    command,
+                    f"'{command}' failed on the Proxmox host."
+                )
+                functions.output_message(
+                    f"Changing CPU cores to: {vm_cores}.",
+                    "s"
+                )
 
-        vm_mem = values.get("mem")
+        if vm_mem:
+            if scr_string is not None:
+                memory_size_str = functions.get_status_info(
+                    "maxmem",
+                    scr_string
+                )
+            else:
+                memory_size_str = None
 
-        if not vm_mem == memory_size_mb or memory_size_mb is None:
-            command = f"qm set {vm_id} --memory {vm_mem}"
-            functions.execute_ssh_command(
-                ssh,
-                command,
-                f"'{command}' failed on the Proxmox host."
-            )
+            if memory_size_str is not None:
+                memory_size = int(memory_size_str)
+                memory_size_mb = memory_size / (1024 * 1024)
+            else:
+                memory_size_mb = None
 
-        disk_size_str = get_status_info(ssh, "maxdisk", scr_string)
-        if disk_size_str is not None:
-            disk_size = int(disk_size_str)
-            disk_size_gb = disk_size / (1024 * 1024 * 1024)
-        else:
-            disk_size_gb = None
+            if not vm_mem == memory_size_mb or vm_mem and memory_size_mb is None:
+                command = f"qm set {vm_id} --memory {vm_mem}"
+                functions.execute_ssh_command(
+                    ssh,
+                    command,
+                    f"'{command}' failed on the Proxmox host."
+                )
+                functions.output_message(
+                    f"Changing memory to: {vm_mem}MB.",
+                    "s"
+                )
 
-        vm_disk = values.get("disk")
+        if vm_disk:
+            if scr_string is not None:
+                disk_size_str = functions.get_status_info(
+                    "maxdisk",
+                    scr_string
+                )
+            else:
+                disk_size_str = None
 
-        if vm_disk > disk_size_gb or disk_size_gb is None:
-            command = f"qm disk resize {vm_id} scsi0 {values.get('disk')}"
-            functions.execute_ssh_command(
-                ssh,
-                command,
-                f"'{command}' failed on the Proxmox host."
-            )
+            if disk_size_str is not None:
+                disk_size = int(disk_size_str)
+                disk_size_gb = disk_size / (1024 * 1024 * 1024)
+            else:
+                disk_size_gb = None
 
-        command = f"qm set {vm_id} --balloon {values.get('balloon')}"
-        functions.execute_ssh_command(
-            ssh,
-            command,
-            f"'{command}' failed on the Proxmox host."
-        )
+            if vm_disk > disk_size_gb or vm_disk and disk_size_gb is None:
+                command = f"qm disk resize {vm_id} scsi0 {values.get('disk')}"
+                functions.execute_ssh_command(
+                    ssh,
+                    command,
+                    f"'{command}' failed on the Proxmox host."
+                )
+                functions.output_message(
+                    f"Changing disk sioze to: {vm_disk}GB.",
+                    "s"
+                )
 
-        command = f"qm set {vm_id} --onboot {values.get('start_at_boot')}"
-        functions.execute_ssh_command(
-            ssh,
-            command,
-            f"'{command}' failed on the Proxmox host."
-        )
+        if vm_balloon:
+            if scr_config_info is not None:
+                balloon_str = functions.get_status_info(
+                    "balloon",
+                    scr_config_info
+                )
+            else:
+                balloon_str = None
 
-        net_driver = f"{values.get('driver')}"
-        net_bridge = f"bridge={values.get('bridge')}"
-        net_tag = f"tag={values.get('vlan')}"
-        command = f"qm set {vm_id} --net0 {net_driver},{net_bridge},{net_tag}"
-        functions.execute_ssh_command(
-            ssh,
-            command,
-            f"'{command}' failed on the Proxmox host."
-        )
+            if balloon_str is not None:
+                balloon = int(balloon_str)
+            else:
+                balloon = None
+
+            if not vm_balloon == balloon or vm_balloon and balloon is None:
+                command = f"qm set {vm_id} --balloon {vm_balloon}"
+                functions.execute_ssh_command(
+                    ssh,
+                    command,
+                    f"'{command}' failed on the Proxmox host."
+                )
+                functions.output_message(
+                    f"Changing 'Ballooning' to: {vm_balloon}.",
+                    "s"
+                )
+
+        if vm_onboot:
+            if scr_config_info is not None:
+                onboot_str = functions.get_status_info(
+                    "onboot",
+                    scr_config_info
+                )
+            else:
+                onboot_str = None
+
+            if onboot_str is not None:
+                onboot = int(onboot_str)
+            else:
+                onboot = None
+
+            if not vm_onboot == onboot or vm_onboot and onboot is None:
+                command = f"qm set {vm_id} --onboot {vm_onboot}"
+                functions.execute_ssh_command(
+                    ssh,
+                    command,
+                    f"'{command}' failed on the Proxmox host."
+                )
+                functions.output_message(
+                    f"Changing 'Start at boot' to: {vm_onboot}.",
+                    "s"
+                )
+
+        if vm_driver and vm_bridge and vm_vlan:
+            if scr_config_info is not None:
+                net_str = functions.get_status_info("net0", scr_config_info)
+            else:
+                net_str = None
+
+            if net_str is not None:
+                net = net_str
+            else:
+                net = None
+
+            if net is not None:
+                bridge_str = functions.get_config_info("bridge", net)
+                if bridge_str is not None:
+                    bridge = bridge_str
+                else:
+                    bridge = None
+
+                vlan_str = functions.get_config_info("tag", net)
+                if vlan_str is not None:
+                    vlan = int(vlan_str)
+                else:
+                    vlan = None
+
+            net_driver = f"{vm_driver}"
+            net_bridge = f"bridge={vm_bridge}"
+            net_tag = f"tag={vm_vlan}"
+
+            if scr_config_info is None:
+                ln1 = f"qm set {vm_id} --net0 {net_driver},"
+                ln2 = f"{net_bridge},{net_tag}"
+                command = ln1+ln2
+                functions.execute_ssh_command(
+                    ssh,
+                    command,
+                    f"'{command}' failed on the Proxmox host."
+                )
+                lin1 = "Changing bridge and/or vlan to: ",
+                lin2 = f"{net_bridge} and {net_tag}.",
+                functions.output_message(
+                    lin1+lin2,
+                    "s"
+                )
+            else:
+                if not vm_bridge == bridge or not vm_vlan == vlan:
+                    ln1 = f"qm set {vm_id} --net0 {net_driver},"
+                    ln2 = f"{net_bridge},{net_tag}"
+                    command = ln1+ln2
+                    functions.execute_ssh_command(
+                        ssh,
+                        command,
+                        f"'{command}' failed on the Proxmox host."
+                    )
+                    ln1 = "Changing bridge and/or vlan to: "
+                    ln2 = f"{net_bridge} and {net_tag}."
+                    functions.output_message(
+                        ln1+ln2,
+                        "s"
+                    )
 
     except Exception as e:
         functions.output_message(
@@ -234,7 +368,7 @@ def create_server(ssh, values):
         )
 
     functions.output_message(
-        f"Configuration applied to virtual server '{vm_name}'.",
+        f"Configuration checked for virtual server '{vm_name}'.",
         "s"
     )
 
@@ -276,13 +410,22 @@ def create_ssh_public_key(ssh, values):
 def create_ci_options(ssh, values):
     vm_id = values.get("id")
     vm_name = values.get("name")
+    ci_gwadvalue = values.get('ci_gwadvalue')
+    ci_ipaddress = values.get('ci_ipaddress')
+    ci_netmask = values.get('ci_netmask')
     functions.output_message(
         f"Checking Cloud-Init input for '{vm_name}'.",
         "i"
     )
 
+    command = f"qm config {vm_id}"
+    scr_config_info = functions.execute_ssh_command(
+        ssh,
+        command,
+        f"Failed to get status for {vm_name}."
+    )
+
     try:
-        # Set root password if `ci_password` is provided
         if values.get('ci_network') == "dhcp":
             command = f"qm set {vm_id} --ipconfig0 ip=dhcp"
             functions.execute_ssh_command(
@@ -292,38 +435,88 @@ def create_ci_options(ssh, values):
             )
 
         if values.get('ci_network') == "static":
-            ci_gwadvalue = values.get('ci_gwadvalue')
-            ci_ipaddress = values.get('ci_ipaddress')
-            ci_netmask = values.get('ci_netmask')
-            first_line = f"qm set {vm_id} --ipconfig0 gw={ci_gwadvalue}"
-            second_line = f",ip={ci_ipaddress}"
-            third_line = f"/{ci_netmask}"
-            command = first_line+second_line+third_line
-            functions.execute_ssh_command(
-                ssh,
-                command,
-                "Failed to set network to static ip"
-            )
+
+            net_str = functions.get_status_info("ipconfig0", scr_config_info)
+            if net_str is not None:
+                net = net_str
+            else:
+                net = None
+
+            if net is not None:
+                gw_str = functions.get_config_info("gw", net)
+                if gw_str is not None:
+                    gw = str(gw_str)
+                else:
+                    gw = None
+
+                ip_str = functions.get_config_info("ip", net)
+                if ip_str is not None:
+                    ip = str(ip_str)
+                else:
+                    ip = None
+
+            ipaddress = f"{ci_ipaddress}/{ci_netmask}"
+            if not ci_gwadvalue == gw and ipaddress == ip:
+                first_line = f"qm set {vm_id} --ipconfig0 gw={ci_gwadvalue}"
+                second_line = f",ip={ci_ipaddress}"
+                third_line = f"/{ci_netmask}"
+                command = first_line+second_line+third_line
+                functions.execute_ssh_command(
+                    ssh,
+                    command,
+                    "Failed to set network to static ip"
+                )
+                functions.output_message(
+                    "Changing network config.",
+                    "i"
+                )
 
         if values.get('ci_dns_server'):
-            command = (
-                f"qm set {vm_id} --nameserver {values.get('ci_dns_server')}"
-            )
-            functions.execute_ssh_command(
-                ssh,
-                command,
-                "Failed to set dns server ip"
-            )
+
+            dns_str = functions.get_status_info("nameserver", scr_config_info)
+            if dns_str is not None:
+                dns = str(dns_str)
+            else:
+                dns = None
+
+            vm_nameserver = values.get('ci_dns_server')
+
+            if not vm_nameserver == dns:
+                command = (
+                    f"qm set {vm_id} --nameserver {vm_nameserver}"
+                )
+                functions.execute_ssh_command(
+                    ssh,
+                    command,
+                    "Failed to set dns server ip"
+                )
+                functions.output_message(
+                    f"Changing nameserver to {vm_nameserver}.",
+                    "i"
+                )
 
         if values.get('ci_domain'):
-            command = (
-                f"qm set {vm_id} --searchdomain {values.get('ci_domain')}"
-            )
-            functions.execute_ssh_command(
-                ssh,
-                command,
-                "Failed to set dns domain"
-            )
+            d_str = functions.get_status_info("searchdomain", scr_config_info)
+            if d_str is not None:
+                domain = str(d_str)
+            else:
+                domain = None
+
+            vm_domain = values.get('ci_domain')
+
+            if not vm_domain == domain:
+                command = (
+                    f"qm set {vm_id} --searchdomain {vm_domain}"
+                )
+                functions.execute_ssh_command(
+                    ssh,
+                    command,
+                    "Failed to set dns domain"
+                )
+                functions.output_message(
+                    f"Changing searchdomain to {vm_domain}.",
+                    "i"
+                )
 
         if values.get("ci_publickey"):
             create_ssh_public_key(ssh, values)
@@ -349,14 +542,27 @@ def create_ci_options(ssh, values):
             )
 
         if values.get("ci_upgrade"):
-            command = (
-                f"qm set {vm_id} --ciupgrade {values.get('ci_upgrade')}"
-            )
-            functions.execute_ssh_command(
-                ssh,
-                command,
-                "Failed to set update flag"
-            )
+            upg_str = functions.get_status_info("ciupgrade", scr_config_info)
+            if upg_str is not None:
+                upgrade = str(upg_str)
+            else:
+                upgrade = None
+
+            ci_upgrade = values.get('ci_upgrade')
+
+            if not ci_upgrade == upgrade:
+                command = (
+                    f"qm set {vm_id} --ciupgrade {ci_upgrade}"
+                )
+                functions.execute_ssh_command(
+                    ssh,
+                    command,
+                    "Failed to set update flag"
+                )
+                functions.output_message(
+                    f"Changing 'Upgrade' to {ci_upgrade}.",
+                    "i"
+                )
 
         functions.output_message(
             f"Cloud-Init settings for '{vm_name}' set successfully.",
@@ -1268,7 +1474,7 @@ def on_guest_temp_fix_cloudinit_part_2(ssh, values, ipaddress):
 
 os.system('cls' if os.name == 'nt' else 'clear')
 #
-config_file = "/home/nije/json-files/pve01-maschine0.json"
+config_file = "/home/nije/json-files/pve01-maschine1.json"
 script_directory = os.path.dirname(os.path.abspath(__file__))
 
 functions.output_message()

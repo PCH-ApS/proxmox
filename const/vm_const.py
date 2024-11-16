@@ -27,7 +27,8 @@ OPTIONAL_KEYS = {
     "CLOUDINIT_MASK": "ci_netmask"
     }
 INTEGER_KEYS = ["TEMPLATE", "ID", "CORES", "MEM", "VLAN",
-                "CLOUDINIT_UPGRADE", "CLOUDINIT_MASK"
+                "CLOUDINIT_UPGRADE", "CLOUDINIT_MASK", "START_AT_BOOT",
+                "BALLOON", "DISK"
                 ]
 SSH_CONST = {
     "PasswordAuthentication": "no",
@@ -43,9 +44,9 @@ SSHD_CONFIG = [
     ]
 SSHD_SEARCHSTRING = "Include "
 SSHD_CUSTOMFILE = "/99-automation-default-config.conf"
-DEFAULT_BALLOON = "0"
-DEFAULT_START_AT_BOOT = "0"
-DEFAULT_CI_UPGRADE = "1"
+DEFAULT_BALLOON = 0
+DEFAULT_START_AT_BOOT = 0
+DEFAULT_CI_UPGRADE = 1
 DEFAULT_USER = "ubuntu"
 DEFAULT_NIC = "eth0"
 PVE_KEYFILE = "/home/nije/.ssh/infrastructure/proxmox-root"
