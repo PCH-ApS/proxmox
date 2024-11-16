@@ -62,7 +62,6 @@ def execute_ssh_command(ssh, command, error_message=None):
     if exit_status != 0:
         if error_message:
             output_message(f"{error_message}: {error_output}", "e")
-        sys.exit(1)
     return stdout.read().decode().strip()
 
 
@@ -382,6 +381,25 @@ def check_if_id_in_use(ssh, pve_id):
         return False
 
 
-def query_vm_disksize(ssh, vm_id):
-    command = f"qm list | awk '{{print $1}}' | grep -q '^{pve_id}$' && echo 'in_use' || echo 'not_in_use'"
-    result = execute_ssh_command(ssh, command, f"Unable to query ID {pve_id} on proxmox host.")
+def get_status_info(search_string, scr_string):
+    pattern = rf'{search_string}:\s*(.+)'
+    match = re.search(pattern, scr_string)
+    if match:
+        search_string_value = match.group(1).strip()
+    else:
+        search_string_value = None
+    return search_string_value
+
+
+def get_config_info(search_string, scr_string):
+    pattern = rf'{search_string}=(.*?)(?:,|$)'
+    # rf'{search_string}=': Look for the key followed by =.
+    # (.*?): Capture everything lazily (up to the
+    # next comma or end of string).
+    # (?:,|$): Stop at the next comma or the end of the string.
+    match = re.search(pattern, scr_string)
+    if match:
+        search_string_value = match.group(1).strip()
+    else:
+        search_string_value = None
+    return search_string_value
