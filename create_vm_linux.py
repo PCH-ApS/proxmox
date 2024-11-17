@@ -5,7 +5,7 @@ from const.vm_const import (MANDATORY_KEYS, OPTIONAL_KEYS, INTEGER_KEYS,
                             SSH_CONST, SSHD_CONFIG, SSHD_SEARCHSTRING,
                             SSHD_CUSTOMFILE, DEFAULT_BALLOON,
                             DEFAULT_START_AT_BOOT, DEFAULT_CI_UPGRADE,
-                            DEFAULT_USER, PVE_KEYFILE
+                            PVE_KEYFILE, VM_KEYFILE, DEFAULT_PREFIX
                             )
 
 
@@ -13,6 +13,8 @@ import os
 import json
 import sys
 import time
+import ipaddress
+import paramiko
 
 # Add the parent directory to the Python path to make `lib` available
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -673,7 +675,7 @@ def start_vm(ssh, values):
                 "s"
             )
             functions.output_message(
-                f"Virtual server '{vm_name}' started successfully.",
+                f"Virtual server '{vm_name}' started.",
                 "s"
             )
         except Exception as e:
@@ -690,50 +692,141 @@ def start_vm(ssh, values):
 
 
 def get_vm_ipv4_address(ssh, values):
+
+    def ssh_connect(host, username, timeout=1,  key_filename=None):
+        """Establish a new SSH connection to the specified host."""
+        try:
+            ssh_client = paramiko.SSHClient()
+            ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            ssh_client.connect(
+                hostname=host,
+                username=username,
+                timeout=timeout,
+                key_filename=key_filename
+            )
+            return ssh_client
+        except Exception:
+            return None
+
+    def get_remote_hostname(ssh_client):
+        """Retrieve the hostname of the remote system."""
+        try:
+            stdin, stdout, stderr = ssh_client.exec_command("hostname")
+            hostname = stdout.read().decode().strip()
+            return hostname if hostname else None
+        except Exception:
+            return None
+
     vm_id = values.get("id")
     vm_name = values.get("name")
+    ci_username = values.get("ci_username")
     ci_ipaddress = values.get("ci_ipaddress")
+    ci_network = values.get("ci_network")
+    vlan = values.get("vlan")
 
-    if ci_ipaddress:
+    # If the network type is STATIC and an IP address is provided, return it
+    if ci_network.upper() == "STATIC" and ci_ipaddress:
+        functions.output_message(
+            "Allowing for vm to fully boot",
+            "s"
+        )
+        time.sleep(90)
         return ci_ipaddress
-    else:
-        max_wait_time = 300  # max wait time in seconds
-        check_interval = 10  # time interval between retries in seconds
-        total_waited = 0
 
-        while total_waited < max_wait_time:
+    max_wait_time = 300
+    check_interval = 10
+    total_waited = 0
+
+    # Step 1: Wait for the VM to be "running"
+    while total_waited < max_wait_time:
+        try:
+            command = f"qm status {vm_id}"
+            result = functions.execute_ssh_command(
+                ssh,
+                command,
+                f"Failed to get status of VM '{vm_name}'"
+            )
+
+            if result.lower() == "status: running":
+                break
+
+            message = (
+                f"'{vm_name}' not running - retrying in {check_interval} sec."
+            )
+            functions.output_message(message, "w")
+            total_waited += check_interval
+            time.sleep(check_interval)
+
+        except Exception as e:
+            error_message = f"'{vm_name}' Failed to get VM status: {e}"
+            functions.output_message(error_message, "e")
+            total_waited += check_interval
+            time.sleep(check_interval)
+
+    if total_waited >= max_wait_time:
+        functions.output_message(
+            f"'{vm_name}' did not start within {max_wait_time} seconds.", "e"
+        )
+        return None
+
+    # Step 2: Attempt to connect to each IP in the subnet
+    try:
+        functions.output_message(
+            "Allowing for vm to fully boot",
+            "s"
+        )
+        time.sleep(90)
+        ci_subnet = f"{DEFAULT_PREFIX}{vlan}"
+        if ci_network.upper() == "DHCP" and ci_subnet:
+            vm_keyfile = VM_KEYFILE
             try:
-                command = f"qm status {vm_id}"
-                result = functions.execute_ssh_command(
-                    ssh,
-                    command,
-                    f"Failed to start virtual server '{vm_name}"
-                )
-
-                if result == "status: running":
-                    break
-                else:
-                    first_line = f"'{vm_name}' not running - retrying in "
-                    third_line = f"{check_interval} sec."
-                    functions.output_message(
-                        first_line+third_line,
-                        "w"
-                    )
-                    total_waited += check_interval
-                    # Retry after the specified interval
-                    time.sleep(check_interval)
-                    continue
-
-            except Exception as e:
-                first_line = f"'{vm_name}' Failed to retrieve VM "
-                secound_line = f"network interfaces: {e}"
                 functions.output_message(
-                    first_line+secound_line,
+                    "Scanning VLAN to find host-ip.",
+                    "i"
+                )
+                for i in range(3, 255):
+                    ip_str = f"{ci_subnet}.{i}"
+                    new_ssh = None
+                    try:
+                        # Create a new SSH connection for the target VM
+                        new_ssh = ssh_connect(
+                            ip_str,
+                            ci_username,
+                            1,
+                            vm_keyfile
+                        )
+                        if new_ssh:
+                            hostname = get_remote_hostname(new_ssh)
+                            if hostname == vm_name:
+                                functions.output_message(
+                                    f"connected to '{ip_str}' - "
+                                    f"Hostname: {hostname}", "s"
+                                )
+                                return ip_str
+                    except Exception as e:
+                        functions.output_message(
+                            f"Failed to connect to {ip_str}: {e}", "w"
+                        )
+                    finally:
+                        if new_ssh:
+                            new_ssh.close()  # Close the new SSH connection
+
+                    functions.output_message(
+                        f"VM not found on {ip_str}, continueing scan...",
+                        "i"
+                    )
+            except ValueError:
+                functions.output_message(
+                    f"Invalid subnet '{ci_subnet}' provided.",
                     "e"
                 )
-                total_waited += check_interval
-                # Retry after the specified interval
-                time.sleep(check_interval)
+
+        return None
+
+    except NameError:
+        functions.output_message("DEFAULT_PREFIX is not defined.", "e")
+
+    return None
 
 
 def on_guest_configuration(ssh, values, ipaddress):
@@ -747,11 +840,11 @@ def on_guest_configuration(ssh, values, ipaddress):
     # install agent
     try:
         command = "which qemu-ga"
-        qemu_ga = functions.execute_ssh_command(
-            ssh,
-            command,
-            "Failed to query QEMU agent"
-        )
+        stdin, stdout, stderr = ssh.exec_command(command)
+        stdout.read().decode().strip()
+
+        qemu_ga = stdout.read().decode().strip()
+
         if qemu_ga == "/usr/sbin/qemu-ga":
 
             functions.output_message(
@@ -773,19 +866,19 @@ def on_guest_configuration(ssh, values, ipaddress):
 
             functions.output_message(
                 (
-                    "QEMU agent installed successfully."
+                    "QEMU agent installed."
                 ),
                 "s"
             )
 
     except Exception as e:
         functions.output_message(
-                            (
-                                "Failed to execute command on ",
-                                f"{ipaddress}: {e}",
-                            ),
-                            "e"
-                        )
+            (
+                "Failed to execute command on ",
+                f"{ipaddress}: {e}",
+            ),
+            "e"
+        )
 
     # Set BASH shell on VM
     try:
@@ -814,7 +907,7 @@ def on_guest_configuration(ssh, values, ipaddress):
             if current_shell == "/bin/bash":
                 functions.output_message(
                     (
-                        "Shell changed to BASH successfully."
+                        "Shell changed to BASH."
                     ),
                     "s"
                 )
@@ -932,7 +1025,7 @@ def on_guest_configuration(ssh, values, ipaddress):
                                 )
                                 functions.output_message(
                                     (
-                                        "Successfully modified paramter: "
+                                        "Modified paramter: "
                                         f"{param} {expected_value} "
                                         f"in {path_value}"
                                     ),
@@ -978,7 +1071,7 @@ def on_guest_configuration(ssh, values, ipaddress):
                     )
                     functions.output_message(
                         (
-                            "Successfully created "
+                            "Created "
                             f"{local_sshd_customfile}."
                         ),
                         "s"
@@ -999,7 +1092,7 @@ def on_guest_configuration(ssh, values, ipaddress):
                         )
                         functions.output_message(
                             (
-                                "Successfully included "
+                                "Included "
                                 f"{local_sshd_customfile} in "
                                 f"{SSHD_CONFIG[0]}"
                             ),
@@ -1022,7 +1115,7 @@ def on_guest_configuration(ssh, values, ipaddress):
                     )
                     functions.output_message(
                         (
-                            "Successfully added paramter: "
+                            "Added paramter: "
                             f"{param} {expected_value} to "
                             f"{local_sshd_customfile}"
                         ),
@@ -1042,7 +1135,7 @@ def on_guest_configuration(ssh, values, ipaddress):
                     "Failed to restart SSH service"
                 )
                 functions.output_message(
-                    "Successfully restarted SSH service",
+                    "Restarted SSH service",
                     "s"
                 )
 
@@ -1050,7 +1143,7 @@ def on_guest_configuration(ssh, values, ipaddress):
             time.sleep(5)
 
     functions.output_message(
-        "SSH configuration successfully verified",
+        "SSH configuration verified",
         "s"
     )
 
@@ -1058,490 +1151,8 @@ def on_guest_configuration(ssh, values, ipaddress):
     # functions.change_remote_password(ssh, ci_username, ci_password)
 
 
-def on_host_temp_fix_create_cloudinit(ssh, values):
-    functions.output_message()
-    functions.output_message(
-        (
-            "Temp. ci-fix"
-        ),
-        "h"
-    )
-    functions.output_message()
-    vm_id = values.get("id")
-    vm_name = values.get("name")
-    remote_filename = f"{vm_id}-cloud-init.yml"
-    remote_path = f"/var/lib/vz/snippets/{remote_filename}"
-
-    command = f"qm status {vm_id}"
-    result = functions.execute_ssh_command(
-        ssh,
-        command,
-        f"Failed to get status of virtual server '{vm_name}"
-    )
-    if not result == "status: running":
-
-        try:
-            # Cloud-init content with dynamic values
-            cloud_init_content = """
-#cloud-config
-runcmd:
-- apt install qemu-guest-agent -y
-- sleep 5
-- systemctl enable --now qemu-guest-agent
-"""
-
-            # Open SFTP session to write directly to the file
-            sftp = ssh.open_sftp()
-            with sftp.file(remote_path, 'w') as remote_file:
-                remote_file.write(cloud_init_content)
-            sftp.close()
-
-            first_line = f"qm set {vm_id} --cicustom "
-            second_line = f"'user=local:snippets/{remote_filename}'"
-            command = first_line+second_line
-            functions.execute_ssh_command(
-                ssh,
-                command,
-                "Failed to set custom cloud-init file"
-            )
-            functions.output_message(
-                f"Custom cloud-init file set for {vm_name} successfully.",
-                "s"
-            )
-
-        except Exception as e:
-            functions.output_message(
-                f"Failed to create cloud-init file: {e}",
-                "e"
-            )
-
-
-def on_host_temp_fix_cloudinit(ssh, values):
-    functions.output_message()
-    functions.output_message(
-        (
-            "Temp. ci-fix"
-        ),
-        "h"
-    )
-    functions.output_message()
-
-    vm_id = values.get("id")
-
-    try:
-        # Set root password if `ci_password` is provided
-        if values.get("ci_password"):
-            ci_password = values.get('ci_password')
-            set_password_cmd = (
-                f"qm guest passwd {vm_id} ",
-                f"{DEFAULT_USER} --password {ci_password}"
-            )
-            functions.execute_ssh_command(
-                ssh,
-                set_password_cmd,
-                (
-                     f"Failed to set password for '{DEFAULT_USER}' user"
-                )
-            )
-            functions.output_message(
-                (
-                    f"Password set for '{DEFAULT_USER}' user successfully."
-                ),
-                "s"
-            )
-
-        # Add SSH public key to root's
-        # authorized_keys if `ci_publickey` is provided
-        if values.get("ci_publickey"):
-            ci_publickey = values.get("ci_publickey")
-            make_homedir_cmd = (
-                f"qm guest exec {vm_id} -- mkdir -p home/{DEFAULT_USER}/.ssh"
-            )
-            functions.execute_ssh_command(
-                ssh,
-                make_homedir_cmd,
-                (
-                    f"Failed to create homedir for '{DEFAULT_USER}' user"
-                )
-            )
-
-            add_to_authorized_keys = (
-                f"qm guest exec {vm_id} -- sh -c '",
-                f"echo \"{ci_publickey}\" >> ",
-                f"/home/{DEFAULT_USER}/.ssh/authorized_keys'"
-            )
-            functions.execute_ssh_command(
-                ssh,
-                add_to_authorized_keys,
-                (
-                    "Failed to add public key to authorized_keys",
-                    f" for '{DEFAULT_USER}' user"
-                )
-            )
-
-            mod_file_permissions_cmd = (
-                f"qm guest exec {vm_id} -- chmod 600 ",
-                f"/home/{DEFAULT_USER}/.ssh/authorized_keys"
-            )
-            functions.execute_ssh_command(
-                ssh,
-                mod_file_permissions_cmd,
-                (
-                    "Failed to set filepermissions to ",
-                    f"authorized_keys for '{DEFAULT_USER}' user"
-                )
-            )
-
-            mod_folder_permissions_cmd = (
-                f"qm guest exec {vm_id} -- "
-                f"chmod 700 /home/{DEFAULT_USER}/.ssh"
-            )
-            functions.execute_ssh_command(
-                ssh,
-                mod_folder_permissions_cmd,
-                (
-                    "Failed to set filepermissions to .ssh ",
-                    f"folder for '{DEFAULT_USER}' user"
-                )
-            )
-            functions.output_message(
-                (
-                    "Public key added to authorized_keys ",
-                    f"for '{DEFAULT_USER}' user."
-                ),
-                "s"
-            )
-
-    except Exception as e:
-        functions.output_message(
-            (
-                f"Failed fix cloud-init settings: {e}."
-            ),
-            "e"
-        )
-
-
-def on_guest_temp_fix_cloudinit(ssh, values, ipaddress):
-    # runs as the default ubuntu user with passwordless sudo priviliges
-    ci_username = values.get("ci_username")
-    ci_password = values.get("ci_password")
-    ci_publickey = values.get("ci_publickey")
-
-    functions.output_message(
-        (
-            "Temp. ci-fix"
-        ),
-        "h"
-    )
-
-    try:
-        # Step 1: Check if user already exists
-        check_user_cmd = f"id -u {ci_username}"
-        result = functions.execute_ssh_command(ssh, check_user_cmd)
-        if ci_username:
-            if isinstance(result, int):
-                functions.output_message(
-                    (
-                        f"User '{ci_username}' already exist.",
-                        "No need to apply fix."
-                    ),
-                    "w"
-                )
-                return
-            else:
-                functions.output_message(
-                    (
-                        f"User '{ci_username}' does not exist.",
-                        "Proceeding with user creation."
-                    ),
-                    "w"
-                )
-
-                # Create the user without setting the password initially
-                add_user_cmd = f"sudo useradd -m {ci_username}"
-                functions.execute_ssh_command(
-                    ssh,
-                    add_user_cmd,
-                    (
-                        f"Failed to add user '{ci_username}'"
-                    )
-                )
-                functions.output_message(
-                    (
-                        f"User '{ci_username}' added",
-                    ),
-                    "s"
-                )
-
-                # Add user to sudo group
-                add_sudo_cmd = (
-                    f"sudo usermod -aG sudo {ci_username}"
-                )
-                functions.execute_ssh_command(
-                    ssh,
-                    add_sudo_cmd,
-                    (
-                        f"Failed to add user '{ci_username}' to sudo group"
-                    )
-                )
-                functions.output_message(
-                    (
-                        f"User '{ci_username}' added to ",
-                        "sudo group."
-                    ),
-                    "s"
-                )
-
-                # Set the user's password
-                set_password_cmd = (
-                    f"echo '{ci_username}:{ci_password}' ",
-                    "| sudo chpasswd"
-                )
-                functions.execute_ssh_command(
-                    ssh,
-                    set_password_cmd,
-                    (
-                        f"Failed to set password for user '{ci_username}'"
-                    )
-                )
-                functions.output_message(
-                    (
-                        "Password set successfully for user ",
-                        f"'{ci_username}'."
-                    ),
-                    "s"
-                )
-
-                # Step 3: Add SSH public key to authorized_keys
-                if ci_publickey:
-                    ci_publickey = ci_publickey.strip()
-
-                    # Create the .ssh directory and set the correct permissions
-                    create_ssh_dir_cmd = (
-                        f"sudo -u {ci_username}",
-                        f"mkdir -p /home/{ci_username}/.ssh"
-                    )
-                    functions.execute_ssh_command(
-                        ssh,
-                        create_ssh_dir_cmd,
-                        (
-                            "Failed to create .ssh ",
-                            f"directory for '{ci_username}'"
-                        )
-                    )
-
-                    set_ssh_dir_permissions_cmd = (
-                        f"sudo chmod 700 /home/{ci_username}/.ssh ",
-                        f"&& sudo chown {ci_username}:{ci_username}",
-                        f" /home/{ci_username}/.ssh"
-                    )
-                    functions.execute_ssh_command(
-                        ssh,
-                        set_ssh_dir_permissions_cmd,
-                        (
-                            "Failed to set permissions for .ssh ",
-                            f"directory for '{ci_username}'"
-                        )
-                    )
-                    # Add the SSH key to authorized_keys
-                    add_ssh_key_cmd = (
-                            f"echo '{ci_publickey}' |",
-                            f" sudo -u {ci_username} ",
-                            f"tee -a /home/{ci_username}/.ssh/authorized_keys",
-                            " > /dev/null"
-                        )
-                    functions.execute_ssh_command(
-                        ssh,
-                        add_ssh_key_cmd,
-                        (
-                            f"Failed to add SSH public key for '{ci_username}'"
-                        )
-                    )
-
-                    # Set the correct permissions for authorized_keys
-                    set_auth_keys_permissions_cmd = (
-                        "sudo chmod 600 ",
-                        f"/home/{ci_username}/.ssh/authorized_keys",
-                        f" && sudo chown {ci_username}:{ci_username} ",
-                        f"/home/{ci_username}/.ssh/authorized_keys"
-                    )
-                    functions.execute_ssh_command(
-                        ssh,
-                        set_auth_keys_permissions_cmd,
-                        (
-                            "Failed to set permissions for authorized_keys",
-                            f" for '{ci_username}'",
-                        )
-                    )
-                    functions.output_message(
-                        (
-                            "SSH public key added successfully ",
-                            f"for user '{ci_username}'."
-                        ),
-                        "s"
-                    )
-
-        # Step 4: Perform a login test with the newly created user
-            login_attempts = 3
-            for attempt in range(1, login_attempts + 1):
-                try:
-                    # Use unhashed password for login test
-                    test_ssh = functions.ssh_connect(
-                        ipaddress,
-                        ci_username,
-                        ci_password
-                    )
-                    functions.output_message(
-                        (
-                            "Login test successful for ",
-                            f"user '{ci_username}'."
-                        ),
-                        "s"
-                    )
-                    break
-                except Exception as e:
-                    if attempt == login_attempts:
-                        functions.output_message(
-                            (
-                                f"Login test failed for user '{ci_username}' ",
-                                f"after {login_attempts} attempts: {e}"
-                            ),
-                            "e"
-                        )
-                    else:
-                        functions.output_message(
-                            (
-                                f"Login attempt {attempt} failed ",
-                                f"for user '{ci_username}'. Retrying..."
-                            ),
-                            "w"
-                        )
-                        time.sleep(5)
-
-        # Test sudo access after login
-        try:
-            # Use unhashed password for sudo test
-            sudo_test_cmd = f"echo '{ci_password}' | sudo -S whoami"
-            stdin, stdout, stderr = test_ssh.exec_command(sudo_test_cmd)
-            exit_status = stdout.channel.recv_exit_status()
-            if exit_status == 0 and 'root' in stdout.read().decode().strip():
-                functions.output_message(
-                    (
-                        "Sudo access verified for ",
-                        f"user '{ci_username}'"
-                    ),
-                    "s"
-                )
-            else:
-                functions.output_message(
-                    (
-                        "Sudo access test failed for ",
-                        f"user '{ci_username}'"
-                    ),
-                    "e"
-                )
-        except Exception as e:
-            functions.output_message(
-                (
-                    "Sudo access test failed for ",
-                    f"user '{ci_username}': {e}"
-                ),
-                "e"
-            )
-
-        finally:
-            test_ssh.close()
-
-    except Exception as e:
-        functions.output_message(
-            (
-                "Failed to execute command on ",
-                f"{ipaddress}: {e}"
-            ),
-            "e"
-        )
-
-
-def on_guest_temp_fix_cloudinit_part_2(ssh, values, ipaddress):
-    try:
-        # Step 0: Check for any running processes by the 'ubuntu' user
-        functions.output_message(
-            (
-                "Temp. ci-fix"
-            ),
-            "h"
-        )
-
-        command = "pgrep -u ubuntu"
-        processes = functions.execute_ssh_sudo_command(
-            ssh,
-            "CI_PASSWORD",
-            command,
-            (
-                "Failed to grep processes for 'ubuntu' user"
-            )
-        )
-
-        if processes:
-            functions.output_message(
-                    (
-                        "Processes found for user 'ubuntu': ",
-                        f"{processes.strip()}"
-                    ),
-                    "w"
-                )
-
-            # Kill all processes belonging to 'ubuntu' user
-            command = "pkill -u ubuntu"
-            functions.execute_ssh_sudo_command(
-                ssh,
-                "CI_PASSWORD",
-                command,
-                (
-                    "Failed to kill processes for 'ubuntu' user")
-                )
-            functions.output_message(
-                    (
-                        "All processes for 'ubuntu' user killed."
-                    ),
-                    "s"
-                )
-        else:
-            functions.output_message(
-                    (
-                        "No running processes found for user 'ubuntu'."
-                    ),
-                    "s"
-                )
-        # Step 1: Disable the default ubuntu user
-        command = "deluser --remove-home ubuntu"
-        functions.execute_ssh_sudo_command(
-            ssh,
-            "CI_PASSWORD",
-            command,
-            (
-                "Failed to delete 'ubuntu' user"
-            )
-        )
-        functions.output_message(
-                    (
-                        "User 'ubuntu' deleted successfully."
-                    ),
-                    "s"
-                )
-    except Exception as e:
-        functions.output_message(
-                            (
-                                "Failed to execute command on ",
-                                f"{ipaddress}: {e}",
-                            ),
-                            "e"
-                        )
-
-
 os.system('cls' if os.name == 'nt' else 'clear')
-#
-config_file = "/home/nije/json-files/pve01-maschine0.json"
+config_file = sys.argv[1]
 script_directory = os.path.dirname(os.path.abspath(__file__))
 
 functions.output_message()
@@ -1581,12 +1192,12 @@ create_ci_options(ssh, values)
 start_vm(ssh, values)
 
 # Wait and get the VM's IPv4 address
-ipaddress = get_vm_ipv4_address(ssh, values)
+vm_ipaddress = get_vm_ipv4_address(ssh, values)
 ssh.close()
 
 # login as user cloud-init shpuld have created
 ci_username = values.get("ci_username")
-ssh = functions.ssh_connect(ipaddress, ci_username)
+ssh = functions.ssh_connect(vm_ipaddress, ci_username, "", VM_KEYFILE)
 on_guest_configuration(ssh, values, ipaddress)
 ssh.close()
 functions.output_message()
