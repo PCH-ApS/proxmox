@@ -15,3 +15,4 @@ MANDATORY_KEYS = {
 OPTIONAL_KEYS = {
 }
 INTEGER_KEYS = ["ID", "CORES", "MEMORY"]
+PVE_KEYFILE = "/home/nije/.ssh/infrastructure/proxmox-root"

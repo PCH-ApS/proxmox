@@ -49,4 +49,6 @@ DEFAULT_START_AT_BOOT = 0
 DEFAULT_CI_UPGRADE = 1
 DEFAULT_USER = "ubuntu"
 DEFAULT_NIC = "eth0"
+DEFAULT_PREFIX = "192.168."
 PVE_KEYFILE = "/home/nije/.ssh/infrastructure/proxmox-root"
+VM_KEYFILE = "/home/nije/.ssh/nije-key"
