@@ -746,22 +746,37 @@ def on_guest_configuration(ssh, values, ipaddress):
 
     # install agent
     try:
-        cmd1 = "sudo apt update && "
-        cmd2 = "sudo apt install qemu-guest-agent -y && "
-        cmd3 = "sudo systemctl enable --now qemu-guest-agent"
-        install_qemu_cmd = cmd1+cmd2+cmd3
-        functions.execute_ssh_command(
+        command = "which qemu-ga"
+        qemu_ga = functions.execute_ssh_command(
             ssh,
-            install_qemu_cmd,
-            "Failed to install QEMU agent"
-            )
+            command,
+            "Failed to query QEMU agent"
+        )
+        if qemu_ga == "/usr/sbin/qemu-ga":
 
-        functions.output_message(
-                            (
-                                "QEMU agent installed successfully."
-                            ),
-                            "s"
-                        )
+            functions.output_message(
+                (
+                    "QEMU agent already installed on VM."
+                ),
+                "s"
+            )
+        else:
+            cmd1 = "sudo apt update && "
+            cmd2 = "sudo apt install qemu-guest-agent -y && "
+            cmd3 = "sudo systemctl enable --now qemu-guest-agent"
+            install_qemu_cmd = cmd1+cmd2+cmd3
+            functions.execute_ssh_command(
+                ssh,
+                install_qemu_cmd,
+                "Failed to install QEMU agent"
+                )
+
+            functions.output_message(
+                (
+                    "QEMU agent installed successfully."
+                ),
+                "s"
+            )
 
     except Exception as e:
         functions.output_message(
@@ -774,19 +789,35 @@ def on_guest_configuration(ssh, values, ipaddress):
 
     # Set BASH shell on VM
     try:
-        ci_password = values.get("ci_password")
-        change_shell_cmd = f"echo '{ci_password}' | chsh -s /bin/bash"
-        functions.execute_ssh_command(
+        command = "echo $SHELL"
+        current_shell = functions.execute_ssh_command(
             ssh,
-            change_shell_cmd,
-            "Failed to change shell to BASH"
+            command,
+            "Failed to query shell vm"
+        )
+
+        if current_shell == "/bin/bash":
+            functions.output_message(
+                (
+                    "Shell is already set to BASH."
+                ),
+                "s"
             )
-        functions.output_message(
-                            (
-                                "Shell changed to BASH successfully."
-                            ),
-                            "s"
-                        )
+        else:
+            ci_password = values.get("ci_password")
+            change_shell_cmd = f"echo '{ci_password}' | chsh -s /bin/bash"
+            current_shell = functions.execute_ssh_command(
+                ssh,
+                change_shell_cmd,
+                "Failed to change shell to BASH"
+                )
+            if current_shell == "/bin/bash":
+                functions.output_message(
+                    (
+                        "Shell changed to BASH successfully."
+                    ),
+                    "s"
+                )
 
     except Exception as e:
         functions.output_message(
@@ -809,14 +840,6 @@ def on_guest_configuration(ssh, values, ipaddress):
                 stdin, stdout, stderr = ssh.exec_command(command)
                 for line_number, line in enumerate(stdout, start=1):
                     if line.startswith(SSHD_SEARCHSTRING):
-                        functions.output_message(
-                            (
-                                f"In {conf_file} found '{SSHD_SEARCHSTRING}' ",
-                                f"at the beginning of line {line_number}:",
-                                f"{line.strip()}",
-                            ),
-                            "i"
-                        )
                         elements = line.split()
                         for element in elements:
                             if element.startswith("/"):
@@ -867,8 +890,8 @@ def on_guest_configuration(ssh, values, ipaddress):
                     # of the configuration files
                     functions.output_message(
                         (
-                            f"'{param}' is missing in all ",
-                            "configuration files.",
+                            f"'{param}' is missing in all "
+                            "configuration files."
                         ),
                         "i"
                     )
@@ -883,8 +906,40 @@ def on_guest_configuration(ssh, values, ipaddress):
                 if verified_param in params_to_add:
                     del params_to_add[verified_param]
 
+            if len(params_to_change) > 0:
+                for param, values in params_to_change.items():
+                    expected_value = values["expected_value"]
+                    path_value = values["conf_file"]
+                    param_found = False
+                    command = f"cat {path_value}"
+                    stdin, stdout, stderr = ssh.exec_command(command)
+                    for line_number, line in enumerate(stdout, start=1):
+                        if line.startswith(param):
+                            param_found = True
+                            if param in line:
+                                command = (
+                                    f"sudo sed -i 's/^{param} .*/{param} "
+                                    f"{expected_value}/' {path_value}"
+                                )
+                                functions.execute_ssh_command(
+                                    ssh,
+                                    command,
+                                    (
+                                        "Failed to modify paramter: "
+                                        f"{param} {expected_value} "
+                                        f"in {path_value}"
+                                    )
+                                )
+                                functions.output_message(
+                                    (
+                                        "Successfully modified paramter: "
+                                        f"{param} {expected_value} "
+                                        f"in {path_value}"
+                                    ),
+                                    "s"
+                                )
+
             if len(params_to_add) > 0:
-                # Add the parameters that are completly missing
                 # Use the parth from first found include in conf_file_dir
                 # for SSHD_CUSTOMFILE filename
                 # and if no Include is found then use the path of the
@@ -917,50 +972,51 @@ def on_guest_configuration(ssh, values, ipaddress):
                         ssh,
                         command,
                         (
-                            "Failed to change permissions ",
+                            "Failed to change permissions "
                             f"on {local_sshd_customfile}"
                         )
                     )
                     functions.output_message(
                         (
-                            "Successfully created ",
-                            f"{local_sshd_customfile}.",
+                            "Successfully created "
+                            f"{local_sshd_customfile}."
                         ),
                         "s"
                     )
+                    if compare_sshd_paths(local_sshd_customfile):
+                        cmd1 = f"echo 'Include {local_sshd_customfile}' | "
+                        cmd2 = f"sudo tee -a {SSHD_CONFIG[0]}"
 
-                if compare_sshd_paths(local_sshd_customfile):
-                    cmd1 = f"sudo echo Include {local_sshd_customfile}"
-                    cmd2 = f" >> {SSHD_CONFIG[0]}"
-                    command = cmd1+cmd2,
-                    functions.execute_ssh_command(
-                        ssh,
-                        command,
-                        (
-                            "Failed to include "
-                            f"{local_sshd_customfile} "
-                            f"in {SSHD_CONFIG[0]}"
+                        command = cmd1+cmd2
+                        functions.execute_ssh_command(
+                            ssh,
+                            command,
+                            (
+                                "Failed to include "
+                                f"{local_sshd_customfile} "
+                                f"in {SSHD_CONFIG[0]}"
+                            )
                         )
-                    )
-                    functions.output_message(
-                        (
-                            "Successfully included "
-                            f"{local_sshd_customfile} in "
-                            f"{SSHD_CONFIG[0]}"
-                        ),
-                        "s"
-                    )
-                for param, expected_value in params_to_add.items():
+                        functions.output_message(
+                            (
+                                "Successfully included "
+                                f"{local_sshd_customfile} in "
+                                f"{SSHD_CONFIG[0]}"
+                            ),
+                            "s"
+                        )
+
+                for param, value in params_to_add.items():
                     command = (
-                            f"sudo echo {param} {expected_value}"
-                            f" >> {local_sshd_customfile}"
+                            f"echo {param} {value} | "
+                            f"sudo tee -a {local_sshd_customfile}"
                         )
                     functions.execute_ssh_command(
                         ssh,
                         command,
                         (
-                            "Failed to add paramter: "
-                            f"{param} {expected_value}"
+                            "Error adding "
+                            f"{param} {value}"
                             f" to {local_sshd_customfile}"
                         )
                     )
@@ -973,62 +1029,33 @@ def on_guest_configuration(ssh, values, ipaddress):
                         "s"
                     )
 
-            if len(params_to_change) > 0:
-                for param, values in params_to_change.items():
-                    expected_value = values["expected_value"]
-                    path_value = values["conf_file"]
-                    param_found = False
-                    command = f"cat {path_value}"
-                    stdin, stdout, stderr = ssh.exec_command(command)
-                    for line_number, line in enumerate(stdout, start=1):
-                        if line.startswith(param):
-                            param_found = True
-                            if param in line:
-                                command = (
-                                    f"sudo sed -i 's/^{param} .*/{param}"
-                                    f"{expected_value}/' {path_value}"
-                                )
-                                functions.execute_ssh_command(
-                                    ssh,
-                                    command,
-                                    (
-                                        "Failed to modify paramter: "
-                                        f"{param} {expected_value} "
-                                        f"in {path_value}"
-                                    )
-                                )
-                                functions.output_message(
-                                    (
-                                        "Successfully modified paramter: "
-                                        f"{param} {expected_value} "
-                                        f"in {path_value}"
-                                    ),
-                                    "s"
-                                )
-
         except Exception as e:
             print(f"An error occurred: {e}")
             functions.output_message(f"An error occurred: {e}.", "e")
 
         finally:
-            command = "systemctl restart ssh"
-            functions.execute_ssh_command(
-                ssh,
-                command,
-                "Failed to restart SSH service"
-            )
-            functions.output_message(
-                "Successfully restarted SSH service",
-                "s"
-            )
+            if len(params_to_change) > 0 or len(params_to_add) > 0:
+                command = "sudo systemctl restart ssh"
+                functions.execute_ssh_command(
+                    ssh,
+                    command,
+                    "Failed to restart SSH service"
+                )
+                functions.output_message(
+                    "Successfully restarted SSH service",
+                    "s"
+                )
 
         if iteration == 0:
             time.sleep(5)
 
-    functions.output_message("sshd_config has the exoected configuration", "s")
+    functions.output_message(
+        "SSH configuration successfully verified",
+        "s"
+    )
 
-    ci_username = values.get("ci_username")
-    functions.change_remote_password(ssh, ci_username, ci_password)
+    # ci_username = values.get("ci_username")
+    # functions.change_remote_password(ssh, ci_username, ci_password)
 
 
 def on_host_temp_fix_create_cloudinit(ssh, values):
@@ -1549,26 +1576,17 @@ functions.output_message("Build virtual server", "h")
 functions.output_message()
 
 ssh = functions.ssh_connect(host, user, "", PVE_KEYFILE)
-# create_server(ssh, values)
-# create_ci_options(ssh, values)
-# on_host_temp_fix_create_cloudinit(ssh, values)
-# start_vm(ssh, values)
+create_server(ssh, values)
+create_ci_options(ssh, values)
+start_vm(ssh, values)
 
 # Wait and get the VM's IPv4 address
 ipaddress = get_vm_ipv4_address(ssh, values)
-# on_host_temp_fix_cloudinit(ssh, values)
 ssh.close()
-
-# login as the local default user
-# ssh = functions.ssh_connect(ipaddress, "ubuntu")
-# on_guest_temp_fix_cloudinit(ssh, values, ipaddress)
-# ssh.close()
 
 # login as user cloud-init shpuld have created
 ci_username = values.get("ci_username")
-os.environ["CI_PASSWORD"] = values.get("ci_password")
 ssh = functions.ssh_connect(ipaddress, ci_username)
-# on_guest_temp_fix_cloudinit_part_2(ssh, values, ipaddress)
 on_guest_configuration(ssh, values, ipaddress)
 ssh.close()
 functions.output_message()
