@@ -1147,9 +1147,6 @@ def on_guest_configuration(ssh, values, ipaddress):
         "s"
     )
 
-    # ci_username = values.get("ci_username")
-    # functions.change_remote_password(ssh, ci_username, ci_password)
-
 
 os.system('cls' if os.name == 'nt' else 'clear')
 config_file = sys.argv[1]
@@ -1199,5 +1196,6 @@ ssh.close()
 ci_username = values.get("ci_username")
 ssh = functions.ssh_connect(vm_ipaddress, ci_username, "", VM_KEYFILE)
 on_guest_configuration(ssh, values, ipaddress)
+
 ssh.close()
 functions.output_message()
