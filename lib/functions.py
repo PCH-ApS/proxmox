@@ -374,10 +374,8 @@ def check_if_id_in_use(ssh, pve_id):
     #stdin, stdout, stderr = ssh.exec_command(f"qm list | awk '{{print $1}}' | grep -q '^{template_id}$' && echo 'in_use' || echo 'not_in_use'")
     #result = stdout.read().decode().strip()
     if result == "in_use":
-        output_message(f"ID '{pve_id}' is already in use on the Proxmox host. Not creating new instance..","W")
         return True
     else:
-        output_message(f"ID '{pve_id}' is not in use on the Proxmox host. continue to create new instance...","s")
         return False
 
 
