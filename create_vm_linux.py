@@ -15,6 +15,7 @@ import sys
 import time
 import ipaddress
 import paramiko
+import urllib.parse
 
 # Add the parent directory to the Python path to make `lib` available
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -362,22 +363,35 @@ def create_server(ssh, values):
 
 def create_ssh_public_key(ssh, values):
     vm_id = values.get("id")
+    ci_publickeys = values.get("ci_publickey")
     vm_name = values.get("name")
     filename = "/tmp/temp_key.pub"
     sftp = ssh.open_sftp()
+
     try:
-        if values.get("ci_publickey"):
-            sftp = ssh.open_sftp()
+        if ci_publickeys:
+            if not isinstance(ci_publickeys, list):
+                # Ensure it's a list
+                ci_publickeys = [ci_publickeys]
+
             try:
+                # Write all public keys to the temporary file
                 with sftp.file(filename, 'w') as file:
-                    file.write(values.get("ci_publickey"))
+                    for pubkey in ci_publickeys:
+                        # Write each key on a new line
+                        file.write(pubkey + '\n')
+
+                # Execute the qm set command
                 command = f"qm set {vm_id} --sshkeys {filename}"
                 functions.execute_ssh_command(
                     ssh,
                     command,
                     "Failed to set default user public key"
                 )
+
+                # Remove the temporary file
                 sftp.remove(filename)
+
             except FileNotFoundError:
                 functions.output_message(
                      "Error extracting SSH publickey from ",
@@ -550,8 +564,14 @@ def create_ci_options(ssh, values):
 
         if ci_publickey:
             ci_key_upd = False
-            if key is None or not ci_publickey == key:
-                ci_key_upd = True
+            decoded_key = None
+            if key is not None:
+                decoded_key = urllib.parse.unquote(key).replace("\n", " ")
+            ci_key_upd = False
+            for pubkey in ci_publickey:
+                if decoded_key is None or pubkey not in decoded_key:
+                    ci_key_upd = True
+                    break
 
             if ci_key_upd:
                 create_ssh_public_key(ssh, values)
@@ -1193,19 +1213,36 @@ functions.output_message()
 functions.output_message("Build virtual server", "h")
 functions.output_message()
 
-ssh = functions.ssh_connect(host, user, "", PVE_KEYFILE)
-create_server(ssh, values)
-create_ci_options(ssh, values)
-start_vm(ssh, values)
+ssh = None
+try:
+    ssh = functions.ssh_connect(host, user, "", PVE_KEYFILE)
+    if ssh is not None:
+        create_server(ssh, values)
+        create_ci_options(ssh, values)
+        start_vm(ssh, values)
 
-# Wait and get the VM's IPv4 address
-vm_ipaddress = get_vm_ipv4_address(ssh, values)
-ssh.close()
+        # Wait and get the VM's IPv4 address
+        vm_ipaddress = get_vm_ipv4_address(ssh, values)
+        ssh.close()
 
-# login as user cloud-init shpuld have created
-ci_username = values.get("ci_username")
-ssh = functions.ssh_connect(vm_ipaddress, ci_username, "", VM_KEYFILE)
-on_guest_configuration(ssh, values, ipaddress)
+except Exception as e:
+    functions.output_message(
+        f"SSH connection to PVE host failed: {e}",
+        "e"
+    )
 
-ssh.close()
-functions.output_message()
+ssh = None
+try:
+    # login as user cloud-init shpuld have created
+    ci_username = values.get("ci_username")
+    ssh = functions.ssh_connect(vm_ipaddress, ci_username, "", VM_KEYFILE)
+    if ssh is not None:
+        on_guest_configuration(ssh, values, ipaddress)
+        ssh.close()
+        functions.output_message()
+
+except Exception as e:
+    functions.output_message(
+        f"SSH connection to VM failed: {e}",
+        "e"
+    )
