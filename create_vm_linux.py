@@ -571,6 +571,7 @@ def create_ci_options(ssh, values):
             for pubkey in ci_publickey:
                 if decoded_key is None or pubkey not in decoded_key:
                     ci_key_upd = True
+                    regenerate = True
                     break
 
             if ci_key_upd:
@@ -646,6 +647,7 @@ def create_ci_options(ssh, values):
         )
 
         if regenerate:
+            values["vm_reboot"] = True
             functions.output_message(
                 f"Cloud-Init image for '{vm_name}' must be regenerated.",
                 "w"
@@ -698,11 +700,14 @@ def start_vm(ssh, values):
                 f"Virtual server '{vm_name}' started.",
                 "s"
             )
+            values["vm_reboot"] = False
+
         except Exception as e:
             functions.output_message(
                 f"Failed to execute command on Proxmox host: {e}",
                 "e"
             )
+
     else:
         functions.output_message(
             f"Virtual server '{vm_name}' already started.",
@@ -746,11 +751,15 @@ def get_vm_ipv4_address(ssh, values):
 
     # If the network type is STATIC and an IP address is provided, return it
     if ci_network.upper() == "STATIC" and ci_ipaddress:
-        functions.output_message(
-            "Allowing for vm to fully boot",
-            "s"
-        )
-        time.sleep(90)
+        vm_status = None
+        vm_status = values.get("vm_status")
+        if vm_status is None:
+            functions.output_message(
+                "Allowing for vm to fully boot",
+                "s"
+            )
+            time.sleep(90)
+
         return ci_ipaddress
 
     max_wait_time = 300
@@ -791,11 +800,15 @@ def get_vm_ipv4_address(ssh, values):
 
     # Step 2: Attempt to connect to each IP in the subnet
     try:
-        functions.output_message(
-            "Allowing for vm to fully boot",
-            "s"
-        )
-        time.sleep(90)
+        vm_status = None
+        vm_status = values.get("vm_status")
+        if vm_status is None:
+            functions.output_message(
+                "Allowing for vm to fully (re)boot",
+                "s"
+            )
+            time.sleep(90)
+
         ci_subnet = f"{DEFAULT_PREFIX}{vlan}"
         if ci_network.upper() == "DHCP" and ci_subnet:
             vm_keyfile = VM_KEYFILE
@@ -1166,6 +1179,19 @@ def on_guest_configuration(ssh, values, ipaddress):
         "SSH configuration verified",
         "s"
     )
+
+    vm_reboot = values.get("vm_reboot")
+    if vm_reboot:
+        command = "sudo reboot"
+        functions.execute_ssh_command(
+                ssh,
+                command,
+                "Failed to reboot VM"
+                )
+        functions.output_message(
+            "VM rebooting....",
+            "w"
+        )
 
 
 os.system('cls' if os.name == 'nt' else 'clear')

@@ -48,10 +48,10 @@
     "comment"       : "Memory assigned to the VM in MB. Value must be integer"
   },
   "BALLOON":{
-    "balloon"       : "",
+    "balloon"       : 0,
     "allow_blank"   : true,
     "allow_spaces"  : false,
-    "comment"       : "How much is the VM memory allowed to ballon in MB. Using zero disables the ballon driver. Omitting the value = zero"
+    "comment"       : "Integer values in MB. How much is the VM memory allowed to ballon in MB. Using zero disables the ballon driver. Omitting the value = zero"
   },
   "NET_DRIVER":{
     "driver"        : "virtio",
@@ -69,13 +69,13 @@
     "vlan"          : "<Your VLAN id goes here>",
     "allow_blank"   : false,
     "allow_spaces"  : false,
-    "comment"       : "The VLAN the VM is connected to."
+    "comment"       : "Integer value. The VLAN the VM is connected to."
   },
   "START_AT_BOOT":{
-    "boot_start"    : "",
+    "boot_start"    : 0,
     "allow_blank"   : true,
     "allow_spaces"  : false,
-    "comment"       : "Automatic restart after crash. <boolean> (default = 0). 1 to activate."
+    "comment"       : "Integer value, Automatic restart after crash. <boolean> (default = 0). 1 to activate."
   },
   "CLOUDINIT_USER":{
     "ci_username"   : "<Your username goes here>",
@@ -90,7 +90,10 @@
     "comment"       : "The default (root) password created on the VM during install."
   },
   "CLOUDINIT_PUB_KEY":{
-    "ci_publickey"  : "<Your ssh public key goes here>",
+    "ci_publickey"  : [
+      "<Your ssh public key goes here>",
+      "<Your ssh public key goes here>"
+    ],
     "allow_blank"   : true,
     "allow_spaces"  : true,
     "comment"       : "The SSH public key to add the default (root) 'authorized_keys' during install. To allow SSH key authentication. If omitted no public key will be added to the VM user."
@@ -136,6 +139,12 @@
     "allow_blank"   : true,
     "allow_spaces"  : false,
     "comment"       : "cloud-init: netmask, if key: 'ci_network' is set to static"
+  },
+  "VM_PWCAHNGE":{
+    "change_pwd"    : false,
+    "allow_blank"   : false,
+    "allow_spaces"  : false,
+    "comment"       : "should the scrip prompt for a new password to set for the user on the VM. set to true to change password. Set to false to keep password on re-runs."
   }
 }
 

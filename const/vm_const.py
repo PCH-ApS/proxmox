@@ -12,7 +12,8 @@ MANDATORY_KEYS = {
     "BRIDGE": "bridge",
     "VLAN": "vlan",
     "CLOUDINIT_NET": "ci_network",
-    "CLOUDINIT_UPGRADE": "ci_upgrade"
+    "CLOUDINIT_UPGRADE": "ci_upgrade",
+    "VM_PWCAHNGE": "change_pwd"
     }
 OPTIONAL_KEYS = {
     "BALLOON": "balloon",
