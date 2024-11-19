@@ -33,7 +33,7 @@ def ssh_connect(host, username, password=None, key_filename=None):
                 username=username
             )
         output_message(
-            f"Successfully connected to {host} as {username}.",
+            f"Connected to {host} as {username}.",
             "s"
         )
         return ssh
@@ -41,7 +41,7 @@ def ssh_connect(host, username, password=None, key_filename=None):
         output_message(
             f"Authentication failed when connecting to {host}.",
             "Please check your credentials.",
-            "e"
+            "w"
         )
     except paramiko.SSHException as e:
         output_message(
@@ -317,7 +317,7 @@ def change_remote_password(ssh, remote_user, current_password):
             output_message(message, "e")
 
         message = (
-            f"Password for user '{remote_user}' has been changed successfully."
+            f"Password for user '{remote_user}' has been changed."
         )
         output_message(message, "s")
 

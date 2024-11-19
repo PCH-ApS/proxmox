@@ -24,3 +24,5 @@ SSHD_CONFIG = [
 ]
 SSHD_SEARCHSTRING = "Include "
 SSHD_CUSTOMFILE = "/99-automation-default-config.conf"
+PVE_KEYFILE = "/home/nije/.ssh/infrastructure/proxmox-root"
+SNIPPETS_FOLDER = "/var/lib/vz/snippets"

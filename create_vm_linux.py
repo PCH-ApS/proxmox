@@ -1149,7 +1149,17 @@ def on_guest_configuration(ssh, values, ipaddress):
 
 
 os.system('cls' if os.name == 'nt' else 'clear')
-config_file = sys.argv[1]
+config_file = None
+try:
+    config_file = sys.argv[1]
+except Exception as e:
+    if config_file is None:
+        functions.output_message()
+        functions.output_message(
+            f"Missig json-file arg: {e}",
+            "e"
+        )
+
 script_directory = os.path.dirname(os.path.abspath(__file__))
 
 functions.output_message()
