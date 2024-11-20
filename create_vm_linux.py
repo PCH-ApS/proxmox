@@ -809,52 +809,78 @@ def get_vm_ipv4_address(ssh, values):
             )
             time.sleep(90)
 
-        ci_subnet = f"{DEFAULT_PREFIX}{vlan}"
-        if ci_network.upper() == "DHCP" and ci_subnet:
-            vm_keyfile = VM_KEYFILE
-            try:
-                functions.output_message(
-                    "Scanning VLAN to find host-ip.",
-                    "i"
-                )
-                for i in range(3, 255):
-                    ip_str = f"{ci_subnet}.{i}"
-                    new_ssh = None
-                    try:
-                        # Create a new SSH connection for the target VM
-                        new_ssh = ssh_connect(
-                            ip_str,
-                            ci_username,
-                            1,
-                            vm_keyfile
-                        )
-                        if new_ssh:
-                            hostname = get_remote_hostname(new_ssh)
-                            if hostname == vm_name:
-                                functions.output_message(
-                                    f"connected to '{ip_str}' - "
-                                    f"Hostname: {hostname}", "s"
-                                )
-                                return ip_str
-                    except Exception as e:
-                        functions.output_message(
-                            f"Failed to connect to {ip_str}: {e}", "w"
-                        )
-                    finally:
-                        if new_ssh:
-                            new_ssh.close()  # Close the new SSH connection
-
+        if vm_status == "running":
+            ssh1 = None
+            host = values.get("host")
+            user = values.get("user")
+            ssh1 = functions.ssh_connect(host, user, "", PVE_KEYFILE)
+            command = f"qm agent {vm_id} network-get-interfaces"
+            dhcp_ip_info = functions.execute_ssh_command(
+                ssh1,
+                command,
+                f"Failed to get status for {vm_name}."
+            )
+            ssh1.close
+            dhcp_ip = json.loads(dhcp_ip_info)
+            # Loop through the interfaces to find 'eth0' and its IPv4 address
+            ipv4_address = None
+            for interface in dhcp_ip:
+                if interface.get("name") == "eth0":
+                    for ip in interface.get("ip-addresses", []):
+                        if ip.get("ip-address-type") == "ipv4":
+                            ipv4_address = ip.get("ip-address")
+                            break
+            if ipv4_address is not None:
+                return ipv4_address
+            else:
+                return None
+        else:
+            ci_subnet = f"{DEFAULT_PREFIX}{vlan}"
+            if ci_network.upper() == "DHCP" and ci_subnet:
+                vm_keyfile = VM_KEYFILE
+                try:
                     functions.output_message(
-                        f"VM not found on {ip_str}, continueing scan...",
+                        "Scanning VLAN to find host-ip.",
                         "i"
                     )
-            except ValueError:
-                functions.output_message(
-                    f"Invalid subnet '{ci_subnet}' provided.",
-                    "e"
-                )
+                    for i in range(3, 255):
+                        ip_str = f"{ci_subnet}.{i}"
+                        new_ssh = None
+                        try:
+                            # Create a new SSH connection for the target VM
+                            new_ssh = ssh_connect(
+                                ip_str,
+                                ci_username,
+                                1,
+                                vm_keyfile
+                            )
+                            if new_ssh:
+                                hostname = get_remote_hostname(new_ssh)
+                                if hostname == vm_name:
+                                    functions.output_message(
+                                        f"connected to '{ip_str}' - "
+                                        f"Hostname: {hostname}", "s"
+                                    )
+                                    return ip_str
+                        except Exception as e:
+                            functions.output_message(
+                                f"Failed to connect to {ip_str}: {e}", "w"
+                            )
+                        finally:
+                            if new_ssh:
+                                new_ssh.close()  # Close the new SSH connection
 
-        return None
+                        functions.output_message(
+                            f"VM not found on {ip_str}, continueing scan...",
+                            "i"
+                        )
+                except ValueError:
+                    functions.output_message(
+                        f"Invalid subnet '{ci_subnet}' provided.",
+                        "e"
+                    )
+
+                    return None
 
     except NameError:
         functions.output_message("DEFAULT_PREFIX is not defined.", "e")
