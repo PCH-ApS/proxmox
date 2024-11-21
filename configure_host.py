@@ -41,7 +41,7 @@ def get_json_values(config):
         "pve_domain": config.get("PVE_DOMAIN").get("domain_string"),
         "pve_sshkey": config.get("PVE_SSHKEY").get("publickey"),
         "pve_iso": config.get("PVE_ISO").get("urls"),
-        "pve_changepwd": config.get("PVE_PWCAHNGE").get("change_pwd")
+        "pve_changepwd": config.get("PVE_PWCHANGE").get("change_pwd")
     }
 
 
