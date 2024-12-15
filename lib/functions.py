@@ -549,3 +549,23 @@ def get_config_info(search_string, scr_string):
     else:
         search_string_value = None
     return search_string_value
+
+
+def integer_check(values, integers):
+    errors = []
+
+    for key in values:
+        if key in integers:
+            key_value = values.get(key)
+            if not isinstance(key_value, int):
+                errors.append(
+                    f"'{key}' should be an integer, "
+                    f"but found non-integer value: '{key_value}'."
+                )
+
+    if errors:
+        for error in errors:
+            output_message(f"{error}", "e")
+    else:
+        output_message("All integer values are correct", "s")
+        

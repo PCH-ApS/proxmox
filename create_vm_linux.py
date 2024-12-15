@@ -1,13 +1,9 @@
 #!/usr/bin/env python3
 from urllib.parse import unquote
 from lib import functions
-from const.vm_const import (MANDATORY_KEYS, OPTIONAL_KEYS, INTEGER_KEYS,
-                            SSH_CONST, SSHD_CONFIG, SSHD_SEARCHSTRING,
-                            SSHD_CUSTOMFILE, DEFAULT_BALLOON,
-                            DEFAULT_START_AT_BOOT, DEFAULT_CI_UPGRADE,
-                            PVE_KEYFILE, VM_KEYFILE, DEFAULT_PREFIX
-                            )
+import const.vm_const as vm
 
+# /home/nije/json-files/dhcp/main.json
 
 import os
 import json
@@ -33,45 +29,92 @@ def load_config(config_file):
             )
 
 
-def get_json_values(config):
-    # Extract needed variables from JSON file
-    return {
-        "user": config.get("USER").get("username"),
-        "host": config.get("HOST").get("host_ip"),
-        "template_id": config.get("TEMPLATE").get("clone_id"),
-        "id": config.get("ID").get("id"),
-        "name": config.get("NAME").get("name"),
-        "disk": config.get("DISK").get("disk"),
-        "cores": config.get("CORES").get("cores"),
-        "mem": config.get("MEM").get("memory"),
-        "balloon": config.get("BALLOON").get("balloon"),
-        "driver": config.get("NET_DRIVER").get("driver"),
-        "bridge": config.get("BRIDGE").get("bridge"),
-        "vlan": config.get("VLAN").get("vlan"),
-        "start_at_boot": config.get("START_AT_BOOT").get("boot_start"),
-        "ci_username": config.get("CLOUDINIT_USER").get("ci_username"),
-        "ci_password": config.get("CLOUDINIT_PW").get("ci_password"),
-        "ci_publickey": config.get("CLOUDINIT_PUB_KEY").get("ci_publickey"),
-        "ci_network": config.get("CLOUDINIT_NET").get("ci_network"),
-        "ci_domain": config.get("CLOUDINIT_DNS_DOMAIN").get("ci_domain"),
-        "ci_dns_server": config.get(
-            "CLOUDINIT_DNS_SERVER").get("ci_dns_server"),
-        "ci_upgrade": config.get("CLOUDINIT_UPGRADE").get("ci_upgrade"),
-        "ci_ipaddress": config.get("CLOUDINIT_IP").get("ci_ipaddress"),
-        "ci_gwadvalue": config.get("CLOUDINIT_GW").get("ci_gwadvalue"),
-        "ci_netmask": config.get("CLOUDINIT_MASK").get("ci_netmask")
-    }
+def get_config_values(config):
+    allowed_keys = set(vm.MANDATORY_KEYS).union(vm.OPTIONAL_KEYS)
+    value_keys = {}
+    errors = []
+
+    try:
+        for key in config.keys():
+            if key not in allowed_keys:
+                message = (
+                    f"Invalid key '{key}' found in JSON configuration."
+                )
+                errors.append(message)
+
+    except Exception as e:
+        functions.output_message(
+            f"Error getting configuration keys: {e}",
+            "e"
+            )
+
+    finally:
+        if errors:
+            error_message = "\n".join(errors)
+            functions.output_message(
+                error_message,
+                "e"
+            )
+
+    try:
+
+        static_net_keys = [
+            "ci_ipaddress",
+            "ci_netmask",
+            "ci_gwadvalue"
+            ]
+        ci_network = config.get("ci_network")
+
+        for key in allowed_keys:
+            key_value = config.get(key)
+            if key_value is not None:
+                value_keys[key] = key_value
+            else:
+                default_value_key = f"DEFAULT_{key}".upper()
+                default_value = getattr(vm, default_value_key, None)
+
+                if default_value is not None:
+                    value_keys[key] = default_value
+                else:
+                    if (
+                        ci_network and ci_network.upper() == "STATIC"
+                        and key in static_net_keys
+                    ):
+                        functions.output_message(
+                            (
+                                "No value found for static network key",
+                                f"'{key}' in json."
+                            ),
+                            "e"
+                        )
+                    elif key not in static_net_keys:
+                        functions.output_message(
+                            (
+                                f"No value found for '{key}' in json or in "
+                                f"constant '{default_value_key})'."
+                            ),
+                            "e"
+                        )
+
+    except Exception as e:
+        functions.output_message(
+            f"Error getting configuration values: {e}",
+            "e"
+            )
+
+    finally:
+        return value_keys
 
 
 def check_conditional_values(values):
     if not values.get("balloon"):
-        values["balloon"] = DEFAULT_BALLOON
+        values["balloon"] = vm.DEFAULT_BALLOON
 
     if not values.get("start_at_boot"):
-        values["start_at_boot"] = DEFAULT_START_AT_BOOT
+        values["start_at_boot"] = vm.DEFAULT_BOOT_START
 
     if not values.get("ci_upgrade"):
-        values["ci_upgrade"] = DEFAULT_CI_UPGRADE
+        values["ci_upgrade"] = vm.DEFAULT_CI_UPGRADE
 
     ci_network = values.get("ci_network")
     if ci_network in ["dhcp", "static"]:
@@ -89,52 +132,52 @@ def check_conditional_values(values):
             "e"
         )
 
-    vm_name = values.get("name")
+    name = values.get("name")
     ci_domain = values.get("ci_domain")
-    if vm_name:
+    if name:
         if ci_domain:
-            fqdn = f"{vm_name}.{ci_domain}"
+            fqdn = f"{name}.{ci_domain}"
             functions.is_valid_hostname(fqdn)
         else:
-            functions.is_valid_hostname(vm_name)
+            functions.is_valid_hostname(name)
 
 
 def create_server(ssh, values):
     # Create the server template on the Proxmox host.
-    vm_id = values.get("id")
-    template_id = values.get("template_id")
-    vm_name = values.get("name")
-    vm_cores = values.get("cores")
-    vm_mem = values.get("mem")
-    vm_disk = values.get("disk")
-    vm_balloon = values.get('balloon')
-    vm_onboot = values.get('start_at_boot')
-    vm_driver = values.get('driver')
-    vm_bridge = values.get('bridge')
-    vm_vlan = values.get('vlan')
+    clone_id = values.get("clone_id")
+    name = values.get("name")
+    id = values.get("id")
+    cores = values.get("cores")
+    memory = values.get("memory")
+    disk = values.get("disk")
+    balloon = values.get('balloon')
+    boot_start = values.get('boot_start')
+    driver = values.get('driver')
+    bridge = values.get('bridge')
+    vlan = values.get('vlan')
 
     functions.output_message(
-        f"Checking configuration for '{vm_name}'.",
+        f"Checking configuration for '{name}'.",
         "s"
     )
 
-    vm_id_in_use = functions.check_if_id_in_use(ssh, vm_id)
+    id_in_use = functions.check_if_id_in_use(ssh, id)
     scr_string = None
     scr_config_info = None
 
-    if vm_id_in_use:
-        command = f"qm status {vm_id} --verbose"
+    if id_in_use:
+        command = f"qm status {id} --verbose"
         scr_string = functions.execute_ssh_command(
             ssh,
             command,
-            f"Failed to get status for {vm_name}."
+            f"Failed to get status for {name}."
         )
 
-        command = f"qm config {vm_id}"
+        command = f"qm config {id}"
         scr_config_info = functions.execute_ssh_command(
             ssh,
             command,
-            f"Failed to get status for {vm_name}."
+            f"Failed to get status for {name}."
         )
 
     compare = False
@@ -144,33 +187,36 @@ def create_server(ssh, values):
 
     name_value_str = None
     core_value_str = None
-    memory_size_str = None
-    disk_size_str = None
-    balloon_str = None
-    onboot_str = None
-    net_str = None
-    bridge_str = None
-    vlan_str = None
+    memory_value_str = None
+    disk_value_str = None
+    balloon_value_str = None
+    onboot_value_str = None
+    net_value_str = None
+    bridge_value_str = None
+    vlan_value_str = None
 
     name_value = None
     core_value = None
-    memory_size = None
-    disk_size = None
-    balloon = None
-    onboot = None
-    bridge = None
-    vlan = None
+    memory_value = None
+    disk_value = None
+    balloon_value = None
+    onboot_value = None
+    bridge_value = None
+    vlan_value = None
 
     if compare:
         name_value_str = functions.get_status_info("name", scr_string)
         core_value_str = functions.get_status_info("cpus", scr_string)
-        memory_size_str = functions.get_status_info("maxmem", scr_string)
-        disk_size_str = functions.get_status_info("maxdisk", scr_string)
-        balloon_str = functions.get_status_info("balloon", scr_config_info)
-        onboot_str = functions.get_status_info("onboot", scr_config_info)
-        net_str = functions.get_status_info("net0", scr_config_info)
-        bridge_str = functions.get_config_info("bridge", net_str)
-        vlan_str = functions.get_config_info("tag", net_str)
+        memory_value_str = functions.get_status_info("maxmem", scr_string)
+        disk_value_str = functions.get_status_info("maxdisk", scr_string)
+        balloon_value_str = functions.get_status_info(
+            "balloon",
+            scr_config_info
+        )
+        onboot_value_str = functions.get_status_info("onboot", scr_config_info)
+        net_value_str = functions.get_status_info("net0", scr_config_info)
+        bridge_value_str = functions.get_config_info("bridge", net_value_str)
+        vlan_value_str = functions.get_config_info("tag", net_value_str)
 
         if name_value_str is not None:
             name_value = name_value_str
@@ -178,51 +224,51 @@ def create_server(ssh, values):
         if core_value_str is not None:
             core_value = int(core_value_str)
 
-        if memory_size_str is not None:
-            memory_size = int(memory_size_str) / (1024 * 1024)
+        if memory_value_str is not None:
+            memory_value = int(memory_value_str) / (1024 * 1024)
 
-        if disk_size_str is not None:
-            disk_size = int(disk_size_str) / (1024 * 1024 * 1024)
+        if disk_value_str is not None:
+            disk_value = int(disk_value_str) / (1024 * 1024 * 1024)
 
-        if balloon_str is not None:
-            balloon = int(balloon_str)
+        if balloon_value_str is not None:
+            balloon_value = int(balloon_value_str)
 
-        if onboot_str is not None:
-            onboot = int(onboot_str)
+        if onboot_value_str is not None:
+            onboot_value = int(onboot_value_str)
 
-        if bridge_str is not None:
-            bridge = bridge_str
+        if bridge_value_str is not None:
+            bridge_value = bridge_value_str
 
-        if vlan_str is not None:
-            vlan = int(vlan_str)
+        if vlan_value_str is not None:
+            vlan_value = int(vlan_value_str)
 
     try:
 
-        if vm_id_in_use is False:
-            command = f"qm clone {template_id} {vm_id} --full 1"
+        if id_in_use is False:
+            command = f"qm clone {clone_id} {id} --full 1"
             functions.execute_ssh_command(
                 ssh,
                 command,
-                f"Failed to clone {vm_name} from {template_id}."
+                f"Failed to clone {name} from {clone_id}."
             )
             functions.output_message(
-                f"Provisioning of virtual server '{vm_name}' started.",
+                f"Provisioning of virtual server '{name}' started.",
                 "s"
             )
 
-        if vm_id_in_use:
+        if id_in_use:
             functions.output_message(
-                f"ID '{vm_id}' exists. No new instance, only updating..",
+                f"ID '{id}' exists. No new instance, only updating..",
                 "W"
             )
 
-        if vm_name:
-            vm_name_upd = False
-            if name_value is None or not vm_name == name_value:
-                vm_name_upd = True
+        if name:
+            name_upd = False
+            if name_value is None or not name == name_value:
+                name_upd = True
 
-            if vm_name_upd:
-                command = f"qm set {vm_id} --name {vm_name}"
+            if name_upd:
+                command = f"qm set {id} --name {name}"
                 functions.execute_ssh_command(
                     ssh,
                     command,
@@ -230,110 +276,110 @@ def create_server(ssh, values):
                 )
 
                 functions.output_message(
-                    f"Changing name to: {vm_name}.",
+                    f"Changing name to: {name}.",
                     "s"
                 )
 
-        if vm_cores:
-            vm_cores_upd = False
-            if core_value is None or not vm_cores == core_value:
-                vm_cores_upd = True
+        if cores:
+            cores_upd = False
+            if core_value is None or not cores == core_value:
+                cores_upd = True
 
-            if vm_cores_upd:
-                command = f"qm set {vm_id} --cores {vm_cores}"
+            if cores_upd:
+                command = f"qm set {id} --cores {cores}"
                 functions.execute_ssh_command(
                     ssh,
                     command,
                     f"'{command}' failed on the Proxmox host."
                 )
                 functions.output_message(
-                    f"Changing CPU cores to: {vm_cores}.",
+                    f"Changing CPU cores to: {cores}.",
                     "s"
                 )
 
-        if vm_mem:
-            vm_mem_upd = False
-            if memory_size is None or not vm_mem == memory_size:
-                vm_mem_upd = True
+        if memory:
+            memory_upd = False
+            if memory_value is None or not memory == memory_value:
+                memory_upd = True
 
-            if vm_mem_upd:
-                command = f"qm set {vm_id} --memory {vm_mem}"
+            if memory_upd:
+                command = f"qm set {id} --memory {memory}"
                 functions.execute_ssh_command(
                     ssh,
                     command,
                     f"'{command}' failed on the Proxmox host."
                 )
                 functions.output_message(
-                    f"Changing memory to: {vm_mem}MB.",
+                    f"Changing memory to: {memory}MB.",
                     "s"
                 )
 
-        if vm_disk:
-            vm_disk_upd = False
-            if disk_size is None or not vm_disk == disk_size:
-                vm_disk_upd = True
+        if disk:
+            disk_upd = False
+            if disk_value is None or not disk == disk_value:
+                disk_upd = True
 
-            if vm_disk_upd:
-                command = f"qm disk resize {vm_id} scsi0 {values.get('disk')}G"
+            if disk_upd:
+                command = f"qm disk resize {id} scsi0 {values.get('disk')}G"
                 functions.execute_ssh_command(
                     ssh,
                     command,
                     f"'{command}' failed on the Proxmox host."
                 )
                 functions.output_message(
-                    f"Changing disk sioze to: {vm_disk}GB.",
+                    f"Changing disk sioze to: {disk}GB.",
                     "s"
                 )
 
-        if vm_balloon:
-            vm_balloon_upd = False
-            if balloon is None or not vm_balloon == balloon:
-                vm_balloon_upd = True
+        if balloon:
+            balloon_upd = False
+            if balloon_value is None or not balloon == balloon_value:
+                balloon_upd = True
 
-            if vm_balloon_upd:
-                command = f"qm set {vm_id} --balloon {vm_balloon}"
+            if balloon_upd:
+                command = f"qm set {id} --balloon {balloon}"
                 functions.execute_ssh_command(
                     ssh,
                     command,
                     f"'{command}' failed on the Proxmox host."
                 )
                 functions.output_message(
-                    f"Changing 'Ballooning' to: {vm_balloon}.",
+                    f"Changing 'Ballooning' to: {balloon}.",
                     "s"
                 )
 
-        if vm_onboot:
-            vm_onboot_upd = False
-            if onboot is None or not vm_onboot == onboot:
-                vm_onboot_upd = True
+        if boot_start:
+            boot_start_upd = False
+            if onboot_value is None or not boot_start == onboot_value:
+                boot_start_upd = True
 
-            if vm_onboot_upd:
-                command = f"qm set {vm_id} --onboot {vm_onboot}"
+            if boot_start_upd:
+                command = f"qm set {id} --onboot {boot_start}"
                 functions.execute_ssh_command(
                     ssh,
                     command,
                     f"'{command}' failed on the Proxmox host."
                 )
                 functions.output_message(
-                    f"Changing 'Start at boot' to: {vm_onboot}.",
+                    f"Changing 'Start at boot' to: {boot_start}.",
                     "s"
                 )
 
-        if vm_bridge:
-            vm_bridge_upd = False
-            if bridge is None or not vm_bridge == bridge:
-                vm_bridge_upd = True
+        if bridge:
+            bridge_upd = False
+            if bridge_value is None or not bridge == bridge_value:
+                bridge_upd = True
 
-            if vm_vlan:
-                if str(vlan) is None or not vm_vlan == vlan:
-                    vm_bridge_upd = True
+            if vlan:
+                if str(vlan_value) is None or not vlan == vlan_value:
+                    bridge_upd = True
 
-            if vm_bridge_upd:
-                net_driver = f"{vm_driver}"
-                net_bridge = f"bridge={vm_bridge}"
-                net_tag = f"tag={vm_vlan}"
+            if bridge_upd:
+                net_driver = f"{driver}"
+                net_bridge = f"bridge={bridge}"
+                net_tag = f"tag={vlan}"
 
-                ln1 = f"qm set {vm_id} --net0 {net_driver},"
+                ln1 = f"qm set {id} --net0 {net_driver},"
                 ln2 = f"{net_bridge},{net_tag}"
 
                 command = ln1+ln2
@@ -356,15 +402,15 @@ def create_server(ssh, values):
         )
 
     functions.output_message(
-        f"Configuration checked for '{vm_name}'.",
+        f"Configuration checked for '{name}'.",
         "s"
     )
 
 
 def create_ssh_public_key(ssh, values):
-    vm_id = values.get("id")
+    id = values.get("id")
     ci_publickeys = values.get("ci_publickey")
-    vm_name = values.get("name")
+    name = values.get("name")
     filename = "/tmp/temp_key.pub"
     sftp = ssh.open_sftp()
 
@@ -382,7 +428,7 @@ def create_ssh_public_key(ssh, values):
                         file.write(pubkey + '\n')
 
                 # Execute the qm set command
-                command = f"qm set {vm_id} --sshkeys {filename}"
+                command = f"qm set {id} --sshkeys {filename}"
                 functions.execute_ssh_command(
                     ssh,
                     command,
@@ -395,7 +441,7 @@ def create_ssh_public_key(ssh, values):
             except FileNotFoundError:
                 functions.output_message(
                      "Error extracting SSH publickey from ",
-                     f"'{filename}' on virtual server '{vm_name}'.",
+                     f"'{filename}' on virtual server '{name}'.",
                      "e"
                 )
             finally:
@@ -409,8 +455,8 @@ def create_ssh_public_key(ssh, values):
 
 
 def create_ci_options(ssh, values):
-    vm_name = values.get("name")
-    vm_id = values.get("id")
+    name = values.get("name")
+    id = values.get("id")
     ci_username = values.get("ci_username")
     ci_password = values.get("ci_password")
     ci_domain = values.get('ci_domain')
@@ -424,29 +470,29 @@ def create_ci_options(ssh, values):
         ci_netmask = values.get("ci_netmask")
 
     functions.output_message(
-        f"Checking Cloud-Init input for '{vm_name}'.",
+        f"Checking Cloud-Init input for '{name}'.",
         "i"
     )
 
-    command = f"qm config {vm_id}"
+    command = f"qm config {id}"
     scr_config_info = functions.execute_ssh_command(
         ssh,
         command,
-        f"Failed to get status for {vm_name}."
+        f"Failed to get status for {name}."
     )
 
     compare = False
     if scr_config_info is not None:
         compare = True
 
-    usr = None
-    pwd = None
-    domain = None
-    ns = None
-    key = None
-    upg = None
-    net_ip = None
-    net_gw = None
+    usr_value = None
+    pwd_value = None
+    domain_value = None
+    ns_value = None
+    key_value = None
+    upg_value = None
+    net_ip_value = None
+    net_gw_value = None
 
     if compare:
         usr_str = functions.get_status_info("ciuser", scr_config_info)
@@ -458,26 +504,26 @@ def create_ci_options(ssh, values):
         net_str = functions.get_status_info("ipconfig0", scr_config_info)
 
         if usr_str is not None:
-            usr = usr_str
+            usr_value = usr_str
 
         if pwd_str is not None:
-            pwd = pwd_str
+            pwd_value = pwd_str
 
         if domain_str is not None:
-            domain = domain_str
+            domain_value = domain_str
 
         if ns_str is not None:
-            ns = ns_str
+            ns_value = ns_str
 
         if key_str is not None:
-            key = unquote(key_str)
+            key_value = unquote(key_str)
 
         if upg_int is not None:
-            upg = int(upg_int)
+            upg_value = int(upg_int)
 
         if net_str is not None:
-            net_ip = functions.get_config_info("ip", net_str)
-            net_gw = functions.get_config_info("gw", net_str)
+            net_ip_value = functions.get_config_info("ip", net_str)
+            net_gw_value = functions.get_config_info("gw", net_str)
 
         regenerate = False
 
@@ -485,13 +531,13 @@ def create_ci_options(ssh, values):
 
         if ci_username:
             ci_usr_upd = False
-            if usr is None or not ci_username == usr:
+            if usr_value is None or not ci_username == usr_value:
                 ci_usr_upd = True
                 regenerate = True
 
             if ci_usr_upd:
                 command = (
-                    f"qm set {vm_id} --ciuser {ci_username}"
+                    f"qm set {id} --ciuser {ci_username}"
                 )
                 functions.execute_ssh_command(
                     ssh,
@@ -505,12 +551,12 @@ def create_ci_options(ssh, values):
 
         if ci_password:
             ci_pwd_upd = False
-            if ci_password and not pwd == "**********":
+            if ci_password and not pwd_value == "**********":
                 ci_pwd_upd = True
 
             if ci_pwd_upd:
                 command = (
-                    f"qm set {vm_id} --cipassword {ci_password}"
+                    f"qm set {id} --cipassword {ci_password}"
                 )
                 functions.execute_ssh_command(
                     ssh,
@@ -524,13 +570,13 @@ def create_ci_options(ssh, values):
 
         if ci_domain:
             ci_dns_upd = False
-            if domain is None or not ci_domain == domain:
+            if domain_value is None or not ci_domain == domain_value:
                 ci_dns_upd = True
                 regenerate = True
 
             if ci_dns_upd:
                 command = (
-                    f"qm set {vm_id} --searchdomain {ci_domain}"
+                    f"qm set {id} --searchdomain {ci_domain}"
                 )
                 functions.execute_ssh_command(
                     ssh,
@@ -544,13 +590,13 @@ def create_ci_options(ssh, values):
 
         if ci_dns_server:
             ci_ns_upd = False
-            if ns is None or not ci_dns_server == ns:
+            if ns_value is None or not ci_dns_server == ns_value:
                 ci_ns_upd = True
                 regenerate = True
 
             if ci_ns_upd:
                 command = (
-                    f"qm set {vm_id} --nameserver {ci_dns_server}"
+                    f"qm set {id} --nameserver {ci_dns_server}"
                 )
                 functions.execute_ssh_command(
                     ssh,
@@ -565,8 +611,11 @@ def create_ci_options(ssh, values):
         if ci_publickey:
             ci_key_upd = False
             decoded_key = None
-            if key is not None:
-                decoded_key = urllib.parse.unquote(key).replace("\n", " ")
+            if key_value is not None:
+                decoded_key = urllib.parse.unquote(key_value).replace(
+                    "\n",
+                    " "
+                )
             ci_key_upd = False
             for pubkey in ci_publickey:
                 if decoded_key is None or pubkey not in decoded_key:
@@ -579,13 +628,13 @@ def create_ci_options(ssh, values):
 
         if ci_upgrade:
             ci_upg_upd = False
-            if upg is None or not ci_upgrade == upg:
+            if upg_value is None or not ci_upgrade == upg_value:
                 ci_upg_upd = True
                 regenerate = True
 
             if ci_upg_upd:
                 command = (
-                    f"qm set {vm_id} --ciupgrade {ci_upgrade}"
+                    f"qm set {id} --ciupgrade {ci_upgrade}"
                 )
                 functions.execute_ssh_command(
                     ssh,
@@ -601,12 +650,15 @@ def create_ci_options(ssh, values):
             ci_net_upd = False
 
             if ci_network.upper() == "DHCP":
-                if net_ip is None or not ci_network.upper() == net_ip.upper():
+                if (
+                    net_ip_value is None or
+                    not ci_network.upper() == net_ip_value.upper()
+                ):
                     ci_net_upd = True
                     regenerate = True
 
                 if ci_net_upd:
-                    command = f"qm set {vm_id} --ipconfig0 ip=dhcp"
+                    command = f"qm set {id} --ipconfig0 ip=dhcp"
                     functions.execute_ssh_command(
                         ssh,
                         command,
@@ -619,15 +671,15 @@ def create_ci_options(ssh, values):
 
             if ci_network.upper() == "STATIC":
                 ip_str = f"{ci_ipaddress}/{ci_netmask}"
-                if str(net_ip) is None:
+                if str(net_ip_value) is None:
                     ci_net_upd = True
                     regenerate = True
-                elif ip_str != net_ip or ci_gwadvalue != net_gw:
+                elif ip_str != net_ip_value or ci_gwadvalue != net_gw_value:
                     ci_net_upd = True
                     regenerate = True
 
                 if ci_net_upd:
-                    first_line = f"qm set {vm_id} --ipconfig0"
+                    first_line = f"qm set {id} --ipconfig0"
                     second_line = f" gw={ci_gwadvalue},ip={ci_ipaddress}"
                     third_line = f"/{ci_netmask}"
                     command = first_line+second_line+third_line
@@ -642,21 +694,21 @@ def create_ci_options(ssh, values):
                     )
 
         functions.output_message(
-            f"Cloud-Init checked for '{vm_name}'.",
+            f"Cloud-Init checked for '{name}'.",
             "s"
         )
 
         if regenerate:
             values["vm_reboot"] = True
             functions.output_message(
-                f"Cloud-Init image for '{vm_name}' must be regenerated.",
+                f"Cloud-Init image for '{name}' must be regenerated.",
                 "w"
             )
             functions.output_message(
-                f"Server '{vm_name}' will restart to apply changes.",
+                f"Server '{name}' will restart to apply changes.",
                 "w"
             )
-            command = f"qm cloudinit update {vm_id}"
+            command = f"qm cloudinit update {id}"
             functions.execute_ssh_command(
                 ssh,
                 command,
@@ -671,33 +723,33 @@ def create_ci_options(ssh, values):
 
 
 def start_vm(ssh, values):
-    vm_id = values.get("id")
-    vm_name = values.get("name")
+    id = values.get("id")
+    name = values.get("name")
 
-    command = f"qm status {vm_id}"
+    command = f"qm status {id}"
     result = functions.execute_ssh_command(
         ssh,
         command,
-        f"Failed to get status of virtual server '{vm_name}"
+        f"Failed to get status of virtual server '{name}"
     )
     if not result == "status: running":
         try:
             functions.output_message(
-                f"Attempting to start virtual server '{vm_name}'.",
+                f"Attempting to start virtual server '{name}'.",
                 "i"
             )
-            command = f"qm start {vm_id}"
+            command = f"qm start {id}"
             result = functions.execute_ssh_command(
                 ssh,
                 command,
-                f"Failed to start virtual server '{vm_name}"
+                f"Failed to start virtual server '{name}"
             )
             functions.output_message(
                 f"{result}",
                 "s"
             )
             functions.output_message(
-                f"Virtual server '{vm_name}' started.",
+                f"Virtual server '{name}' started.",
                 "s"
             )
             values["vm_reboot"] = False
@@ -710,7 +762,7 @@ def start_vm(ssh, values):
 
     else:
         functions.output_message(
-            f"Virtual server '{vm_name}' already started.",
+            f"Virtual server '{name}' already started.",
             "s"
         )
         values["vm_status"] = "running"
@@ -742,8 +794,8 @@ def get_vm_ipv4_address(ssh, values):
         except Exception:
             return None
 
-    vm_id = values.get("id")
-    vm_name = values.get("name")
+    id = values.get("id")
+    name = values.get("name")
     ci_username = values.get("ci_username")
     ci_ipaddress = values.get("ci_ipaddress")
     ci_network = values.get("ci_network")
@@ -769,32 +821,32 @@ def get_vm_ipv4_address(ssh, values):
     # Step 1: Wait for the VM to be "running"
     while total_waited < max_wait_time:
         try:
-            command = f"qm status {vm_id}"
+            command = f"qm status {id}"
             result = functions.execute_ssh_command(
                 ssh,
                 command,
-                f"Failed to get status of VM '{vm_name}'"
+                f"Failed to get status of VM '{name}'"
             )
 
             if result.lower() == "status: running":
                 break
 
             message = (
-                f"'{vm_name}' not running - retrying in {check_interval} sec."
+                f"'{name}' not running - retrying in {check_interval} sec."
             )
             functions.output_message(message, "w")
             total_waited += check_interval
             time.sleep(check_interval)
 
         except Exception as e:
-            error_message = f"'{vm_name}' Failed to get VM status: {e}"
+            error_message = f"'{name}' Failed to get VM status: {e}"
             functions.output_message(error_message, "e")
             total_waited += check_interval
             time.sleep(check_interval)
 
     if total_waited >= max_wait_time:
         functions.output_message(
-            f"'{vm_name}' did not start within {max_wait_time} seconds.", "e"
+            f"'{name}' did not start within {max_wait_time} seconds.", "e"
         )
         return None
 
@@ -811,14 +863,14 @@ def get_vm_ipv4_address(ssh, values):
 
         if vm_status == "running":
             ssh1 = None
-            host = values.get("host")
-            user = values.get("user")
-            ssh1 = functions.ssh_connect(host, user, "", PVE_KEYFILE)
-            command = f"qm agent {vm_id} network-get-interfaces"
+            host = values.get("host_ip")
+            user = values.get("username")
+            ssh1 = functions.ssh_connect(host, user, "", vm.PVE_KEYFILE)
+            command = f"qm agent {id} network-get-interfaces"
             dhcp_ip_info = functions.execute_ssh_command(
                 ssh1,
                 command,
-                f"Failed to get status for {vm_name}."
+                f"Failed to get status for {name}."
             )
             ssh1.close
             dhcp_ip = json.loads(dhcp_ip_info)
@@ -835,9 +887,9 @@ def get_vm_ipv4_address(ssh, values):
             else:
                 return None
         else:
-            ci_subnet = f"{DEFAULT_PREFIX}{vlan}"
+            ci_subnet = f"{vm.DEFAULT_PREFIX}{vlan}"
             if ci_network.upper() == "DHCP" and ci_subnet:
-                vm_keyfile = VM_KEYFILE
+                vm_keyfile = vm.VM_KEYFILE
                 try:
                     functions.output_message(
                         "Scanning VLAN to find host-ip.",
@@ -856,7 +908,7 @@ def get_vm_ipv4_address(ssh, values):
                             )
                             if new_ssh:
                                 hostname = get_remote_hostname(new_ssh)
-                                if hostname == vm_name:
+                                if hostname == name:
                                     functions.output_message(
                                         f"connected to '{ip_str}' - "
                                         f"Hostname: {hostname}", "s"
@@ -893,7 +945,7 @@ def on_guest_configuration(ssh, values, ipaddress):
         # Check if the directory of local_sshd_customfile
         # matches the SSHD_CONFIG directory."""
         local_dir = os.path.dirname(local_sshd_customfile)
-        config_dir = os.path.dirname(SSHD_CONFIG[0])
+        config_dir = os.path.dirname(vm.SSHD_CONFIG[0])
         return local_dir == config_dir
 
     # install agent
@@ -987,18 +1039,18 @@ def on_guest_configuration(ssh, values, ipaddress):
         try:
             # Step 1: Gather list of configuration files
             # Check if config_file has include statements to other *.conf files
-            for conf_file in SSHD_CONFIG:
+            for conf_file in vm.SSHD_CONFIG:
                 command = f"cat {conf_file}"
                 stdin, stdout, stderr = ssh.exec_command(command)
                 for line_number, line in enumerate(stdout, start=1):
-                    if line.startswith(SSHD_SEARCHSTRING):
+                    if line.startswith(vm.SSHD_SEARCHSTRING):
                         elements = line.split()
                         for element in elements:
                             if element.startswith("/"):
                                 if "*" in element:
                                     conf_file_dir.append(element)
                                 else:
-                                    SSHD_CONFIG.append(element)
+                                    vm.SSHD_CONFIG.append(element)
 
             # Find all files matching the pattern
             # specified in include statements
@@ -1009,21 +1061,21 @@ def on_guest_configuration(ssh, values, ipaddress):
                 conf_files.extend(matched_files)
 
             for file in conf_files:
-                SSHD_CONFIG.append(file)
+                vm.SSHD_CONFIG.append(file)
 
             # Step 2: Run through all files found to
             # check if parameters have been set
             # Tracks parameters that are set correctly
             params_no_change = {}
             # Tracks parameters that are missing
-            params_to_add = SSH_CONST.copy()
+            params_to_add = vm.SSH_CONST.copy()
             # Tracks parameters that need to be changed
             params_to_change = {}
 
             # Check each parameter in every configuration file
-            for param, expected_value in SSH_CONST.items():
+            for param, expected_value in vm.SSH_CONST.items():
                 param_found = False  # Track if parameter was found in any file
-                for conf_file in SSHD_CONFIG:
+                for conf_file in vm.SSHD_CONFIG:
                     command = f"cat {conf_file}"
                     stdin, stdout, stderr = ssh.exec_command(command)
                     for line_number, line in enumerate(stdout, start=1):
@@ -1103,14 +1155,14 @@ def on_guest_configuration(ssh, values, ipaddress):
                 else:
                     # Use the directory of the first
                     # SSHD_CONFIG file as the fallback
-                    include_dir = os.path.dirname(SSHD_CONFIG[0])
+                    include_dir = os.path.dirname(vm.SSHD_CONFIG[0])
 
                 local_sshd_customfile = os.path.join(
                     include_dir,
-                    os.path.basename(SSHD_CUSTOMFILE)
+                    os.path.basename(vm.SSHD_CUSTOMFILE)
                     )
 
-                if local_sshd_customfile not in SSHD_CONFIG:
+                if local_sshd_customfile not in vm.SSHD_CONFIG:
                     command = f"sudo touch {local_sshd_customfile}"
                     functions.execute_ssh_command(
                         ssh,
@@ -1137,7 +1189,7 @@ def on_guest_configuration(ssh, values, ipaddress):
                     )
                     if compare_sshd_paths(local_sshd_customfile):
                         cmd1 = f"echo 'Include {local_sshd_customfile}' | "
-                        cmd2 = f"sudo tee -a {SSHD_CONFIG[0]}"
+                        cmd2 = f"sudo tee -a {vm.SSHD_CONFIG[0]}"
 
                         command = cmd1+cmd2
                         functions.execute_ssh_command(
@@ -1146,14 +1198,14 @@ def on_guest_configuration(ssh, values, ipaddress):
                             (
                                 "Failed to include "
                                 f"{local_sshd_customfile} "
-                                f"in {SSHD_CONFIG[0]}"
+                                f"in {vm.SSHD_CONFIG[0]}"
                             )
                         )
                         functions.output_message(
                             (
                                 "Included "
                                 f"{local_sshd_customfile} in "
-                                f"{SSHD_CONFIG[0]}"
+                                f"{vm.SSHD_CONFIG[0]}"
                             ),
                             "s"
                         )
@@ -1240,34 +1292,23 @@ functions.output_message()
 functions.output_message(f"Parameter filename: {config_file}")
 functions.output_message(f"Script directory  : {script_directory}")
 functions.output_message()
-
 config = load_config(config_file)
-values = get_json_values(config)
-host = values.get("host")
-user = values.get("user")
+values = get_config_values(config)
 
 functions.output_message()
-functions.output_message("Validate JSON structure", "h")
+functions.output_message("Validate config values", "h")
 functions.output_message()
-functions.check_parameters(config, MANDATORY_KEYS, OPTIONAL_KEYS)
-
-functions.output_message()
-functions.output_message("Validate JSON values", "h")
-functions.output_message()
-functions.check_values(config, integer_keys=INTEGER_KEYS)
-
-functions.output_message()
-functions.output_message("Evaluate configuration", "h")
-functions.output_message()
-check_conditional_values(values)
+functions.integer_check(values, vm.INTEGER_KEYS)
 
 functions.output_message()
 functions.output_message("Build virtual server", "h")
 functions.output_message()
 
+host_ip = values.get("host_ip")
+username = values.get("username")
 ssh = None
 try:
-    ssh = functions.ssh_connect(host, user, "", PVE_KEYFILE)
+    ssh = functions.ssh_connect(host_ip, username, "", vm.PVE_KEYFILE)
     if ssh is not None:
         create_server(ssh, values)
         create_ci_options(ssh, values)
@@ -1287,7 +1328,7 @@ ssh = None
 try:
     # login as user cloud-init shpuld have created
     ci_username = values.get("ci_username")
-    ssh = functions.ssh_connect(vm_ipaddress, ci_username, "", VM_KEYFILE)
+    ssh = functions.ssh_connect(vm_ipaddress, ci_username, "", vm.VM_KEYFILE)
     if ssh is not None:
         on_guest_configuration(ssh, values, ipaddress)
         ssh.close()

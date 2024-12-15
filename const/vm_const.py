@@ -1,36 +1,38 @@
 # const/constants.py
 MANDATORY_KEYS = {
-    "USER": "username",
-    "HOST": "host_ip",
-    "TEMPLATE": "clone_id",
-    "ID": "id",
-    "NAME": "name",
-    "CORES": "cores",
-    "MEM": "memory",
-    "DISK": "disk",
-    "NET_DRIVER": "driver",
-    "BRIDGE": "bridge",
-    "VLAN": "vlan",
-    "CLOUDINIT_NET": "ci_network",
-    "CLOUDINIT_UPGRADE": "ci_upgrade",
-    "VM_PWCAHNGE": "change_pwd"
+    "clone_id",
+    "name",
+    "id",
+    "vlan"
     }
+
 OPTIONAL_KEYS = {
-    "BALLOON": "balloon",
-    "START_AT_BOOT": "boot_start",
-    "CLOUDINIT_USER": "ci_username",
-    "CLOUDINIT_PW": "ci_password",
-    "CLOUDINIT_PUB_KEY": "ci_publickey",
-    "CLOUDINIT_DNS_DOMAIN": "ci_domain",
-    "CLOUDINIT_DNS_SERVER": "ci_dns_server",
-    "CLOUDINIT_IP": "ci_ipaddress",
-    "CLOUDINIT_GW": "ci_gwadvalue",
-    "CLOUDINIT_MASK": "ci_netmask"
+    "username",
+    "host_ip",
+    "cores",
+    "memory",
+    "disk",
+    "driver",
+    "bridge",
+    "balloon",
+    "boot_start",
+    "ci_upgrade",
+    "ci_username",
+    "ci_password",
+    "ci_publickey",
+    "ci_domain",
+    "ci_dns_server",
+    "ci_ipaddress",
+    "ci_gwadvalue",
+    "ci_netmask",
+    "ci_network",
+    "change_pwd"
     }
-INTEGER_KEYS = ["TEMPLATE", "ID", "CORES", "MEM", "VLAN",
-                "CLOUDINIT_UPGRADE", "CLOUDINIT_MASK", "START_AT_BOOT",
-                "BALLOON", "DISK"
+
+INTEGER_KEYS = ["clone_id", "vlan", "id", "cores", "memory", "disk", "balloon",
+                "boot_start", "ci_netmask"
                 ]
+
 SSH_CONST = {
     "PasswordAuthentication": "no",
     "ChallengeResponseAuthentication": "no",
@@ -40,15 +42,41 @@ SSH_CONST = {
     "X11Forwarding": "no",
     "PermitRootLogin": "prohibit-password"
     }
+
 SSHD_CONFIG = [
     "/etc/ssh/sshd_config"
     ]
+
 SSHD_SEARCHSTRING = "Include "
 SSHD_CUSTOMFILE = "/99-automation-default-config.conf"
-DEFAULT_BALLOON = 0
-DEFAULT_START_AT_BOOT = 0
+DEFAULT_USERNAME = "root"
+DEFAULT_HOST_IP = "192.168.6.3"
+DEFAULT_CORES = 4
+DEFAULT_MEMORY = 2048
+DEFAULT_DISK = 8
+DEFAULT_DRIVER = "virtio"
+DEFAULT_BRIDGE = "vmbr0"
+DEFAULT_BALLOON = 512
+DEFAULT_BOOT_START = 0
 DEFAULT_CI_UPGRADE = 1
-DEFAULT_USER = "ubuntu"
+DEFAULT_CI_USERNAME = "pch"
+DEFAULT_CI_PASSWORD = "password"
+DEFAULT_CI_PUBLICKEY = [
+    (
+        "ssh-ed25519 "
+        "AAAAC3NzaC1lZDI1NTE5AAAAIIEnQDipaxA3UXONu83gW17HAsde/DtYeNxC+Uif9YcK "
+        "ansible-automation"
+    ),
+    (
+        "ssh-ed25519 "
+        "AAAAC3NzaC1lZDI1NTE5AAAAILdNDjsqywS/4LcaCg35c+QE9V2vQ4VVfXsPVJVi6Dj6 "
+        "nije-key"
+    )
+]
+DEFAULT_CI_DOMAIN = "pch.dk"
+DEFAULT_CI_DNS_SERVER = "192.168.9.5"
+DEFAULT_CI_NETWORK = "dhcp"
+DEFAULT_CHANGE_PWD = False
 DEFAULT_NIC = "eth0"
 DEFAULT_PREFIX = "192.168."
 PVE_KEYFILE = "/home/nije/.ssh/infrastructure/proxmox-root"
