@@ -568,4 +568,3 @@ def integer_check(values, integers):
             output_message(f"{error}", "e")
     else:
         output_message("All integer values are correct", "s")
-        
