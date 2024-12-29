@@ -1,6 +1,6 @@
 {
- "clone_id"      : integer: template id to clone,
- "name"          : "text",
- "vlan"          : integer: VLAN id,
- "id"            : integer: VM is
+ "clone_id"      : "integer: template id to clone",
+ "name"          : "text: hostname for new vm",
+ "vlan"          : "integer: VLAN id",
+ "id"            : "integer: VM id"
 }
