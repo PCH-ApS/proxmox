@@ -11,3 +11,5 @@ With Proxmox up and running, the next step was creating VM templates (for Linux)
 The idea is to make it easy to rebuild everything from scratch—up to this point—as long as I have the configs handy. I sometimes lose track of where I am during a project and decide to start over. This approach makes that process much less of a pain.
 
 This repo is my way of sharing that approach with anyone who might find it useful. I hope it helps you simplify your infrastructure setup as much as I hope it will for me!
+
+Please have a loo at the wiki in this repo for more information -> https://github.com/PCH-ApS/proxmox/wiki
