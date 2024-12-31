@@ -1,4 +1,4 @@
-# const/constants.py
+# const/vm_const.py
 MANDATORY_KEYS = {
     "clone_id",
     "name",

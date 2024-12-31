@@ -143,7 +143,7 @@ def is_valid_hostname(value_str):
     # Check total length of the hostname
     if len(value_str) > 253:
         message = (
-            "hostname has exceeded the masximum "
+            f"{value_str} exceedes the masximum "
             "length of 253 characters."
         )
         output_message(
@@ -155,7 +155,7 @@ def is_valid_hostname(value_str):
     for label in labels:
         if len(label) > 63:  # Each label must not exceed 63 characters
             message = (
-                "a label has exceeded the masximum length of 63 characters."
+                f"{value_str} exceeds the masximum length of 63 characters."
             )
             output_message(
                 message,
@@ -163,7 +163,7 @@ def is_valid_hostname(value_str):
             )
         if not hostname_regex.match(label):  # Each label must match the regex
             message = (
-                "a label contains invalid characters."
+                f"{value_str} contains invalid characters."
             )
             output_message(
                 message,
@@ -568,3 +568,37 @@ def integer_check(values, integers):
             output_message(f"{error}", "e")
     else:
         output_message("All integer values are correct", "s")
+
+
+def check_bridge_exists(ssh, bridge):
+    command = f"brctl show | grep -w '{bridge}'"
+    result = execute_ssh_command(
+        ssh,
+        command,
+        (
+            f"Network bridge: {bridge} does not exist "
+            "or is not active on the Proxmox host."
+        )
+    )
+
+    if result:
+        return True
+    else:
+        return False
+
+
+def check_storage_exists(ssh, local_storage):
+    stdin, stdout, stderr = ssh.exec_command(
+        f"pvesm status | awk '{{print $1}}' | grep -w '{local_storage}'"
+    )
+
+    command = f"pvesm status | awk '{{print $1}}' | grep -w '{local_storage}'"
+    result = execute_ssh_command(
+        ssh,
+        command,
+        f"Storage: {local_storage} does NOT exist on the Proxmox host."
+    )
+    if result:
+        return True
+    else:
+        return False

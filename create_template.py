@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 from lib import functions
-from const.template_const import (MANDATORY_KEYS, OPTIONAL_KEYS,
-                                  INTEGER_KEYS, PVE_KEYFILE
-                                  )
+import const.template_const as template
 
 import json
 import sys
@@ -24,100 +22,238 @@ def load_config(config_file):
         )
 
 
-def get_json_values(config):
-    # Extract needed variables from JSON file
-    return {
-        "user": config.get("USER").get("username"),
-        "host": config.get("HOST").get("host_ip"),
-        "id": config.get("ID").get("id"),
-        "name": config.get("NAME").get("name"),
-        "cores": config.get("CORES").get("cores"),
-        "mem": config.get("MEMORY").get("mem"),
-        "storage_ctrl": config.get("STORAGE_CONTROLLER").get("storage_ctrl"),
-        "local_storage": config.get("LOCAL_STORAGE").get("local_storage"),
-        "nic": config.get("NETWORK_CONTROLLER").get("nic"),
-        "bridge": config.get("NETWORK_BRIDGE").get("bridge"),
-        "image": config.get("DISKIMAGE").get("image")
-    }
+def get_config_values(config):
+    allowed_keys = set(template.MANDATORY_KEYS).union(template.OPTIONAL_KEYS)
+    value_keys = {}
+    errors = []
 
+    try:
+        for key in config.keys():
+            if key not in allowed_keys:
+                message = (
+                    f"Invalid key '{key}' found in JSON configuration."
+                )
+                errors.append(message)
 
-def check_bridge_exists(ssh, values):
-    bridge = values.get("bridge")
-    command = f"brctl show | grep -w '{bridge}'"
-    result = functions.execute_ssh_command(
-        ssh,
-        command,
-        (
-            f"Network bridge: {bridge} does not exist "
-            "or is not active on the Proxmox host."
-        )
-    )
-
-    if result:
+    except Exception as e:
         functions.output_message(
-            (
-                f"Network bridge: {bridge} exist and id "
-                "active on the Proxmox host."
-            ),
-            "s"
-        )
+            f"Error getting configuration keys: {e}",
+            "e"
+            )
 
+    finally:
+        if errors:
+            error_message = "\n".join(errors)
+            functions.output_message(
+                error_message,
+                "e"
+            )
 
-def check_storage_exists(ssh, values):
-    local_storage = values.get("local_storage")
-    stdin, stdout, stderr = ssh.exec_command(
-        f"pvesm status | awk '{{print $1}}' | grep -w '{local_storage}'"
-    )
+    try:
 
-    command = f"pvesm status | awk '{{print $1}}' | grep -w '{local_storage}'"
-    result = functions.execute_ssh_command(
-        ssh,
-        command,
-        f"Storage: {local_storage} does NOT exist on the Proxmox host."
-    )
-    if result:
+        for key in allowed_keys:
+            key_value = config.get(key)
+            if key_value is not None:
+                value_keys[key] = key_value
+            else:
+                default_value_key = f"DEFAULT_{key}".upper()
+                default_value = getattr(template, default_value_key, None)
+
+                if default_value is not None:
+                    value_keys[key] = default_value
+
+    except Exception as e:
         functions.output_message(
-            f"Storage: {local_storage} exist on the Proxmox host.",
-            "s"
-        )
+            f"Error getting configuration values: {e}",
+            "e"
+            )
+
+    finally:
+        return value_keys
 
 
 def create_template(ssh, values):
-    template_id = values.get("id")
-    result = functions.check_if_id_in_use(ssh, template_id)
+    name = values.get("name")
+    id = values.get("id")
+    cpu = values.get("cpu")
+    cores = values.get("cores")
+    memory = values.get("memory")
+    storage_ctrl = values.get("storage_ctrl")
+    local_storage = values.get("local_storage")
+    bootdisk = values.get("bootdisk")
+    nic = values.get("network_ctrl")
+    bridge = values.get("bridge")
+    image = values.get("image")
 
-    if result is False:
-        command = f"qm create {template_id} --name {values['name']}"
+    functions.output_message(
+        f"Checking configuration for '{name}'.",
+        "s"
+    )
+
+    if name:
+        functions.is_valid_hostname(name)
+
+    if bridge:
+        bridge_exist = functions.check_bridge_exists(ssh, bridge)
+        if bridge_exist:
+            functions.output_message(
+                (
+                    f"Network bridge: {bridge} exist and is "
+                    "active on the Proxmox host."
+                ),
+                "s"
+            )
+
+    if local_storage:
+        storage_exist = functions.check_storage_exists(ssh, local_storage)
+        if storage_exist:
+            functions.output_message(
+                    f"Storage: {local_storage} exist on the Proxmox host.",
+                    "s"
+                )
+
+    id_in_use = functions.check_if_id_in_use(ssh, id)
+
+    if id_in_use:
+        functions.output_message(
+            "Template id already exists on host.",
+            "e"
+            )
+
+    if id_in_use is False:
+        command = f"qm create {id} --name {name}"
         functions.execute_ssh_command(
             ssh,
             command,
             f"'{command}' failed on the Proxmox host."
         )
         functions.output_message(
-            "Started building template on proxmox host.",
+            f"Setting template id: {id} and name: {name}",
             "s"
         )
 
     try:
 
+        if cpu:
+            command = (
+                f"qm set {id} --cpu {cpu}"
+            )
+            functions.execute_ssh_command(
+                ssh,
+                command,
+                f"Failed to set cpt type: {cpu}"
+            )
+            functions.output_message(
+                f"Setting cpu type to {cpu}.",
+                "s"
+            )
+
+        if cores:
+            command = (
+                f"qm set {id} --cores {cores}"
+            )
+            functions.execute_ssh_command(
+                ssh,
+                command,
+                f"Failed to set cores: {cores}"
+            )
+            functions.output_message(
+                f"Setting cores to {cores}.",
+                "s"
+            )
+
+        if memory:
+            command = (
+                f"qm set {id} --memory {memory}"
+            )
+            functions.execute_ssh_command(
+                ssh,
+                command,
+                f"Failed to set memory: {memory} MB"
+            )
+            functions.output_message(
+                f"Setting memory to {memory} MB.",
+                "s"
+            )
+
+        if storage_ctrl:
+            command = (
+                f"qm set {id} --scsihw {storage_ctrl}"
+            )
+            functions.execute_ssh_command(
+                ssh,
+                command,
+                f"Failed to set SCSI HW: {storage_ctrl}"
+            )
+            functions.output_message(
+                f"Setting SCSI HW to {storage_ctrl}.",
+                "s"
+            )
+
+        if local_storage:
+            command = (
+                f"qm set {id} --{bootdisk} {local_storage}:0,"
+                f"import-from={image},discard=on"
+            )
+            functions.execute_ssh_command(
+                ssh,
+                command,
+                f"Failed to set boot disk {bootdisk} on {local_storage}"
+            )
+            functions.output_message(
+                (
+                    f"Setting SCSI boot disk {bootdisk} on {local_storage}. "
+                    f"Applying image file: {image}."
+                ),
+                "s"
+            )
+
+        if nic:
+            command = (
+                f"qm set {id} --net0 model={nic},"
+                f"bridge={bridge}"
+            )
+            functions.execute_ssh_command(
+                ssh,
+                command,
+                f"Failed to set NIC: {nic} and bridge: {bridge}"
+            )
+            functions.output_message(
+                f"Setting NIC: {nic} and bridge: {bridge}.",
+                "s"
+            )
+
+        if bootdisk:
+            command = (
+                f"qm set {id} --boot c --bootdisk {bootdisk}"
+            )
+            functions.execute_ssh_command(
+                ssh,
+                command,
+                f"Failed to set bootdisk {bootdisk}"
+            )
+            functions.output_message(
+                f"Setting bootdisk {bootdisk}.",
+                "s"
+            )
+
+            command = (
+                f"qm set {id} --boot order={bootdisk}"
+            )
+            functions.execute_ssh_command(
+                ssh,
+                command,
+                f"Failed to set boot order for {bootdisk}"
+            )
+            functions.output_message(
+                f"Setting boot order for {bootdisk}.",
+                "s"
+            )
+
         commands = [
-            f"qm set {template_id} --cpu host",
-            f"qm set {template_id} --cores {values['cores']}",
-            f"qm set {template_id} --memory {values['mem']}",
-            f"qm set {template_id} --scsihw {values['storage_ctrl']}",
-            (
-                f"qm set {template_id} --scsi0 {values['local_storage']}:0,"
-                f"import-from={values['image']},discard=on"
-            ),
-            (
-                f"qm set {template_id} --net0 model={values['nic']},"
-                f"bridge={values['bridge']}"
-            ),
-            f"qm set {template_id} --boot c --bootdisk scsi0",
-            f"qm set {template_id} --boot order=scsi0",
-            f"qm set {template_id} --agent enabled=1,fstrim_cloned_disks=1",
-            f"qm set {template_id} --serial0 socket",
-            f"qm set {template_id} --vga serial0",
+            f"qm set {id} --agent enabled=1,fstrim_cloned_disks=1",
+            f"qm set {id} --serial0 socket",
+            f"qm set {id} --vga serial0",
         ]
 
         # Execute each command via SSH
@@ -134,21 +270,12 @@ def create_template(ssh, values):
             "e"
         )
 
-    if result is False:
-        command = (
-            f"qm set {template_id} --ide2 {values['local_storage']}:cloudinit"
-        )
-        functions.execute_ssh_command(
-            ssh,
-            command,
-            f"'{command}' failed on the Proxmox host."
-        )
-        command = f"qm template {template_id}"
-        functions.execute_ssh_command(
-            ssh,
-            command,
-            f"'{command}' failed on the Proxmox host."
-        )
+    command = f"qm template {id}"
+    functions.execute_ssh_command(
+        ssh,
+        command,
+        f"'{command}' failed on the Proxmox host."
+    )
 
 
 os.system('cls' if os.name == 'nt' else 'clear')
@@ -164,6 +291,7 @@ except Exception as e:
         )
 
 script_directory = os.path.dirname(os.path.abspath(__file__))
+
 functions.output_message()
 functions.output_message("script info:", "h")
 functions.output_message()
@@ -171,30 +299,20 @@ functions.output_message(f"Parameter filename: {config_file}")
 functions.output_message(f"Script directory  : {script_directory}")
 functions.output_message()
 
-print("")
 config = load_config(config_file)
-values = get_json_values(config)
+values = get_config_values(config)
 
+functions.output_message("Validate config values", "h")
 functions.output_message()
-functions.output_message("Validate JSON structure", "h")
-functions.output_message()
-functions.check_parameters(config, MANDATORY_KEYS, OPTIONAL_KEYS)
-
-functions.output_message()
-functions.output_message("Validate JSON values", "h")
-functions.output_message()
-functions.check_values(config, integer_keys=INTEGER_KEYS)
+functions.integer_check(values, template.INTEGER_KEYS)
 
 functions.output_message()
 functions.output_message("build template", "h")
 functions.output_message()
 
-host = values.get("host")
-user = values.get("user")
-ssh = functions.ssh_connect(host, user, "", PVE_KEYFILE)
-# check_template_id_in_use(ssh, values)
-check_bridge_exists(ssh, values)
-check_storage_exists(ssh, values)
+host = values.get("host_ip")
+user = values.get("username")
+ssh = functions.ssh_connect(host, user, "", template.PVE_KEYFILE)
 create_template(ssh, values)
 ssh.close()
 functions.output_message(f"Succesfully applied template: {config_file}", "s")
