@@ -1,15 +1,26 @@
 MANDATORY_KEYS = {
-    "PVE_USER": "username",
-    "PVE_HOST": "host_ip",
-    "PVE_NAME": "hostname",
-    "PVE_DOMAIN": "domain_string",
-    "PVE_SSHKEY": "publickey"
+    "username",
+    "host_ip",
+    "hostname",
+    "domain_string",
+    "publickey"
 }
+
 OPTIONAL_KEYS = {
-    "PVE_ISO": "urls",
-    "PVE_PWCAHNGE": "change_pwd"
+    "urls",
+    "change_pwd"
 }
 INTEGER_KEYS = []
+
+DEFAULT_URLS = [
+    (
+      "https://cloud-images.ubuntu.com/noble/current/"
+      "noble-server-cloudimg-amd64.img"
+    ),
+    "https://releases.ubuntu.com/24.04/ubuntu-24.04.1-live-server-amd64.iso"
+    ]
+DEFAULT_CHANGE_PWD = False
+
 SSH_CONST = {
     "PasswordAuthentication": "no",
     "ChallengeResponseAuthentication": "no",

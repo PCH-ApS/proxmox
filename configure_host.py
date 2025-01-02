@@ -1,12 +1,6 @@
 #!/usr/bin/env python3
 from lib import functions
-from const.host_const import (
-    MANDATORY_KEYS, OPTIONAL_KEYS,
-    INTEGER_KEYS, SSH_CONST,
-    SSHD_CONFIG, SSHD_SEARCHSTRING,
-    SSHD_CUSTOMFILE, PVE_KEYFILE,
-    SNIPPETS_FOLDER
-)
+import const.host_const as host
 
 import os
 import json
@@ -32,24 +26,80 @@ def load_config(config_file):
         return None
 
 
-def get_json_values(config):
-    # Extract needed variables from JSON file
-    return {
-        "pve_user": config.get("PVE_USER").get("username"),
-        "pve_host": config.get("PVE_HOST").get("host_ip"),
-        "pve_name": config.get("PVE_NAME").get("hostname"),
-        "pve_domain": config.get("PVE_DOMAIN").get("domain_string"),
-        "pve_sshkey": config.get("PVE_SSHKEY").get("publickey"),
-        "pve_iso": config.get("PVE_ISO").get("urls"),
-        "pve_changepwd": config.get("PVE_PWCHANGE").get("change_pwd")
-    }
+def get_config_values(config):
+    allowed_keys = set(host.MANDATORY_KEYS).union(host.OPTIONAL_KEYS)
+    value_keys = {}
+    errors = []
+
+    try:
+        for key in config.keys():
+            if key not in allowed_keys:
+                message = (
+                    f"Invalid key '{key}' found in JSON configuration."
+                )
+                errors.append(message)
+
+    except Exception as e:
+        functions.output_message(
+            f"Error getting configuration keys: {e}",
+            "e"
+            )
+
+    finally:
+        if errors:
+            error_message = "\n".join(errors)
+            functions.output_message(
+                error_message,
+                "e"
+            )
+
+    try:
+        for key in allowed_keys:
+            key_value = config.get(key)
+            if key_value is not None:
+                value_keys[key] = key_value
+            else:
+                default_value_key = f"DEFAULT_{key}".upper()
+                default_value = getattr(host, default_value_key, None)
+
+                if default_value is not None:
+                    value_keys[key] = default_value
+
+    except Exception as e:
+        functions.output_message(
+            f"Error getting configuration values: {e}",
+            "e"
+            )
+
+    finally:
+        return value_keys
 
 
-def add_snippets_folder(ssh, values):
-    pve_hostip = values.get("pve_host")
+def validate_config(values):
+    host_ip = values.get("host_ip")
+    hostname = values.get("hostname")
+    domain_string = values.get("domain_string")
+
+    if host_ip:
+        result, message = functions.check_valid_ip_address_v2(host_ip)
+        if result:
+            functions.output_message(message, "s")
+        else:
+            functions.output_message(message, "e")
+
+    fqdn = f"{hostname}.{domain_string}"
+    if fqdn:
+        result, message = functions.is_valid_hostname_v2(fqdn)
+        if result:
+            functions.output_message(message, "s")
+        else:
+            functions.output_message(message, "e")
+
+
+def add_snippets_folder(ssh):
 
     # Create the snippet folder on the Proxmox host
-    snippets_dir = SNIPPETS_FOLDER
+    snippets_dir = host.SNIPPETS_FOLDER
     command = (
             f'test -d "{snippets_dir}" && '
             'echo "exists" || echo "not_exists"'
@@ -66,18 +116,18 @@ def add_snippets_folder(ssh, values):
             "Failed to create snippets folder."
         )
         functions.output_message(
-            f"Snippets folder created on {pve_hostip}.",
+            "Snippets folder created.",
             "s"
         )
 
         functions.output_message(
-            f"Snippets folder added to configuration on {pve_hostip}.",
+            "Snippets folder added to configuration.",
             "s"
         )
 
     if result == "exists":
         functions.output_message(
-            f"Snippets folder already exists on {pve_hostip}.",
+            "Snippets folder already exists.",
             "i"
         )
 
@@ -85,15 +135,15 @@ def add_snippets_folder(ssh, values):
     functions.execute_ssh_command(
         ssh,
         command,
-        f"Failed to add snippets folder to configuration on {pve_hostip}."
+        "Failed to add snippets folder to configuration."
     )
 
 
 def check_hostname(ssh, values):
-    pve_hostname = values.get("pve_name")
-    pve_hostip = values.get("pve_host")
-    pve_username = values.get("pve_user")
-    pve_domain = values.get("pve_domain")
+    hostname = values.get("hostname")
+    host_ip = values.get("host_ip")
+    username = values.get("username")
+    domain_string = values.get("domain_string")
     max_wait_time = 300  # max wait time in seconds
     check_interval = 10  # time interval between retries in seconds
     total_waited = 0
@@ -103,10 +153,10 @@ def check_hostname(ssh, values):
         current_hostname = functions.execute_ssh_command(
             ssh,
             command,
-            f"Failed to get current hostname from {pve_hostip}"
+            "Failed to get current hostname"
         )
 
-        if current_hostname == pve_hostname:
+        if current_hostname == hostname:
             functions.output_message(
                 "Hostname is correct.",
                 "s"
@@ -114,12 +164,12 @@ def check_hostname(ssh, values):
         else:
             functions.output_message(
                 (
-                    f"Hostname mismatch! Expected '{pve_hostname}', "
+                    f"Hostname mismatch! Expected '{hostname}', "
                     f"but got '{current_hostname}'."
                 ),
                 "w"
             )
-            fqdn = f"{pve_hostname}.{pve_domain}"
+            fqdn = f"{hostname}.{domain_string}"
 
             command = (
                 f"[ -z \"$(ls -A /etc/pve/nodes/{current_hostname}/lxc "
@@ -130,7 +180,7 @@ def check_hostname(ssh, values):
             node_status = functions.execute_ssh_command(
                 ssh,
                 command,
-                f"Failed to check if node is empty on {pve_hostip}"
+                f"Failed to check if node is empty on {host_ip}"
             )
 
             if node_status == "":
@@ -141,20 +191,20 @@ def check_hostname(ssh, values):
 
                 # Perform the hostname change on the remote host
                 command = f"""
-                echo "{pve_hostname}" > /etc/hostname
+                echo "{hostname}" > /etc/hostname
                 sed -i "/{current_hostname}/d" /etc/hosts
-                echo "{pve_hostip} {fqdn} {pve_hostname}" >> /etc/hosts
-                hostnamectl set-hostname "{pve_hostname}"
+                echo "{host_ip} {fqdn} {hostname}" >> /etc/hosts
+                hostnamectl set-hostname "{hostname}"
                 reboot
                 """
                 functions.execute_ssh_command(
                     ssh,
                     command,
-                    f"Failed to change hostname on {pve_hostip}"
+                    f"Failed to change hostname on {host_ip}"
                 )
                 functions.output_message(
                     (
-                        f"Hostname on {pve_hostip} has been changed "
+                        f"Hostname on {host_ip} has been changed "
                         f"from {current_hostname} to {fqdn}"
                     ),
                     "s"
@@ -163,7 +213,7 @@ def check_hostname(ssh, values):
                 ssh.close()
 
                 functions.output_message(
-                    f"Waiting for {pve_hostip} to reboot...",
+                    f"Waiting for {host_ip} to reboot...",
                     "i"
                 )
                 ssh_up = None
@@ -178,8 +228,8 @@ def check_hostname(ssh, values):
                         )
 
                         ssh_up.connect(
-                            hostname=pve_hostip,
-                            username=pve_username,
+                            hostname=host_ip,
+                            username=username,
                             timeout=1
                         )
 
@@ -190,7 +240,7 @@ def check_hostname(ssh, values):
 
                         if error_output:
                             functions.output_message(
-                                f"{pve_hostip} is not ready - retrying in "
+                                f"{host_ip} is not ready - retrying in "
                                 f"{check_interval} sec.",
                                 "i"
                             )
@@ -198,9 +248,9 @@ def check_hostname(ssh, values):
                             time.sleep(check_interval)
                             continue
 
-                        if output == pve_hostname:
+                        if output == hostname:
                             functions.output_message(
-                                f"{pve_hostip} now has hostname '{output}'.",
+                                f"{host_ip} now has hostname '{output}'.",
                                 "s"
                             )
                             ssh_up.close()
@@ -261,18 +311,18 @@ def configure_sshd(ssh, values):
         try:
             # Step 1: Gather list of configuration files
             # Check if config_file has include statements to other *.conf files
-            for conf_file in SSHD_CONFIG:
+            for conf_file in host.SSHD_CONFIG:
                 command = f"cat {conf_file}"
                 stdin, stdout, stderr = ssh.exec_command(command)
                 for line_number, line in enumerate(stdout, start=1):
-                    if line.startswith(SSHD_SEARCHSTRING):
+                    if line.startswith(host.SSHD_SEARCHSTRING):
                         elements = line.split()
                         for element in elements:
                             if element.startswith("/"):
                                 if "*" in element:
                                     conf_file_dir.append(element)
                                 else:
-                                    SSHD_CONFIG.append(element)
+                                    host.SSHD_CONFIG.append(element)
 
             # Find all files matching the pattern
             # specified in include statements
@@ -283,18 +333,18 @@ def configure_sshd(ssh, values):
                 conf_files.extend(matched_files)
 
             for file in conf_files:
-                SSHD_CONFIG.append(file)
+                host.SSHD_CONFIG.append(file)
 
             # Step 2: Run through all files found to
             # check if parameters have been set
             params_no_change = {}
-            params_to_add = SSH_CONST.copy()
+            params_to_add = host.SSH_CONST.copy()
             params_to_change = {}
 
             # Check each parameter in every configuration file
-            for param, expected_value in SSH_CONST.items():
+            for param, expected_value in host.SSH_CONST.items():
                 param_found = False  # Track if parameter was found in any file
-                for conf_file in SSHD_CONFIG:
+                for conf_file in host.SSHD_CONFIG:
                     command = f"cat {conf_file}"
                     stdin, stdout, stderr = ssh.exec_command(command)
                     for line_number, line in enumerate(stdout, start=1):
@@ -338,15 +388,15 @@ def configure_sshd(ssh, values):
                 else:
                     # Use the directory of the first SSHD_CONFIG file
                     # as the fallback
-                    include_dir = os.path.dirname(SSHD_CONFIG[0])
+                    include_dir = os.path.dirname(host.SSHD_CONFIG[0])
 
                 # SSHD_CUSTOMFILE = f"{include_dir}{SSHD_CUSTOMFILE}"
                 local_sshd_customfile = os.path.join(
                     include_dir,
-                    os.path.basename(SSHD_CUSTOMFILE)
+                    os.path.basename(host.SSHD_CUSTOMFILE)
                 )
 
-                if local_sshd_customfile not in SSHD_CONFIG:
+                if local_sshd_customfile not in host.SSHD_CONFIG:
                     command = f"touch {local_sshd_customfile}"
                     functions.execute_ssh_command(
                         ssh,
@@ -369,25 +419,25 @@ def configure_sshd(ssh, values):
                     )
 
                 local_sshd = os.path.dirname(local_sshd_customfile)
-                sshd_config = os.path.dirname(SSHD_CONFIG[0])
+                sshd_config = os.path.dirname(host.SSHD_CONFIG[0])
                 if local_sshd == sshd_config:
                     command = (
                         f"echo Include {local_sshd_customfile} "
-                        f">> {SSHD_CONFIG[0]}"
+                        f">> {host.SSHD_CONFIG[0]}"
                     )
                     functions.execute_ssh_command(
                         ssh,
                         command,
                         (
                             f"Failed to include {local_sshd_customfile} "
-                            f"in {SSHD_CONFIG[0]}"
+                            f"in {host.SSHD_CONFIG[0]}"
                         )
                     )
 
                     functions.output_message(
                         (
                             f"included {local_sshd_customfile} in "
-                            f"{SSHD_CONFIG[0]}"
+                            f"{host.SSHD_CONFIG[0]}"
                         ),
                         "s"
                     )
@@ -699,9 +749,9 @@ def set_pve_no_subscription(ssh, values):
 
 
 def download_iso(ssh, values):
-    pve_iso_urls = values.get("pve_iso")  # Correct access to 'pve_iso' key
+    urls = values.get("urls")  # Correct access to 'pve_iso' key
     try:
-        if not pve_iso_urls:
+        if not urls:
             functions.output_message(
                 "No ISO URLs provided in the configuration file.",
                 "w"
@@ -721,7 +771,7 @@ def download_iso(ssh, values):
 
             # Step 2: Check if each ISO image
             # already exists and download if not
-            for url in pve_iso_urls:
+            for url in urls:
                 iso_filename = url.split('/')[-1]
                 iso_filepath = f"/var/lib/vz/template/iso/{iso_filename}"
 
@@ -780,14 +830,14 @@ def download_iso(ssh, values):
 
 
 def change_remote_password(ssh, values):
-    pve_hostip = values.get("pve_host")
-    pve_username = values.get("pve_user")
-    pve_changepwd = values.get("pve_changepwd")
+    host_ip = values.get("host_ip")
+    username = values.get("username")
+    change_pwd = values.get("change_pwd")
 
-    if pve_changepwd is not False:
+    if change_pwd:
         try:
             new_password = getpass.getpass(
-                f"Enter new password for '{pve_username}': "
+                f"Enter new password for '{username}': "
             )
             if not new_password:
                 functions.output_message(
@@ -796,12 +846,12 @@ def change_remote_password(ssh, values):
                 )
             # Command to change the password on the remote host
             change_password_cmd = (
-                f'echo "{pve_username}:{new_password}" | chpasswd'
+                f'echo "{username}:{new_password}" | chpasswd'
             )
 
             # Execute the command
             functions.output_message(
-                f"Changing password on {pve_hostip}...",
+                f"Changing password on {host_ip}...",
                 "i"
             )
             stdin, stdout, stderr = ssh.exec_command(change_password_cmd)
@@ -811,7 +861,7 @@ def change_remote_password(ssh, values):
             if exit_status == 0:
                 functions.output_message(
                     (
-                        f"Password for user {pve_username} on {pve_hostip} "
+                        f"Password for user {username} on {host_ip} "
                         "has been updated."
                     ),
                     "s"
@@ -828,8 +878,13 @@ def change_remote_password(ssh, values):
 
         except Exception as e:
             functions.output_message(
-                f"Error connecting to {pve_hostip}: {e}",
+                f"Error connecting to {host_ip}: {e}",
                 "e"
+            )
+    else:
+        functions.output_message(
+                f"Change password set to: {change_pwd}.",
+                "i"
             )
 
 
@@ -854,49 +909,34 @@ functions.output_message(f"Parameter filename: {config_file}")
 functions.output_message(f"Script directory  : {script_directory}")
 functions.output_message()
 
-if config_file is not None:
-    config = load_config(config_file)
-else:
-    functions.output_message(
-        f"Unable to read: {config_file}",
-        "e"
-    )
-values = get_json_values(config)
+config = load_config(config_file)
+values = get_config_values(config)
+functions.output_message("Validating config", "h")
+functions.output_message()
+validate_config(values)
+functions.output_message()
 
-functions.output_message()
-functions.output_message("Validate JSON structure", "h")
-functions.output_message()
-functions.check_parameters(config, MANDATORY_KEYS, OPTIONAL_KEYS)
-
-functions.output_message()
-functions.output_message("Validate JSON values", "h")
-functions.output_message()
-functions.check_values(config, integer_keys=INTEGER_KEYS)
-
-functions.output_message()
 functions.output_message("Configure PROXMOX host", "h")
 functions.output_message()
 
-# Establish SSH connection to Proxmox server
-host = values.get("pve_host")
-user = values.get("pve_user")
-ssh = None
-try:
-    ssh = functions.ssh_connect(host, user, "", PVE_KEYFILE)
-    if ssh is not None:
-        add_snippets_folder(ssh, values)
-        check_hostname(ssh, values)
-        configure_sshd(ssh, values)
-        set_pve_no_subscription(ssh, values)
-        download_iso(ssh, values)
-        change_remote_password(ssh, values)
-        ssh.close()
-        functions.output_message(f"Applied configuration: {config_file}", "s")
-        functions.output_message()
-
-except Exception as e:
-    functions.output_message(
-        f"SSH connection to PVE host failed: {e}",
-        "e"
-    )
+host_ip = values.get("host_ip")
+username = values.get("username")
+result, message, ssh = functions.ssh_connect_v2(
+    host_ip, username,
+    "",
+    host.PVE_KEYFILE
+)
+if result:
+    functions.output_message(message, "s")
+    add_snippets_folder(ssh)
+    check_hostname(ssh, values)
+    configure_sshd(ssh, values)
+    set_pve_no_subscription(ssh, values)
+    download_iso(ssh, values)
+    change_remote_password(ssh, values)
+    ssh.close()
+    functions.output_message(f"Applied configuration: {config_file}", "s")
+    functions.output_message()
+else:
+    functions.output_message(message, "e")
     functions.output_message()

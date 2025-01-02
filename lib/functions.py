@@ -37,6 +37,7 @@ def ssh_connect(host, username, password=None, key_filename=None):
             "s"
         )
         return ssh
+
     except paramiko.AuthenticationException:
         output_message(
             f"Authentication failed when connecting to {host}.",
@@ -602,3 +603,132 @@ def check_storage_exists(ssh, local_storage):
         return True
     else:
         return False
+
+
+def check_valid_ip_address_v2(which_ip):
+
+    parts = which_ip.split('.')
+
+    if len(parts) != 4:
+        message = (
+            f"Invalid IP address '{which_ip}'. "
+            "An IP address should have exactly four parts."
+        )
+        return False, message
+
+    for part in parts:
+        try:
+            part_int = int(part)
+            if not 0 <= part_int <= 255:
+                message = (
+                    f"Invalid IP address '{which_ip}'. "
+                    "Each part should be between 0 and 255."
+                )
+                return False, message
+
+        except ValueError:
+            message = (
+                f"Invalid IP address '{which_ip}'. "
+                "Each part should be an integer."
+            )
+            return False, message
+
+    message = (
+        f"IP address '{which_ip}' is valid."
+    )
+    return True, message
+
+
+def is_valid_hostname_v2(value_str):
+    hostname_regex = re.compile(r'^(?!-)[A-Za-z0-9-]{1,63}(?<!-)$')
+
+    # First, check if value_str is a string
+    if not isinstance(value_str, str):
+        message = (
+            f"{value_str}' is NOT a string value.")
+        return False, message
+
+    # Split the hostname into labels
+    labels = value_str.split('.')
+
+    # Check total length of the hostname
+    if len(value_str) > 253:
+        message = (
+            f"{value_str} exceedes the masximum "
+            "length of 253 characters."
+        )
+        return False, message
+
+    # If there are multiple labels, validate each label
+    for label in labels:
+        if len(label) > 63:  # Each label must not exceed 63 characters
+            message = (
+                f"{label} exceeds the masximum length of 63 characters."
+            )
+            return False, message
+
+        if not hostname_regex.match(label):  # Each label must match the regex
+            message = (
+                f"{label} contains invalid characters."
+            )
+            return False, message
+
+    # If there is only one label, still need to validate it
+    if len(labels) == 1:
+        # Validate the single label (without considering it as multiple labels)
+        if not hostname_regex.match(value_str):
+            message = (
+                f"{value_str}' contains invalid characters."
+            )
+            return False, message
+
+    message = (
+        f"Hostname {value_str}' is a valid."
+    )
+    return True, message
+
+
+def ssh_connect_v2(host, username, password=None, key_filename=None):
+    # Establish SSH connection to the remote
+    # host securely using key-based auth.
+    try:
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        if password:
+            ssh.connect(
+                hostname=host,
+                username=username,
+                password=password
+            )
+        elif key_filename:
+            ssh.connect(
+                hostname=host,
+                username=username,
+                key_filename=key_filename
+            )
+        else:
+            ssh.connect(
+                hostname=host,
+                username=username
+            )
+        message = f"Connected to {host} as {username}."
+        return True, message, ssh
+
+    except paramiko.AuthenticationException:
+        message = (
+            f"Authentication failed when connecting to {host}."
+            "Please check your credentials."
+        )
+        return False, message, None
+
+    except paramiko.SSHException as e:
+        message = f"Unable to establish SSH connection to {host}: {e}"
+        return False, message, None
+
+    except Exception as e:
+        message = f"Unexpected error while connecting to {host}: {e}"
+        return False, message, None
+
+    finally:
+        if ssh and not ssh.get_transport():
+            ssh.close()  # Ensure cleanup of uninitialized connections
