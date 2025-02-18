@@ -106,40 +106,68 @@ def get_config_values(config):
         return value_keys
 
 
-def check_conditional_values(values):
-    if not values.get("balloon"):
-        values["balloon"] = vm.DEFAULT_BALLOON
+def validate_config(values):
+    name = values.get("name")
+    ci_domain = values.get("ci_domain")
 
-    if not values.get("start_at_boot"):
-        values["start_at_boot"] = vm.DEFAULT_BOOT_START
-
-    if not values.get("ci_upgrade"):
-        values["ci_upgrade"] = vm.DEFAULT_CI_UPGRADE
+    fqdn = f"{name}.{ci_domain}"
+    if fqdn:
+        result, message = functions.is_valid_hostname_v2(fqdn)
+        if result:
+            functions.output_message(message, "s")
+        else:
+            functions.output_message(message, "e")
 
     ci_network = values.get("ci_network")
     if ci_network in ["dhcp", "static"]:
         if ci_network == "static":
-            functions.check_vlan(values.get("vlan"))
-            functions.check_valid_ip_address(values.get(
-                "ci_ipaddress"), values.get("vlan"))
-            functions.check_valid_ip_address(values.get(
-                "ci_gwadvalue"), values.get("vlan"))
-            functions.check_netmask(values.get("ci_netmask"))
+
+            vlan = values.get("vlan")
+            result, message = functions.check_vlan_is_valid(vlan)
+            if result:
+                functions.output_message(message, "s")
+            else:
+                functions.output_message(message, "e")
+
+            ci_ipaddress = values.get("ci_ipaddress")
+            result, message = functions.check_valid_ip_address_v2(ci_ipaddress)
+            if result:
+                functions.output_message(message, "s")
+            else:
+                functions.output_message(message, "e")
+
+            ci_gwadvalue = values.get("ci_gwadvalue")
+            result, message = functions.check_valid_ip_address_v2(ci_gwadvalue)
+            if result:
+                functions.output_message(message, "s")
+            else:
+                functions.output_message(message, "e")
+
+            ci_netmask = values.get("ci_netmask")
+            result, message = functions.check_netmask(ci_netmask)
+            if result:
+                functions.output_message(message, "s")
+            else:
+                functions.output_message(message, "e")
+
+            result, message = functions.check_vlan(ci_ipaddress, vlan)
+            if result:
+                functions.output_message(message, "s")
+            else:
+                functions.output_message(message, "w")
+
+            result, message = functions.check_vlan(ci_gwadvalue, vlan)
+            if result:
+                functions.output_message(message, "s")
+            else:
+                functions.output_message(message, "w")
+
     else:
         functions.output_message(
             f"Invalid network type '{ci_network}', ",
             "expected 'dhcp' or 'static'",
             "e"
         )
-
-    name = values.get("name")
-    ci_domain = values.get("ci_domain")
-    if name:
-        if ci_domain:
-            fqdn = f"{name}.{ci_domain}"
-            functions.is_valid_hostname(fqdn)
-        else:
-            functions.is_valid_hostname(name)
 
 
 def create_server(ssh, values):
@@ -1291,14 +1319,14 @@ functions.output_message("script info:", "h")
 functions.output_message()
 functions.output_message(f"Parameter filename: {config_file}")
 functions.output_message(f"Script directory  : {script_directory}")
-functions.output_message()
+
 config = load_config(config_file)
 values = get_config_values(config)
-
 functions.output_message()
 functions.output_message("Validate config values", "h")
 functions.output_message()
 functions.integer_check(values, vm.INTEGER_KEYS)
+validate_config(values)
 
 functions.output_message()
 functions.output_message("Build virtual server", "h")
@@ -1306,36 +1334,33 @@ functions.output_message()
 
 host_ip = values.get("host_ip")
 username = values.get("username")
-ssh = None
-try:
-    ssh = functions.ssh_connect(host_ip, username, "", vm.PVE_KEYFILE)
-    if ssh is not None:
-        create_server(ssh, values)
-        create_ci_options(ssh, values)
-        start_vm(ssh, values)
+result, message, ssh = functions.ssh_connect_v2(
+    host_ip, username,
+    "",
+    vm.PVE_KEYFILE
+)
+if result:
+    functions.output_message(message, "s")
+    create_server(ssh, values)
+    create_ci_options(ssh, values)
+    start_vm(ssh, values)
+    vm_ipaddress = get_vm_ipv4_address(ssh, values)
+    ssh.close()
+else:
+    functions.output_message(message, "e")
+    functions.output_message()
 
-        # Wait and get the VM's IPv4 address
-        vm_ipaddress = get_vm_ipv4_address(ssh, values)
-        ssh.close()
-
-except Exception as e:
-    functions.output_message(
-        f"SSH connection to PVE host failed: {e}",
-        "e"
-    )
-
-ssh = None
-try:
-    # login as user cloud-init shpuld have created
-    ci_username = values.get("ci_username")
-    ssh = functions.ssh_connect(vm_ipaddress, ci_username, "", vm.VM_KEYFILE)
-    if ssh is not None:
-        on_guest_configuration(ssh, values, ipaddress)
-        ssh.close()
-        functions.output_message()
-
-except Exception as e:
-    functions.output_message(
-        f"SSH connection to VM failed: {e}",
-        "e"
-    )
+ci_username = values.get("ci_username")
+result, message, ssh = functions.ssh_connect_v2(
+    vm_ipaddress, ci_username,
+    "",
+    vm.VM_KEYFILE
+)
+if result:
+    functions.output_message(message, "s")
+    on_guest_configuration(ssh, values, ipaddress)
+    ssh.close()
+    functions.output_message()
+else:
+    functions.output_message(message, "e")
+    functions.output_message()

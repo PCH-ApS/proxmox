@@ -6,7 +6,6 @@ import os
 import json
 import sys
 import time
-import paramiko
 import getpass
 
 # Add the parent directory to the Python path to make `lib` available
@@ -104,42 +103,92 @@ def add_snippets_folder(ssh):
             f'test -d "{snippets_dir}" && '
             'echo "exists" || echo "not_exists"'
         )
-    result = functions.execute_ssh_command(ssh, command)
+    output, error_output, exit_status = functions.execute_ssh_command_v2(
+        ssh, command
+        )
 
-    if result == "not_exists":
-        command = (
-            f"mkdir {snippets_dir}"
-        )
-        functions.execute_ssh_command(
-            ssh,
-            command,
-            "Failed to create snippets folder."
-        )
+    if exit_status != 0:
         functions.output_message(
-            "Snippets folder created.",
-            "s"
+            f"Error checking snippet folder existence: {error_output}",
+            "e"
         )
+        return
 
-        functions.output_message(
-            "Snippets folder added to configuration.",
-            "s"
-        )
-
-    if result == "exists":
+    if output.strip() == "not_exists":
+        command = f"mkdir -p {snippets_dir}"
+        mk_res, mk_error, mk_exit = functions.execute_ssh_command_v2(
+            ssh, command
+            )
+        if mk_exit != 0:
+            functions.output_message(
+                f"Failed to create snippets folder: {mk_error}",
+                "e"
+            )
+            return
+        else:
+            functions.output_message(
+                f"Snippets folder created: {mk_res.strip()}",
+                "s"
+            )
+    elif output.strip() == "exists":
         functions.output_message(
             "Snippets folder already exists.",
             "i"
         )
 
-    command = "pvesm set local --content iso,vztmpl,backup,snippets"
-    functions.execute_ssh_command(
+    command = ("grep 'snippets' /etc/pve/storage.cfg")
+    snip_res, snip_error, snip_exit = functions.execute_ssh_command_v2(
         ssh,
-        command,
-        "Failed to add snippets folder to configuration."
+        command
     )
+
+    if snip_exit == 1:
+        # snippet not found
+        functions.output_message(
+            "Snippets not found in configuration. Adding it now.",
+            "i"
+        )
+        command = (
+                    "pvesm set local --content iso,vztmpl,backup,snippets"
+                )
+
+        co_res, co_error, co_exit = functions.execute_ssh_command_v2(
+            ssh,
+            command
+        )
+
+        if co_exit != 0:
+            functions.output_message(
+                (
+                    "Failed to add snippets folder to "
+                    f"configuration: {co_error}"
+                ),
+                "e"
+            )
+        else:
+            functions.output_message(
+                f"Snippets folder added to configuration: {co_res.strip()}",
+                "s"
+            )
+
+    elif snip_exit == 0:
+        # match found; snippets already configured
+        functions.output_message(
+            "Snippets folder already configured.",
+            "s"
+        )
+    else:
+        # An actual error ocurred
+        functions.output_message(
+            (
+                "Failed to retrive snippets info from "
+                f"configuration: {snip_error}"),
+            "e"
+        )
 
 
 def check_hostname(ssh, values):
+
     hostname = values.get("hostname")
     host_ip = values.get("host_ip")
     username = values.get("username")
@@ -149,158 +198,185 @@ def check_hostname(ssh, values):
     total_waited = 0
 
     try:
+        # get the current hostname from PVE host
         command = "hostname"
-        current_hostname = functions.execute_ssh_command(
+        result, error_output, exit_status = functions.execute_ssh_command_v2(
             ssh,
-            command,
-            "Failed to get current hostname"
+            command
         )
+
+        if exit_status != 0:
+            functions.output_message(
+                f"Failed to get current hostname: {error_output}"
+            )
+            return
+
+        current_hostname = result.strip()
 
         if current_hostname == hostname:
             functions.output_message(
                 "Hostname is correct.",
                 "s"
             )
+            return
+
+        functions.output_message(
+            (
+                f"Hostname mismatch! Expected '{hostname}', "
+                f"but got '{current_hostname}'."
+            ),
+            "w"
+        )
+
+        fqdn = f"{hostname}.{domain_string}"
+
+        # Check if teh PVE host (node) is empty
+        lxc_check_command = (
+            f"ls -A /etc/pve/nodes/{current_hostname}/lxc 2>/dev/null"
+        )
+        qemu_check_command = (
+            f"ls -A /etc/pve/nodes/{current_hostname}/qemu-server 2>/dev/null"
+        )
+
+        lxc_result, lxc_error, lxc_exit_status = (
+            functions.execute_ssh_command_v2(ssh, lxc_check_command)
+        )
+        qemu_result, qemu_error, qemu_exit_status = (
+            functions.execute_ssh_command_v2(ssh, qemu_check_command)
+        )
+
+        if lxc_exit_status == 0 and qemu_exit_status == 0:
+            if not lxc_result.strip() and not qemu_result.strip():
+                functions.output_message(
+                    (
+                        "Proxmox node is empty. "
+                        "Proceeding with hostname change."
+                    ),
+                    "i"
+                )
+                change_hostname = True
+
+            else:
+                functions.output_message(
+                    (
+                        "Proxmox node is not empty. "
+                        "Contents detected in one or both directories."
+                    ),
+                    "w"
+                )
+                change_hostname = False
         else:
             functions.output_message(
                 (
-                    f"Hostname mismatch! Expected '{hostname}', "
-                    f"but got '{current_hostname}'."
+                    f"Failed to check node contents on {host_ip}. "
+                    f"LXC Error: {lxc_error or 'No error'}, "
+                    f"QEMU Error: {qemu_error or 'No error'}"
                 ),
-                "w"
+                "e"
             )
-            fqdn = f"{hostname}.{domain_string}"
+            change_hostname = False
 
-            command = (
-                f"[ -z \"$(ls -A /etc/pve/nodes/{current_hostname}/lxc "
-                "2>/dev/null)\" ] && "
-                f"[ -z \"$(ls -A /etc/pve/nodes/{current_hostname}/"
-                "qemu-server 2>/dev/null)\" ]"
+        if not change_hostname:
+            return
+
+        command = (
+            f'echo "{hostname}" > /etc/hostname && '
+            f'sed -i "/{current_hostname}/d" /etc/hosts && '
+            f'echo "{host_ip} {fqdn} {hostname}" >> /etc/hosts && '
+            f'hostnamectl set-hostname "{hostname}" && '
+            "reboot"
+        )
+
+        result, error_output, exit_status = (
+            functions.execute_ssh_command_v2(ssh, command)
+        )
+
+        if exit_status != 0:
+            functions.output_message(
+                (
+                    "Failed to change hostname on "
+                    f"{host_ip}: {error_output}"
+                ),
+                "e"
             )
-            node_status = functions.execute_ssh_command(
-                ssh,
-                command,
-                f"Failed to check if node is empty on {host_ip}"
+
+        else:
+            functions.output_message(
+                (
+                    f"Hostname on {host_ip} has been changed "
+                    f"from {current_hostname} to {fqdn}"
+                ),
+                "s"
+            )
+    finally:
+        if ssh:
+            ssh.close()
+
+    # wait for the host to reboot
+    functions.output_message(
+        f"Waiting for {host_ip} to reboot...",
+        "i"
+    )
+    time.sleep(check_interval)
+    while total_waited < max_wait_time:
+        try:
+            # Check if the host is reachable
+            rebooting = functions.test_ssh(
+                1, host_ip, username, "", host.PVE_KEYFILE
             )
 
-            if node_status == "":
-                functions.output_message(
-                    "Proxmox node is empty. Proceeding with hostname change.",
-                    "i"
-                )
-
-                # Perform the hostname change on the remote host
-                command = f"""
-                echo "{hostname}" > /etc/hostname
-                sed -i "/{current_hostname}/d" /etc/hosts
-                echo "{host_ip} {fqdn} {hostname}" >> /etc/hosts
-                hostnamectl set-hostname "{hostname}"
-                reboot
-                """
-                functions.execute_ssh_command(
-                    ssh,
-                    command,
-                    f"Failed to change hostname on {host_ip}"
-                )
+            if rebooting:  # Host is still rebooting
                 functions.output_message(
                     (
-                        f"Hostname on {host_ip} has been changed "
-                        f"from {current_hostname} to {fqdn}"
+                        "Waiting for host to reboot. Retrying in "
+                        f"{check_interval} sec."
                     ),
-                    "s"
-                )
-
-                ssh.close()
-
-                functions.output_message(
-                    f"Waiting for {host_ip} to reboot...",
                     "i"
                 )
-                ssh_up = None
-                time.sleep(10)
+                total_waited += check_interval
+                time.sleep(check_interval)
 
-                while total_waited < max_wait_time:
-                    try:
-                        # Initialize a new SSH client instance for each retry
-                        ssh_up = paramiko.SSHClient()
-                        ssh_up.set_missing_host_key_policy(
-                            paramiko.AutoAddPolicy()
-                        )
+            elif rebooting is False:  # Host is back online
+                break  # Exit the loop
 
-                        ssh_up.connect(
-                            hostname=host_ip,
-                            username=username,
-                            timeout=1
-                        )
+        except Exception as e:
+            functions.output_message(
+                f"Error while waiting for host to reboot: {e}", "e"
+            )
 
-                        command = "hostname"
-                        stdin, stdout, stderr = ssh_up.exec_command(command)
-                        output = stdout.read().decode('utf-8').strip()
-                        error_output = stderr.read().decode('utf-8').strip()
-
-                        if error_output:
-                            functions.output_message(
-                                f"{host_ip} is not ready - retrying in "
-                                f"{check_interval} sec.",
-                                "i"
-                            )
-                            total_waited += check_interval
-                            time.sleep(check_interval)
-                            continue
-
-                        if output == hostname:
-                            functions.output_message(
-                                f"{host_ip} now has hostname '{output}'.",
-                                "s"
-                            )
-                            ssh_up.close()
-                            return output
-
-                        else:
-                            functions.output_message(
-                                "Hostname was not changed.",
-                                "e"
-                            )
-                            total_waited += check_interval
-                            time.sleep(check_interval)
-
-                    except (
-                        paramiko.ssh_exception.NoValidConnectionsError,
-                        paramiko.ssh_exception.SSHException,
-                        TimeoutError
-                    ):
-                        functions.output_message(
-                            "Host is still rebooting or connection failed, "
-                            f"retrying in {check_interval} seconds...",
-                            "i"
-                        )
-                        total_waited += check_interval
-                        time.sleep(check_interval)
-
-                    except Exception as e:
-                        functions.output_message(
-                            f"Exception occurred: {e}, retrying...",
-                            "w"
-                        )
-                        total_waited += check_interval
-                        time.sleep(check_interval)
-
-                    finally:
-                        # Always close the ssh_up instance if it was opened
-                        if ssh_up:
-                            ssh_up.close()
-
-                # If max wait time is exceeded
-                functions.output_message(
-                    f"Failed to reconnect within {max_wait_time} seconds.",
-                    "e"
-                )
-
-    except Exception as e:
+    else:
+        # This block runs only if the loop completes without a `break`
         functions.output_message(
-            f"Failed to set hostname: {e}",
-            "e"
+            (
+                f"Host {host_ip} did not come back online within "
+                f"{max_wait_time} seconds."
+            ),
+            "e")
+
+    result, message, ssh = functions.ssh_connect_v2(
+        host_ip, username,
+        "",
+        host.PVE_KEYFILE
+    )
+
+    if result:
+        functions.output_message(message, "s")
+        command = "hostname"
+        result, error_output, exit_status = (
+            functions.execute_ssh_command_v2(ssh, command)
         )
+
+        if exit_status == 0 and result.strip() == hostname:
+            functions.output_message(
+                f"{host_ip} now has hostname '{result}'.",
+                "s")
+        else:
+            functions.output_message(
+                f"Failed to set hostname: {error_output}",
+                "e")
+
+    if ssh:
+        ssh.close()
 
 
 def configure_sshd(ssh, values):
@@ -930,6 +1006,15 @@ if result:
     functions.output_message(message, "s")
     add_snippets_folder(ssh)
     check_hostname(ssh, values)
+
+result, message, ssh = functions.ssh_connect_v2(
+        host_ip, username,
+        "",
+        host.PVE_KEYFILE
+    )
+
+if result:
+    functions.output_message(message, "s")
     configure_sshd(ssh, values)
     set_pve_no_subscription(ssh, values)
     download_iso(ssh, values)

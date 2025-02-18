@@ -30,9 +30,7 @@ SSH_CONST = {
     "X11Forwarding": "no",
     "PermitRootLogin": "prohibit-password"
 }
-SSHD_CONFIG = [
-    "/etc/ssh/sshd_config"
-]
+SSHD_CONFIG = "/etc/ssh/sshd_config"
 SSHD_SEARCHSTRING = "Include "
 SSHD_CUSTOMFILE = "/99-automation-default-config.conf"
 PVE_KEYFILE = "/home/nije/.ssh/infrastructure/proxmox-root"
