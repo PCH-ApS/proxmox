@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from urllib.parse import unquote
-from lib import functions
+from old.lib import functions
 import const.vm_const as vm
 
 # /home/nije/json-files/dhcp/main.json

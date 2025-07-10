@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from lib import functions
+from old.lib import functions
 import const.template_const as template
 
 import json

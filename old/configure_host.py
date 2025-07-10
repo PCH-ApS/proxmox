@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from lib import functions
+from old.lib import functions
 import const.host_const as host
 
 import os
