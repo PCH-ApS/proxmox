@@ -1,3 +1,5 @@
+This guide aims to install Proxmox VE and configure the Proxmox host with a basic network setup, that can be customized further with scripts in this repository.
+
 ## Install Proxmox
 - Boot on the Proxmox VE installation media and wait for the "**Welcome to Proxmox Virtual Environment**" screen.
   
@@ -38,13 +40,65 @@
 - Start Installation
 	Click the Install button in the lower-right corner.
 
-Once the installation has been completed access the Proxmox web GUI on https://x.x.x.x:8006
+Once the installation has been completed access the Proxmox web GUI on https://x.x.x.x:8006 to validate the installation if possible.
 
 ### Proxmox post installation steps
-#### Proxmox on a laptop
+#### Set Proxmox host to DHCP (optional)
+I segment my network, and each segment is usually a /29 subnet, and I have good control over which hosts are in what segment. 
+
+I might run the installation while conneted to a test or config network or zone, that is not the intended final network for the host. When I move the Proxmox host into the desired network, I still want to be able to access it, and I set the host to DHCP. 
+
+My configuration script will change it to a fixed ip, if specified in my config file for the host.
+
+- Edit the network interfaces configuration file
+```
+nano /etc/network/interfaces
+```
+- Add the following:
+```
+iface vmbr0 inet dhcp
+bridge-vlan-aware yes
+bridge-vids 2-4094
+```
+- Comment out the following:
+```
+#iface vmbr0 inet static
+#       address x.x.x.x/29
+#       gateway y.y.y.y
+```
+- Save the changes and reboot the system.
+
+#### Validate SSH access to Proxmox host
+- Log in to the Proxmox host using SSH. 
+  Change @x.x.x.x to the ip-address of the Proxmox host 
+```
+ssh -o IdentitiesOnly=yes root@x.x.x.x
+```
+- if successful, continue and copy your SSH key to the Proxmox root account.
+  I assume that an SSH key has been created for use when logging into Proxmox as root. Replace ~/.ssh/Key-for-Proxmox.pub with the path for the key you want to use, and change @x.x.x.x to the ip-address of the Proxmox host 
+```
+ssh-copy-id -o IdentitiesOnly=yes -i ~/.ssh/Key-for-Proxmox.pub root@x.x.x.x
+```
+### Proxmox on a laptop
 I use old laptops as test machines - also for Proxmox. It is a bit annoying that they can go into hibernation or sleep when the lid i closed, and therefor I add these twerks if I when I run Proxmox on a laptop.
 
 - Access the host shell in the Proxmox web GUI or ssh to the host
 - Modify logind.conf to prevent sleep when the lid is closed: 
-  ```nano /etc/systemd/logind.conf```
-- 
+```
+nano /etc/systemd/logind.conf
+```
+- Modify the matching lines in the file to the below.
+```
+HandleLidSwitch=ignore
+HandleLidSwitchExternalPower=ignore
+HandleLidSwitchDocked=ignore
+```
+- Save changes and restart the service.
+```
+systemctl restart systemd-logind
+```
+- Reboot the system. 
+
+
+
+
