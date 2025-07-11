@@ -7,8 +7,8 @@ This guide aims to install Proxmox VE and configure the Proxmox host with a basi
 
 ### Proxmox installation steps
 - Select Installation Option
-
   Choose Install Proxmox VE (Graphical).
+
 - Accept the EULA
 
   Click the I agree button in the lower-right corner.
