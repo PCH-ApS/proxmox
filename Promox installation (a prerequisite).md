@@ -6,15 +6,12 @@ This guide aims to install Proxmox VE and configure the Proxmox host with a basi
   I would download the installation image ISO and write it to a USB drive using Etcher or a similar tool
 
 ### Proxmox installation steps
-- Select Installation Option
-  Choose Install Proxmox VE (Graphical).
-
-- Accept the EULA
-
-  Click the I agree button in the lower-right corner.
-- Disk Selection
-
-  Choose the target hard disk for installation.
+- Select Installation Option  
+	  Choose Install Proxmox VE (Graphical).
+- Accept the EULA  
+	  Click the I agree button in the lower-right corner.
+- Disk Selection  
+	  Choose the target hard disk for installation.
   
 	Click Options and:
 	
