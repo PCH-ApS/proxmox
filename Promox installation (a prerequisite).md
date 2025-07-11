@@ -11,18 +11,12 @@ This guide aims to install Proxmox VE and configure the Proxmox host with a basi
 - Accept the EULA  
 	  Click the I agree button in the lower-right corner.
 - Disk Selection  
-	  Choose the target hard disk for installation.
-  
-	Click Options and:
-	
-		Set the filesystem to ZFS (RAID0). 
-		
-		This is what I select for my Proxmox VE servers, you should select what works for you.
-		
-	Click OK.
-	
-    Click Next in the lower-right corner.
-    
+	  Choose the target hard disk for installation.  
+	  Click Options and  
+		  Set the filesystem to ZFS (RAID0).  
+		  This is what I select for my Proxmox VE servers, you should select what works for you.  
+	  Click OK.  
+	  Click Next in the lower-right corner.  
 - Location and Time Zone Settings
 - 
 	Set the following:
