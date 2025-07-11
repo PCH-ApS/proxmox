@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-
-import os
-import sys
-
-
-# Add the parent directory to sys.path so 'lib' can be imported
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from lib import common
-
-def main():
-    
+from lib.output_handler import OutputHandler
+output = OutputHandler(logfile="logs/configure_host.log")
 
 
-if __name__ == "__main__":
-    main()
+def run():
+    print("test")
+    output.output("Success message", type="s")
+    output.output("Information message", type="i")
+    output.output("Warning message", type="w")
+    output.output(
+        "Error message, will not exit",
+        type="e",
+        exit_on_error=False
+        )
+    output.output("This is a heading", type="h")
