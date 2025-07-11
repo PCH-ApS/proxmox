@@ -42,6 +42,9 @@ Once the installation has been completed access the Proxmox web GUI on https://x
 
 ### Proxmox post installation steps
 #### Proxmox on a laptop
-I use old laptops as test machines - also for Proxmox. It is a bit annoying that they will go into hibernation or sleep when the lid i closed, and therefor I add these twerks if I when I run Proxmox on a laptop.
+I use old laptops as test machines - also for Proxmox. It is a bit annoying that they can go into hibernation or sleep when the lid i closed, and therefor I add these twerks if I when I run Proxmox on a laptop.
 
-
+- Access the host shell in the Proxmox web GUI or ssh to the host
+- Modify logind.conf to prevent sleep when the lid is closed: 
+  ```nano /etc/systemd/logind.conf```
+- 
