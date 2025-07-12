@@ -2,11 +2,11 @@
 import os
 import sys
 import argparse
-# import yaml
+import yaml
 
 from lib.output_handler import OutputHandler
 from lib.check_files_handler import CheckFiles
-# from lib.yaml_config_loader import loader_no_dup
+from lib.yaml_config_loader import LoaderNoDuplicates
 # from lib.yaml_validation_handler import ValidationHandler
 
 DEFAULT_YAML_VALIDATION_FILE = "config/host_config_validation.yaml"
@@ -33,6 +33,21 @@ def parse_args():
         )
     )
     return parser.parse_args()
+
+
+def load_yaml_file(yaml_file):
+    try:
+        yaml_dict = yaml.load(
+            open(yaml_file, 'r').read(),
+            Loader=LoaderNoDuplicates
+        )
+    except Exception as e:
+        print(
+            f'File yaml load error in '
+            f'"{yaml_file}": {str(e)}'
+        )
+
+    return yaml_dict
 
 
 def run():
@@ -65,14 +80,5 @@ def run():
                     exit_on_error=True
                     )
 
-
-#    with open("config/config.yaml") as f:
-#        config_values = yaml.safe_load(f)
-
-    # with open("config/schema.yaml") as f:
-    #    config_schema = yaml.safe_load(f)
-
-    # validator = ConfigValidator(config_values, config_schema, output)
-
-    # if not validator.validate():
-    #   output.output("Validation failed.", type="e", exit_on_error=True)
+    config_values = load_yaml_file(args.config_file)
+    validation_rules = load_yaml_file(args.validation_file)

@@ -6,7 +6,7 @@ import yaml
 #
 
 
-class loader_no_dups(yaml.SafeLoader):
+class LoaderNoDuplicates(yaml.SafeLoader):
     def construct_mapping(self, node, deep=False):
         # Keep track of seen keys to detect duplicates
         seen_keys = set()

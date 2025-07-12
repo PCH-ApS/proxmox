@@ -426,3 +426,53 @@
 2025-07-12 21:30:40 [x] File access checks failed: Error checking file exists test.yan
 2025-07-12 21:30:40 [x] File access checks failed: Error reading file test.yan
 2025-07-12 21:30:40 [x] File access checks failed: File test.yan is not a YAML file
+2025-07-13 00:01:15 --------------------------------------------------------------------------------
+2025-07-13 00:01:16 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-13 00:01:17 --------------------------------------------------------------------------------
+2025-07-13 00:01:18 [i] Initial script : /home/nije/git.repo/proxmox/run_configure_host.py
+2025-07-13 00:01:18 [i] Active script  : /home/nije/git.repo/proxmox/host/configure_host.py
+2025-07-13 00:01:19 [i] Config file    : /config/host_config_template.yaml
+2025-07-13 00:01:20 [i] Validation file: config/host_config_validation.yaml
+2025-07-13 00:01:20 [i] Default logfile: logs/configure_host.log
+2025-07-13 00:01:21 --------------------------------------------------------------------------------
+2025-07-13 00:01:22 -                            VALIDATING CONFIG FILE                            -
+2025-07-13 00:01:22 --------------------------------------------------------------------------------
+2025-07-13 00:01:27 [x] File access checks failed: Error checking file exists /config/host_config_template.yaml
+2025-07-13 00:02:15 [x] File access checks failed: Error reading file /config/host_config_template.yaml
+2025-07-13 00:04:15 --------------------------------------------------------------------------------
+2025-07-13 00:04:15 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-13 00:04:16 --------------------------------------------------------------------------------
+2025-07-13 00:04:16 [i] Initial script : /home/nije/git.repo/proxmox/run_configure_host.py
+2025-07-13 00:04:17 [i] Active script  : /home/nije/git.repo/proxmox/host/configure_host.py
+2025-07-13 00:04:17 [i] Config file    : /home/nije/git.repo/proxmox/host_config_template.yaml
+2025-07-13 00:04:18 [i] Validation file: config/host_config_validation.yaml
+2025-07-13 00:04:18 [i] Default logfile: logs/configure_host.log
+2025-07-13 00:04:19 --------------------------------------------------------------------------------
+2025-07-13 00:04:19 -                            VALIDATING CONFIG FILE                            -
+2025-07-13 00:04:20 --------------------------------------------------------------------------------
+2025-07-13 00:04:24 [x] File access checks failed: Error checking file exists /home/nije/git.repo/proxmox/host_config_template.yaml
+2025-07-13 00:04:29 [x] File access checks failed: Error reading file /home/nije/git.repo/proxmox/host_config_template.yaml
+2025-07-13 00:08:50 --------------------------------------------------------------------------------
+2025-07-13 00:08:50 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-13 00:08:50 --------------------------------------------------------------------------------
+2025-07-13 00:08:50 [i] Initial script : /home/nije/git.repo/proxmox/run_configure_host.py
+2025-07-13 00:08:50 [i] Active script  : /home/nije/git.repo/proxmox/host/configure_host.py
+2025-07-13 00:08:50 [i] Config file    : /home/nije/git.repo/proxmox/config/host_config_template.yaml
+2025-07-13 00:08:50 [i] Validation file: config/host_config_validation.yaml
+2025-07-13 00:08:50 [i] Default logfile: logs/configure_host.log
+2025-07-13 00:08:50 --------------------------------------------------------------------------------
+2025-07-13 00:08:50 -                            VALIDATING CONFIG FILE                            -
+2025-07-13 00:08:50 --------------------------------------------------------------------------------
+2025-07-13 00:08:50 [✓] Config File access checks passed
+2025-07-13 00:14:11 --------------------------------------------------------------------------------
+2025-07-13 00:14:11 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-13 00:14:11 --------------------------------------------------------------------------------
+2025-07-13 00:14:11 [i] Initial script : /home/nije/git.repo/proxmox/run_configure_host.py
+2025-07-13 00:14:11 [i] Active script  : /home/nije/git.repo/proxmox/host/configure_host.py
+2025-07-13 00:14:11 [i] Config file    : /home/nije/git.repo/proxmox/config/host_config_template.yaml
+2025-07-13 00:14:11 [i] Validation file: config/host_config_validation.yaml
+2025-07-13 00:14:11 [i] Default logfile: logs/configure_host.log
+2025-07-13 00:14:11 --------------------------------------------------------------------------------
+2025-07-13 00:14:11 -                            VALIDATING CONFIG FILE                            -
+2025-07-13 00:14:11 --------------------------------------------------------------------------------
+2025-07-13 00:14:11 [✓] Config File access checks passed
