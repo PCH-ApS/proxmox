@@ -1,0 +1,21 @@
+PVE_USER:
+  allow_blank: false
+  allow_spaces: false
+PVE_HOST:
+  allow_blank: false
+  allow_spaces: false
+PVE_NAME:
+  allow_blank: false
+  allow_spaces: false
+PVE_DOMAIN:
+  allow_blank: false
+  allow_spaces: false
+PVE_SSHKEY:
+  allow_blank: false
+  allow_spaces: true
+PVE_ISO:
+  allow_blank: true
+  allow_spaces: true
+PVE_PWCAHNGE:
+  allow_blank: false
+  allow_spaces: false

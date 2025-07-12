@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import os
 import sys
 import subprocess
 from datetime import datetime
@@ -8,6 +9,10 @@ from datetime import datetime
 class OutputHandler:
     def __init__(self, logfile=None, enable_colors=True):
         self.logfile = logfile
+        if self.logfile:
+            log_dir = os.path.dirname(self.logfile)
+            if log_dir:
+                os.makedirs(log_dir, exist_ok=True)
         self.enable_colors = enable_colors
 
     def _color(self, code):
