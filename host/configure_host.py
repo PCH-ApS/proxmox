@@ -11,6 +11,7 @@ from lib.yaml_config_loader import LoaderNoDuplicates
 
 DEFAULT_YAML_VALIDATION_FILE = "config/host_config_validation.yaml"
 DEFAULT_LOGFILE = "logs/configure_host.log"
+DEFAULT_CONST = "const/host_const.yaml"
 
 output = OutputHandler(DEFAULT_LOGFILE)
 
@@ -32,7 +33,37 @@ def parse_args():
             "for the config file, if the default is not to be used"
         )
     )
+    parser.add_argument(
+        "--const",
+        dest="const_file",
+        default=DEFAULT_CONST,
+        help=(
+            "Optional: Specify a differant constants file (default values) "
+            "for the config file, if the default is not to be used"
+        )
+    )
     return parser.parse_args()
+
+
+def check_files(args):
+    filename = os.path.basename(args)
+    checker = CheckFiles(args)
+    if checker.check():
+        output.output(f"{filename} access checks passed", type="s")
+    else:
+        for i, error in enumerate(checker.errors):
+            is_last = (i == len(checker.errors) - 1)
+            if not is_last:
+                output.output(
+                    f"{filename} access checks failed: {error}",
+                    type="e"
+                    )
+            else:
+                output.output(
+                    f"{filename} access checks failed: {error}",
+                    type="e",
+                    exit_on_error=True
+                    )
 
 
 def load_yaml_file(yaml_file):
@@ -53,32 +84,23 @@ def load_yaml_file(yaml_file):
 def run():
     args = parse_args()
     this_script = os.path.abspath(__file__)
-    checker = CheckFiles(args.config_file)
 
     output.output()
     output.output("Configure Proxmox Host", type="h")
     output.output()
-    output.output(f"Initial script : {sys.argv[0]}", type="i")
-    output.output(f"Active script  : {this_script}", type="i")
-    output.output(f"Config file    : {args.config_file}", type="i")
-    output.output(f"Validation file: {args.validation_file}", type="i")
-    output.output(f"Default logfile: {DEFAULT_LOGFILE}", type="i")
+    output.output(f"Initial script      : {sys.argv[0]}", type="i")
+    output.output(f"Active script       : {this_script}", type="i")
+    output.output(f"Config file         : {args.config_file}", type="i")
+    output.output(f"Validation file     : {args.validation_file}", type="i")
+    output.output(f"Default value file  : {args.const_file}", type="i")
+    output.output(f"Default logfile     : {DEFAULT_LOGFILE}", type="i")
     output.output()
-    output.output("Validating config file", type="h")
+    output.output("Checking files", type="h")
     output.output()
-    if checker.check():
-        output.output("Config File access checks passed", type="s")
-    else:
-        for i, error in enumerate(checker.errors):
-            is_last = (i == len(checker.errors) - 1)
-            if not is_last:
-                output.output(f"File access checks failed: {error}", type="e")
-            else:
-                output.output(
-                    f"File access checks failed: {error}",
-                    type="e",
-                    exit_on_error=True
-                    )
-
+    check_files(args.config_file)
+    check_files(args.validation_file)
+    check_files(args.const_file)
     config_values = load_yaml_file(args.config_file)
     validation_rules = load_yaml_file(args.validation_file)
+    const_values = load_yaml_file(args.const_file)
+    

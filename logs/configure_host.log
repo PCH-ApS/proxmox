@@ -476,3 +476,72 @@
 2025-07-13 00:14:11 -                            VALIDATING CONFIG FILE                            -
 2025-07-13 00:14:11 --------------------------------------------------------------------------------
 2025-07-13 00:14:11 [✓] Config File access checks passed
+2025-07-13 00:20:01 --------------------------------------------------------------------------------
+2025-07-13 00:20:01 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-13 00:20:01 --------------------------------------------------------------------------------
+2025-07-13 00:20:01 [i] Initial script : ./run_configure_host.py
+2025-07-13 00:20:01 [i] Active script  : /home/nije/proton.drive.pch/Active/git.repo/proxmox/host/configure_host.py
+2025-07-13 00:20:01 [i] Config file    : test.yaml
+2025-07-13 00:20:01 [i] Validation file: config/host_config_validation.yaml
+2025-07-13 00:20:01 [i] Default logfile: logs/configure_host.log
+2025-07-13 00:20:01 --------------------------------------------------------------------------------
+2025-07-13 00:20:01 -                            VALIDATING CONFIG FILE                            -
+2025-07-13 00:20:01 --------------------------------------------------------------------------------
+2025-07-13 00:20:01 [x] File access checks failed: Error checking file exists test.yaml
+2025-07-13 00:20:01 [x] File access checks failed: Error reading file test.yaml
+2025-07-13 00:20:33 --------------------------------------------------------------------------------
+2025-07-13 00:20:33 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-13 00:20:33 --------------------------------------------------------------------------------
+2025-07-13 00:20:33 [i] Initial script : ./run_configure_host.py
+2025-07-13 00:20:33 [i] Active script  : /home/nije/proton.drive.pch/Active/git.repo/proxmox/host/configure_host.py
+2025-07-13 00:20:33 [i] Config file    : /home/nije/proton.drive.pch/Active/git.repo/proxmox/config/host_config_template.yaml
+2025-07-13 00:20:33 [i] Validation file: config/host_config_validation.yaml
+2025-07-13 00:20:33 [i] Default logfile: logs/configure_host.log
+2025-07-13 00:20:33 --------------------------------------------------------------------------------
+2025-07-13 00:20:33 -                            VALIDATING CONFIG FILE                            -
+2025-07-13 00:20:33 --------------------------------------------------------------------------------
+2025-07-13 00:20:33 [✓] Config File access checks passed
+2025-07-13 11:25:29 --------------------------------------------------------------------------------
+2025-07-13 11:25:29 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-13 11:25:29 --------------------------------------------------------------------------------
+2025-07-13 11:25:29 [i] Initial script      : ./run_configure_host.py
+2025-07-13 11:25:29 [i] Active script       : /home/nije/proton.drive.pch/Active/git.repo/proxmox/host/configure_host.py
+2025-07-13 11:25:29 [i] Config file         : /home/nije/proton.drive.pch/Active/git.repo/proxmox/config/host_config_template.yaml
+2025-07-13 11:25:29 [i] Validation file     : config/host_config_validation.yaml
+2025-07-13 11:25:29 [i] Default value file  : const/host_const.yaml
+2025-07-13 11:25:29 [i] Default logfile     : logs/configure_host.log
+2025-07-13 11:25:29 --------------------------------------------------------------------------------
+2025-07-13 11:25:29 -                                CHECKING FILES                                -
+2025-07-13 11:25:29 --------------------------------------------------------------------------------
+2025-07-13 11:25:29 [✓] host_config_template.yaml access checks passed
+2025-07-13 11:25:29 [✓] host_config_validation.yaml access checks passed
+2025-07-13 11:25:29 [✓] host_const.yaml access checks passed
+2025-07-13 11:26:05 --------------------------------------------------------------------------------
+2025-07-13 11:26:05 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-13 11:26:05 --------------------------------------------------------------------------------
+2025-07-13 11:26:05 [i] Initial script      : ./run_configure_host.py
+2025-07-13 11:26:05 [i] Active script       : /home/nije/proton.drive.pch/Active/git.repo/proxmox/host/configure_host.py
+2025-07-13 11:26:05 [i] Config file         : test.yaml
+2025-07-13 11:26:05 [i] Validation file     : config/host_config_validation.yaml
+2025-07-13 11:26:05 [i] Default value file  : const/host_const.yaml
+2025-07-13 11:26:05 [i] Default logfile     : logs/configure_host.log
+2025-07-13 11:26:05 --------------------------------------------------------------------------------
+2025-07-13 11:26:05 -                                CHECKING FILES                                -
+2025-07-13 11:26:05 --------------------------------------------------------------------------------
+2025-07-13 11:26:05 [x] test.yaml access checks failed: Error checking file exists test.yaml
+2025-07-13 11:26:05 [x] test.yaml access checks failed: Error reading file test.yaml
+2025-07-13 11:26:09 --------------------------------------------------------------------------------
+2025-07-13 11:26:09 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-13 11:26:09 --------------------------------------------------------------------------------
+2025-07-13 11:26:09 [i] Initial script      : ./run_configure_host.py
+2025-07-13 11:26:09 [i] Active script       : /home/nije/proton.drive.pch/Active/git.repo/proxmox/host/configure_host.py
+2025-07-13 11:26:09 [i] Config file         : /home/nije/proton.drive.pch/Active/git.repo/proxmox/config/host_config_template.yaml
+2025-07-13 11:26:09 [i] Validation file     : config/host_config_validation.yaml
+2025-07-13 11:26:09 [i] Default value file  : const/host_const.yaml
+2025-07-13 11:26:09 [i] Default logfile     : logs/configure_host.log
+2025-07-13 11:26:09 --------------------------------------------------------------------------------
+2025-07-13 11:26:09 -                                CHECKING FILES                                -
+2025-07-13 11:26:09 --------------------------------------------------------------------------------
+2025-07-13 11:26:09 [✓] host_config_template.yaml access checks passed
+2025-07-13 11:26:09 [✓] host_config_validation.yaml access checks passed
+2025-07-13 11:26:09 [✓] host_const.yaml access checks passed
