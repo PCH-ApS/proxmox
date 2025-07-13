@@ -102,5 +102,3 @@ def run():
     check_files(args.const_file)
     config_values = load_yaml_file(args.config_file)
     validation_rules = load_yaml_file(args.validation_file)
-    const_values = load_yaml_file(args.const_file)
-    

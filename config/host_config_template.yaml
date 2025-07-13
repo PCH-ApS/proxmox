@@ -1,26 +1,30 @@
-PVE_USER:
-  username: root
-  comment: username used by script to ssh to proxmox host
-PVE_HOST:
-  host_ip: <Your PVE host ip-address>
-  comment: ip-address of proxmox host used by script to ssh to host
-PVE_NAME:
-  hostname: <Your PVE hostname goes here>
-  comment: the desired hostname of proxmox host
-PVE_DOMAIN:
-  domain_string: <Your dns domain goes here>
-  comment: the domain part of the desired FQDN of the proxmox host
-PVE_SSHKEY:
-  publickey: <Your ssh public key goes here>
-  comment: the public key used to allow ssh login to root on the proxmox host
-PVE_ISO:
-  urls:
-    - >-
-      https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img
-    - 'https://releases.ubuntu.com/24.04/ubuntu-24.04.1-live-server-amd64.iso'
-  comment: List of iso images to import into the proxmox host
-PVE_PWCAHNGE:
-  change_pwd: false
-  comment: >-
-    should the scrip prompt for a new password to set for the root user on the
-    PVE host. set to true to change password. default is true, if blank.
+# The username to be used by the script to ssh to proxmox host.
+# OPTIONAL: If not set defualt value from host_config_validation.yaml will be usedX
+pve_host_username: <Your PVE host username goes here>
+
+# The script will use this ip-address to ssh to the host.
+# REQUIRED: host ip-address is required for the script to work.
+pve_host_ip: <Your PVE host ip-address goes here>
+
+# The desired hostname of the proxmox host.
+# The script will change the hostname to this value if it doesn't match the current one.
+# REQUIRED: host hostname is required for the script to work.
+pve_hostname: <Your PVE hostname goes here>
+
+# The domain part of the FQDN of the proxmox host.
+# OPTIONAL: If not set defualt value from host_config_validation.yaml will be usedX.
+pve_domain: <Your PVE domain goes here>
+
+# The ssh public keys to add to the pve_host_username, if not already added
+# OPTIONAL: If not set defualt value from host_config_validation.yaml will be usedX
+pve_sshkey_public:
+  - <Your PVE ssh public key goes here>
+
+# List of ISO images that should be imported into the proxmox host.
+# OPTIONAL: If not set defualt value from host_config_validation.yaml will be usedX
+pve_iso_urls:
+  - <Your ISO or img URL goes here>
+
+# Should the password of pve_host_username be changed on the Proxmox host
+# OPTIONAL: If not set defualt value from host_config_validation.yaml will be usedX
+pve_host_change_pwd: <true or false>

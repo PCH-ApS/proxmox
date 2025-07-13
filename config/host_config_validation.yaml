@@ -1,21 +1,68 @@
-PVE_USER:
-  allow_blank: false
-  allow_spaces: false
-PVE_HOST:
-  allow_blank: false
-  allow_spaces: false
-PVE_NAME:
-  allow_blank: false
-  allow_spaces: false
-PVE_DOMAIN:
-  allow_blank: false
-  allow_spaces: false
-PVE_SSHKEY:
-  allow_blank: false
-  allow_spaces: true
-PVE_ISO:
-  allow_blank: true
-  allow_spaces: true
-PVE_PWCAHNGE:
-  allow_blank: false
-  allow_spaces: false
+pve_host_username:
+  type: string
+  default: root
+  required: false
+  pattern: '^[a-z_][a-z0-9_-]{0,31}$'
+  # Max 32 characters
+  # Lowercase only
+  # No spaces
+  # No uppercase letters
+  # No special characters other than _ or -
+  # Starts with a letter or _
+
+pve_host_ip:
+  type: string
+  required: true
+  pattern: '^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$'
+  # Validates IPv4 addresses like 192.168.1.100
+  # Ensures each octet is between 0–255
+  # Does not allow leading zeros like 01
+
+pve_hostname:
+  type: string
+  required: true
+  pattern: '^[a-zA-Z0-9][a-zA-Z0-9-]{0,62}$'
+  # Max 63 characters
+  # Starts with a letter or number
+  # Contains only letters, numbers, and hyphens
+  # Does not end with a hyphen
+
+pve_domain:
+  type: string
+  default: example.com
+  required: false
+  pattern: '^[a-zA-Z0-9][a-zA-Z0-9-]{0,62}\.[a-zA-Z]{2,}$'
+  # Max 63 characters for the domain part
+  # Starts with a letter or number
+  # Contains only letters, numbers, and hyphens
+  # Ends with a top-level domain (TLD) like .com, .org, etc.
+
+pve_sshkey_public:
+  type: array
+  required: false
+  default:
+    - 'ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAKBgQ... your_key_here'
+  items:
+    type: string
+    pattern: '^(ssh-(rsa|dss|ed25519|ecdsa) [A-Za-z0-9+/=]+ ?[a-zA-Z0-9._-]+)?$'
+    # Validates SSH public keys
+    # Allows optional comment at the end
+
+pve_iso_urls:
+  type: array
+  required: false
+  default:
+    - 'https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img',
+    - 'https://releases.ubuntu.com/24.04/ubuntu-24.04.1-live-server-amd64.iso"'http://example.com/path/to/your.iso'
+  items:
+    type: string
+    pattern: '^(https?|ftp)://[^\s/$.?#].[^\s]*$'
+    # Validates URLs for ISO images
+    # Allows http, https, and ftp protocols
+
+pve_host_change_pwd:
+  type: boolean
+  default: false
+  required: false
+  pattern: '^(true|false)$'
+  # Accepts true or false values
