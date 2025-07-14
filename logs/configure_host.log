@@ -545,3 +545,440 @@
 2025-07-13 11:26:09 [✓] host_config_template.yaml access checks passed
 2025-07-13 11:26:09 [✓] host_config_validation.yaml access checks passed
 2025-07-13 11:26:09 [✓] host_const.yaml access checks passed
+2025-07-14 13:22:07 --------------------------------------------------------------------------------
+2025-07-14 13:22:07 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-14 13:22:07 --------------------------------------------------------------------------------
+2025-07-14 13:22:07 [i] Initial script      : ./run_configure_host.py
+2025-07-14 13:22:07 [i] Active script       : /home/nije/proton.drive.pch/Active/git.repo/proxmox/host/configure_host.py
+2025-07-14 13:22:07 [i] Config file         : /home/nije/proton.drive.pch/Active/git.local/proxmox-host/host_config.yaml
+2025-07-14 13:22:07 [i] Validation file     : config/host_config_validation.yaml
+2025-07-14 13:22:30 --------------------------------------------------------------------------------
+2025-07-14 13:22:30 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-14 13:22:30 --------------------------------------------------------------------------------
+2025-07-14 13:22:30 [i] Initial script      : ./run_configure_host.py
+2025-07-14 13:22:30 [i] Active script       : /home/nije/proton.drive.pch/Active/git.repo/proxmox/host/configure_host.py
+2025-07-14 13:22:30 [i] Config file         : /home/nije/proton.drive.pch/Active/git.local/proxmox-host/host_config.yaml
+2025-07-14 13:22:30 [i] Validation file     : config/host_config_validation.yaml
+2025-07-14 13:22:30 [i] Default logfile     : logs/configure_host.log
+2025-07-14 13:22:30 --------------------------------------------------------------------------------
+2025-07-14 13:22:30 -                                CHECKING FILES                                -
+2025-07-14 13:22:30 --------------------------------------------------------------------------------
+2025-07-14 13:22:30 [x] host_config.yaml access checks failed: Error checking file exists /home/nije/proton.drive.pch/Active/git.local/proxmox-host/host_config.yaml
+2025-07-14 13:22:30 [x] host_config.yaml access checks failed: Error reading file /home/nije/proton.drive.pch/Active/git.local/proxmox-host/host_config.yaml
+2025-07-14 13:23:34 --------------------------------------------------------------------------------
+2025-07-14 13:23:34 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-14 13:23:34 --------------------------------------------------------------------------------
+2025-07-14 13:23:34 [i] Initial script      : ./run_configure_host.py
+2025-07-14 13:23:34 [i] Active script       : /home/nije/proton.drive.pch/Active/git.repo/proxmox/host/configure_host.py
+2025-07-14 13:23:34 [i] Config file         : /home/nije/git.local/proxmox-host/host_config.yaml
+2025-07-14 13:23:34 [i] Validation file     : config/host_config_validation.yaml
+2025-07-14 13:23:34 [i] Default logfile     : logs/configure_host.log
+2025-07-14 13:23:34 --------------------------------------------------------------------------------
+2025-07-14 13:23:34 -                                CHECKING FILES                                -
+2025-07-14 13:23:34 --------------------------------------------------------------------------------
+2025-07-14 13:23:34 [✓] host_config.yaml access checks passed
+2025-07-14 13:23:34 [✓] host_config_validation.yaml access checks passed
+2025-07-14 13:24:04 --------------------------------------------------------------------------------
+2025-07-14 13:24:04 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-14 13:24:04 --------------------------------------------------------------------------------
+2025-07-14 13:24:04 [i] Initial script      : ./run_configure_host.py
+2025-07-14 13:24:04 [i] Active script       : /home/nije/proton.drive.pch/Active/git.repo/proxmox/host/configure_host.py
+2025-07-14 13:24:04 [i] Config file         : /home/nije/git.local/proxmox-host/host_config.yaml
+2025-07-14 13:24:04 [i] Validation file     : config/host_config_validation.yaml
+2025-07-14 13:24:04 [i] Default logfile     : logs/configure_host.log
+2025-07-14 13:24:04 --------------------------------------------------------------------------------
+2025-07-14 13:24:04 -                                CHECKING FILES                                -
+2025-07-14 13:24:04 --------------------------------------------------------------------------------
+2025-07-14 13:24:04 [✓] host_config.yaml access checks passed
+2025-07-14 13:24:04 [✓] host_config_validation.yaml access checks passed
+2025-07-14 13:24:20 --------------------------------------------------------------------------------
+2025-07-14 13:24:20 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-14 13:24:20 --------------------------------------------------------------------------------
+2025-07-14 13:24:20 [i] Initial script      : ./run_configure_host.py
+2025-07-14 13:24:20 [i] Active script       : /home/nije/proton.drive.pch/Active/git.repo/proxmox/host/configure_host.py
+2025-07-14 13:24:20 [i] Config file         : /home/nije/git.local/proxmox-host/host_config.yaml
+2025-07-14 13:24:20 [i] Validation file     : config/host_config_validation.yaml
+2025-07-14 13:24:20 [i] Default logfile     : logs/configure_host.log
+2025-07-14 13:24:20 --------------------------------------------------------------------------------
+2025-07-14 13:24:20 -                                CHECKING FILES                                -
+2025-07-14 13:24:20 --------------------------------------------------------------------------------
+2025-07-14 13:24:20 [✓] host_config.yaml access checks passed
+2025-07-14 13:24:20 [✓] host_config_validation.yaml access checks passed
+2025-07-14 13:25:05 --------------------------------------------------------------------------------
+2025-07-14 13:25:05 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-14 13:25:05 --------------------------------------------------------------------------------
+2025-07-14 13:25:05 [i] Initial script      : ./run_configure_host.py
+2025-07-14 13:25:05 [i] Active script       : /home/nije/proton.drive.pch/Active/git.repo/proxmox/host/configure_host.py
+2025-07-14 13:25:05 [i] Config file         : /home/nije/git.local/proxmox-host/host_config.yaml
+2025-07-14 13:25:05 [i] Validation file     : /home/nije/git.local/proxmox-host/host_config_validation.yaml
+2025-07-14 13:25:05 [i] Default logfile     : logs/configure_host.log
+2025-07-14 13:25:05 --------------------------------------------------------------------------------
+2025-07-14 13:25:05 -                                CHECKING FILES                                -
+2025-07-14 13:25:05 --------------------------------------------------------------------------------
+2025-07-14 13:25:05 [✓] host_config.yaml access checks passed
+2025-07-14 13:25:05 [✓] host_config_validation.yaml access checks passed
+2025-07-14 13:25:59 --------------------------------------------------------------------------------
+2025-07-14 13:25:59 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-14 13:25:59 --------------------------------------------------------------------------------
+2025-07-14 13:25:59 [i] Initial script      : ./run_configure_host.py
+2025-07-14 13:25:59 [i] Active script       : /home/nije/proton.drive.pch/Active/git.repo/proxmox/host/configure_host.py
+2025-07-14 13:25:59 [i] Config file         : /home/nije/git.local/proxmox-host/host_config.yaml
+2025-07-14 13:25:59 [i] Validation file     : /home/nije/git.local/proxmox-host/host_config_validation.yaml
+2025-07-14 13:25:59 [i] Default logfile     : logs/configure_host.log
+2025-07-14 13:25:59 --------------------------------------------------------------------------------
+2025-07-14 13:25:59 -                                CHECKING FILES                                -
+2025-07-14 13:25:59 --------------------------------------------------------------------------------
+2025-07-14 13:25:59 [✓] host_config.yaml access checks passed
+2025-07-14 13:25:59 [✓] host_config_validation.yaml access checks passed
+2025-07-14 13:27:25 --------------------------------------------------------------------------------
+2025-07-14 13:27:25 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-14 13:27:25 --------------------------------------------------------------------------------
+2025-07-14 13:27:25 [i] Initial script      : ./run_configure_host.py
+2025-07-14 13:27:25 [i] Active script       : /home/nije/proton.drive.pch/Active/git.repo/proxmox/host/configure_host.py
+2025-07-14 13:27:25 [i] Config file         : /home/nije/git.local/proxmox-host/host_config.yaml
+2025-07-14 13:27:25 [i] Validation file     : /home/nije/git.local/proxmox-host/host_config_validation.yaml
+2025-07-14 13:27:25 [i] Default logfile     : logs/configure_host.log
+2025-07-14 13:27:25 --------------------------------------------------------------------------------
+2025-07-14 13:27:25 -                                CHECKING FILES                                -
+2025-07-14 13:27:25 --------------------------------------------------------------------------------
+2025-07-14 13:27:25 [✓] host_config.yaml access checks passed
+2025-07-14 13:27:25 [✓] host_config_validation.yaml access checks passed
+2025-07-14 13:27:52 --------------------------------------------------------------------------------
+2025-07-14 13:27:52 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-14 13:27:52 --------------------------------------------------------------------------------
+2025-07-14 13:27:52 [i] Initial script      : ./run_configure_host.py
+2025-07-14 13:27:52 [i] Active script       : /home/nije/proton.drive.pch/Active/git.repo/proxmox/host/configure_host.py
+2025-07-14 13:27:52 [i] Config file         : /home/nije/git.local/proxmox-host/host_config.yaml
+2025-07-14 13:27:52 [i] Validation file     : /home/nije/git.local/proxmox-host/host_config_validation.yaml
+2025-07-14 13:27:52 [i] Default logfile     : logs/configure_host.log
+2025-07-14 13:27:52 --------------------------------------------------------------------------------
+2025-07-14 13:27:52 -                                CHECKING FILES                                -
+2025-07-14 13:27:52 --------------------------------------------------------------------------------
+2025-07-14 13:27:52 [✓] host_config.yaml access checks passed
+2025-07-14 13:27:52 [✓] host_config_validation.yaml access checks passed
+2025-07-14 13:29:28 --------------------------------------------------------------------------------
+2025-07-14 13:29:28 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-14 13:29:28 --------------------------------------------------------------------------------
+2025-07-14 13:29:28 [i] Initial script      : ./run_configure_host.py
+2025-07-14 13:29:28 [i] Active script       : /home/nije/proton.drive.pch/Active/git.repo/proxmox/host/configure_host.py
+2025-07-14 13:29:28 [i] Config file         : /home/nije/git.local/proxmox-host/host_config.yaml
+2025-07-14 13:29:28 [i] Validation file     : /home/nije/git.local/proxmox-host/host_config_validation.yaml
+2025-07-14 13:29:28 [i] Default logfile     : logs/configure_host.log
+2025-07-14 13:29:28 --------------------------------------------------------------------------------
+2025-07-14 13:29:28 -                                CHECKING FILES                                -
+2025-07-14 13:29:28 --------------------------------------------------------------------------------
+2025-07-14 13:29:28 [✓] host_config.yaml access checks passed
+2025-07-14 13:29:28 [✓] host_config_validation.yaml access checks passed
+2025-07-14 13:29:33 --------------------------------------------------------------------------------
+2025-07-14 13:29:33 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-14 13:29:33 --------------------------------------------------------------------------------
+2025-07-14 13:29:33 [i] Initial script      : ./run_configure_host.py
+2025-07-14 13:29:33 [i] Active script       : /home/nije/proton.drive.pch/Active/git.repo/proxmox/host/configure_host.py
+2025-07-14 13:29:33 [i] Config file         : /home/nije/git.local/proxmox-host/host_config.yaml
+2025-07-14 13:29:33 [i] Validation file     : /home/nije/git.local/proxmox-host/host_config_validation.yaml
+2025-07-14 13:29:33 [i] Default logfile     : logs/configure_host.log
+2025-07-14 13:29:33 --------------------------------------------------------------------------------
+2025-07-14 13:29:33 -                                CHECKING FILES                                -
+2025-07-14 13:29:33 --------------------------------------------------------------------------------
+2025-07-14 13:29:33 [✓] host_config.yaml access checks passed
+2025-07-14 13:29:33 [✓] host_config_validation.yaml access checks passed
+2025-07-14 13:32:55 --------------------------------------------------------------------------------
+2025-07-14 13:32:55 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-14 13:32:55 --------------------------------------------------------------------------------
+2025-07-14 13:32:55 [i] Initial script      : ./run_configure_host.py
+2025-07-14 13:32:55 [i] Active script       : /home/nije/proton.drive.pch/Active/git.repo/proxmox/host/configure_host.py
+2025-07-14 13:32:55 [i] Config file         : /home/nije/git.local/proxmox-host/host_config.yaml
+2025-07-14 13:32:55 [i] Validation file     : /home/nije/git.local/proxmox-host/host_config_validation.yaml
+2025-07-14 13:32:55 [i] Default logfile     : logs/configure_host.log
+2025-07-14 13:32:55 --------------------------------------------------------------------------------
+2025-07-14 13:32:55 -                                CHECKING FILES                                -
+2025-07-14 13:32:55 --------------------------------------------------------------------------------
+2025-07-14 13:32:55 [✓] host_config.yaml access checks passed
+2025-07-14 13:32:55 [✓] host_config_validation.yaml access checks passed
+2025-07-14 13:32:55 [x] pve_iso_urls: {0: ['null value not allowed']}
+2025-07-14 13:32:55 [x] pve_sshkey_public: {0: ['null value not allowed']}
+2025-07-14 13:32:55 [x] Configuration validation failed
+2025-07-14 13:36:52 --------------------------------------------------------------------------------
+2025-07-14 13:36:52 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-14 13:36:52 --------------------------------------------------------------------------------
+2025-07-14 13:36:52 [i] Initial script      : ./run_configure_host.py
+2025-07-14 13:36:52 [i] Active script       : /home/nije/proton.drive.pch/Active/git.repo/proxmox/host/configure_host.py
+2025-07-14 13:36:52 [i] Config file         : /home/nije/git.local/proxmox-host/host_config.yaml
+2025-07-14 13:36:52 [i] Validation file     : /home/nije/git.local/proxmox-host/host_config_validation.yaml
+2025-07-14 13:36:52 [i] Default logfile     : logs/configure_host.log
+2025-07-14 13:36:52 --------------------------------------------------------------------------------
+2025-07-14 13:36:52 -                                CHECKING FILES                                -
+2025-07-14 13:36:52 --------------------------------------------------------------------------------
+2025-07-14 13:36:52 [✓] host_config.yaml access checks passed
+2025-07-14 13:36:52 [✓] host_config_validation.yaml access checks passed
+2025-07-14 13:36:52 [x] pve_iso_urls: {0: ['null value not allowed']}
+2025-07-14 13:36:52 [x] pve_sshkey_public: {0: ['null value not allowed']}
+2025-07-14 13:36:52 [x] Configuration validation failed
+2025-07-14 13:37:36 --------------------------------------------------------------------------------
+2025-07-14 13:37:36 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-14 13:37:36 --------------------------------------------------------------------------------
+2025-07-14 13:37:36 [i] Initial script      : ./run_configure_host.py
+2025-07-14 13:37:36 [i] Active script       : /home/nije/proton.drive.pch/Active/git.repo/proxmox/host/configure_host.py
+2025-07-14 13:37:36 [i] Config file         : /home/nije/git.local/proxmox-host/host_config.yaml
+2025-07-14 13:37:36 [i] Validation file     : /home/nije/git.local/proxmox-host/host_config_validation.yaml
+2025-07-14 13:37:36 [i] Default logfile     : logs/configure_host.log
+2025-07-14 13:37:36 --------------------------------------------------------------------------------
+2025-07-14 13:37:36 -                                CHECKING FILES                                -
+2025-07-14 13:37:36 --------------------------------------------------------------------------------
+2025-07-14 13:37:36 [✓] host_config.yaml access checks passed
+2025-07-14 13:37:36 [✓] host_config_validation.yaml access checks passed
+2025-07-14 13:37:36 [✓] Configuration validation passed
+2025-07-14 16:56:14 --------------------------------------------------------------------------------
+2025-07-14 16:56:14 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-14 16:56:14 --------------------------------------------------------------------------------
+2025-07-14 16:56:14 [i] Initial script      : ./run_configure_host.py
+2025-07-14 16:56:14 [i] Active script       : /home/nije/proton.drive.pch/Active/git.repo/proxmox/host/configure_host.py
+2025-07-14 16:56:14 [i] Config file         : /home/nije/git.local/proxmox-host/host_config.yaml
+2025-07-14 16:56:14 [i] Validation file     : /home/nije/git.local/proxmox-host/host_config_validation.yaml
+2025-07-14 16:56:14 [i] Default logfile     : logs/configure_host.log
+2025-07-14 16:56:14 --------------------------------------------------------------------------------
+2025-07-14 16:56:14 -                                CHECKING FILES                                -
+2025-07-14 16:56:14 --------------------------------------------------------------------------------
+2025-07-14 16:56:14 [✓] host_config.yaml access checks passed
+2025-07-14 16:56:14 [✓] host_config_validation.yaml access checks passed
+2025-07-14 16:56:14 [✓] Configuration validation passed
+2025-07-14 17:00:28 --------------------------------------------------------------------------------
+2025-07-14 17:00:28 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-14 17:00:28 --------------------------------------------------------------------------------
+2025-07-14 17:00:28 [i] Initial script      : ./run_configure_host.py
+2025-07-14 17:00:28 [i] Active script       : /home/nije/proton.drive.pch/Active/git.repo/proxmox/host/configure_host.py
+2025-07-14 17:00:28 [i] Config file         : /home/nije/git.local/proxmox-host/host_config.yaml
+2025-07-14 17:00:28 [i] Validation file     : /home/nije/git.local/proxmox-host/host_config_validation.yaml
+2025-07-14 17:00:28 [i] Default logfile     : logs/configure_host.log
+2025-07-14 17:00:28 --------------------------------------------------------------------------------
+2025-07-14 17:00:28 -                                CHECKING FILES                                -
+2025-07-14 17:00:28 --------------------------------------------------------------------------------
+2025-07-14 17:00:28 [✓] host_config.yaml access checks passed
+2025-07-14 17:00:28 [✓] host_config_validation.yaml access checks passed
+2025-07-14 17:00:28 [✓] Configuration validation passed
+2025-07-14 17:01:40 --------------------------------------------------------------------------------
+2025-07-14 17:01:40 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-14 17:01:40 --------------------------------------------------------------------------------
+2025-07-14 17:01:40 [i] Initial script      : ./run_configure_host.py
+2025-07-14 17:01:40 [i] Active script       : /home/nije/proton.drive.pch/Active/git.repo/proxmox/host/configure_host.py
+2025-07-14 17:01:40 [i] Config file         : /home/nije/git.local/proxmox-host/host_config.yaml
+2025-07-14 17:01:40 [i] Validation file     : /home/nije/git.local/proxmox-host/host_config_validation.yaml
+2025-07-14 17:01:40 [i] Default logfile     : logs/configure_host.log
+2025-07-14 17:01:40 --------------------------------------------------------------------------------
+2025-07-14 17:01:40 -                                CHECKING FILES                                -
+2025-07-14 17:01:40 --------------------------------------------------------------------------------
+2025-07-14 17:01:40 [✓] host_config.yaml access checks passed
+2025-07-14 17:01:40 [✓] host_config_validation.yaml access checks passed
+2025-07-14 17:01:40 [✓] Configuration validation passed
+2025-07-14 17:02:16 --------------------------------------------------------------------------------
+2025-07-14 17:02:16 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-14 17:02:16 --------------------------------------------------------------------------------
+2025-07-14 17:02:16 [i] Initial script      : ./run_configure_host.py
+2025-07-14 17:02:16 [i] Active script       : /home/nije/proton.drive.pch/Active/git.repo/proxmox/host/configure_host.py
+2025-07-14 17:02:16 [i] Config file         : /home/nije/git.local/proxmox-host/host_config.yaml
+2025-07-14 17:02:16 [i] Validation file     : /home/nije/git.local/proxmox-host/host_config_validation.yaml
+2025-07-14 17:02:16 [i] Default logfile     : logs/configure_host.log
+2025-07-14 17:02:16 --------------------------------------------------------------------------------
+2025-07-14 17:02:16 -                                CHECKING FILES                                -
+2025-07-14 17:02:16 --------------------------------------------------------------------------------
+2025-07-14 17:02:16 [✓] host_config.yaml access checks passed
+2025-07-14 17:02:16 [✓] host_config_validation.yaml access checks passed
+2025-07-14 17:02:16 [x] pve_host_username: value does not match regex '^[a-z_][a-z0-9_-]{0,31}$'
+2025-07-14 17:02:16 [x] Configuration validation failed
+2025-07-14 17:02:35 --------------------------------------------------------------------------------
+2025-07-14 17:02:35 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-14 17:02:35 --------------------------------------------------------------------------------
+2025-07-14 17:02:35 [i] Initial script      : ./run_configure_host.py
+2025-07-14 17:02:35 [i] Active script       : /home/nije/proton.drive.pch/Active/git.repo/proxmox/host/configure_host.py
+2025-07-14 17:02:35 [i] Config file         : /home/nije/git.local/proxmox-host/host_config.yaml
+2025-07-14 17:02:35 [i] Validation file     : /home/nije/git.local/proxmox-host/host_config_validation.yaml
+2025-07-14 17:02:35 [i] Default logfile     : logs/configure_host.log
+2025-07-14 17:02:35 --------------------------------------------------------------------------------
+2025-07-14 17:02:35 -                                CHECKING FILES                                -
+2025-07-14 17:02:35 --------------------------------------------------------------------------------
+2025-07-14 17:02:35 [✓] host_config.yaml access checks passed
+2025-07-14 17:02:35 [✓] host_config_validation.yaml access checks passed
+2025-07-14 17:02:35 [x] pve_host_username: value does not match regex '^[a-z_][a-z0-9_-]{0,31}$'
+2025-07-14 17:02:35 [x] Configuration validation failed
+2025-07-14 17:03:00 --------------------------------------------------------------------------------
+2025-07-14 17:03:00 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-14 17:03:00 --------------------------------------------------------------------------------
+2025-07-14 17:03:00 [i] Initial script      : ./run_configure_host.py
+2025-07-14 17:03:00 [i] Active script       : /home/nije/proton.drive.pch/Active/git.repo/proxmox/host/configure_host.py
+2025-07-14 17:03:00 [i] Config file         : /home/nije/git.local/proxmox-host/host_config.yaml
+2025-07-14 17:03:00 [i] Validation file     : /home/nije/git.local/proxmox-host/host_config_validation.yaml
+2025-07-14 17:03:00 [i] Default logfile     : logs/configure_host.log
+2025-07-14 17:03:00 --------------------------------------------------------------------------------
+2025-07-14 17:03:00 -                                CHECKING FILES                                -
+2025-07-14 17:03:00 --------------------------------------------------------------------------------
+2025-07-14 17:03:00 [✓] host_config.yaml access checks passed
+2025-07-14 17:03:00 [✓] host_config_validation.yaml access checks passed
+2025-07-14 17:03:00 [x] pve_host_ip: value does not match regex '^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$'
+2025-07-14 17:03:00 [x] Configuration validation failed
+2025-07-14 17:03:16 --------------------------------------------------------------------------------
+2025-07-14 17:03:16 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-14 17:03:16 --------------------------------------------------------------------------------
+2025-07-14 17:03:16 [i] Initial script      : ./run_configure_host.py
+2025-07-14 17:03:16 [i] Active script       : /home/nije/proton.drive.pch/Active/git.repo/proxmox/host/configure_host.py
+2025-07-14 17:03:16 [i] Config file         : /home/nije/git.local/proxmox-host/host_config.yaml
+2025-07-14 17:03:16 [i] Validation file     : /home/nije/git.local/proxmox-host/host_config_validation.yaml
+2025-07-14 17:03:16 [i] Default logfile     : logs/configure_host.log
+2025-07-14 17:03:16 --------------------------------------------------------------------------------
+2025-07-14 17:03:16 -                                CHECKING FILES                                -
+2025-07-14 17:03:16 --------------------------------------------------------------------------------
+2025-07-14 17:03:16 [✓] host_config.yaml access checks passed
+2025-07-14 17:03:16 [✓] host_config_validation.yaml access checks passed
+2025-07-14 17:03:16 [✓] Configuration validation passed
+2025-07-14 17:03:37 --------------------------------------------------------------------------------
+2025-07-14 17:03:37 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-14 17:03:37 --------------------------------------------------------------------------------
+2025-07-14 17:03:37 [i] Initial script      : ./run_configure_host.py
+2025-07-14 17:03:37 [i] Active script       : /home/nije/proton.drive.pch/Active/git.repo/proxmox/host/configure_host.py
+2025-07-14 17:03:37 [i] Config file         : /home/nije/git.local/proxmox-host/host_config.yaml
+2025-07-14 17:03:37 [i] Validation file     : /home/nije/git.local/proxmox-host/host_config_validation.yaml
+2025-07-14 17:03:37 [i] Default logfile     : logs/configure_host.log
+2025-07-14 17:03:37 --------------------------------------------------------------------------------
+2025-07-14 17:03:37 -                                CHECKING FILES                                -
+2025-07-14 17:03:37 --------------------------------------------------------------------------------
+2025-07-14 17:03:37 [✓] host_config.yaml access checks passed
+2025-07-14 17:03:37 [✓] host_config_validation.yaml access checks passed
+2025-07-14 17:03:37 [✓] Configuration validation passed
+2025-07-14 17:04:28 --------------------------------------------------------------------------------
+2025-07-14 17:04:28 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-14 17:04:28 --------------------------------------------------------------------------------
+2025-07-14 17:04:28 [i] Initial script      : ./run_configure_host.py
+2025-07-14 17:04:28 [i] Active script       : /home/nije/proton.drive.pch/Active/git.repo/proxmox/host/configure_host.py
+2025-07-14 17:04:28 [i] Config file         : /home/nije/git.local/proxmox-host/host_config.yaml
+2025-07-14 17:04:28 [i] Validation file     : /home/nije/git.local/proxmox-host/host_config_validation.yaml
+2025-07-14 17:04:28 [i] Default logfile     : logs/configure_host.log
+2025-07-14 17:04:28 --------------------------------------------------------------------------------
+2025-07-14 17:04:28 -                                CHECKING FILES                                -
+2025-07-14 17:04:28 --------------------------------------------------------------------------------
+2025-07-14 17:04:28 [✓] host_config.yaml access checks passed
+2025-07-14 17:04:28 [✓] host_config_validation.yaml access checks passed
+2025-07-14 17:04:28 [x] pve_hostname: value does not match regex '^[a-zA-Z0-9][a-zA-Z0-9-]{0,62}$'
+2025-07-14 17:04:28 [x] Configuration validation failed
+2025-07-14 17:05:08 --------------------------------------------------------------------------------
+2025-07-14 17:05:08 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-14 17:05:08 --------------------------------------------------------------------------------
+2025-07-14 17:05:08 [i] Initial script      : ./run_configure_host.py
+2025-07-14 17:05:08 [i] Active script       : /home/nije/proton.drive.pch/Active/git.repo/proxmox/host/configure_host.py
+2025-07-14 17:05:08 [i] Config file         : /home/nije/git.local/proxmox-host/host_config.yaml
+2025-07-14 17:05:08 [i] Validation file     : /home/nije/git.local/proxmox-host/host_config_validation.yaml
+2025-07-14 17:05:08 [i] Default logfile     : logs/configure_host.log
+2025-07-14 17:05:08 --------------------------------------------------------------------------------
+2025-07-14 17:05:08 -                                CHECKING FILES                                -
+2025-07-14 17:05:08 --------------------------------------------------------------------------------
+2025-07-14 17:05:08 [✓] host_config.yaml access checks passed
+2025-07-14 17:05:08 [✓] host_config_validation.yaml access checks passed
+2025-07-14 17:05:08 [x] pve_domain: value does not match regex '^[a-zA-Z0-9][a-zA-Z0-9-]{0,62}\.[a-zA-Z]{2,}$'
+2025-07-14 17:05:08 [x] Configuration validation failed
+2025-07-14 17:10:27 --------------------------------------------------------------------------------
+2025-07-14 17:10:27 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-14 17:10:27 --------------------------------------------------------------------------------
+2025-07-14 17:10:27 [i] Initial script      : ./run_configure_host.py
+2025-07-14 17:10:27 [i] Active script       : /home/nije/proton.drive.pch/Active/git.repo/proxmox/host/configure_host.py
+2025-07-14 17:10:27 [i] Config file         : /home/nije/git.local/proxmox-host/host_config.yaml
+2025-07-14 17:10:27 [i] Validation file     : /home/nije/git.local/proxmox-host/host_config_validation.yaml
+2025-07-14 17:10:27 [i] Default logfile     : logs/configure_host.log
+2025-07-14 17:10:27 --------------------------------------------------------------------------------
+2025-07-14 17:10:27 -                                CHECKING FILES                                -
+2025-07-14 17:10:27 --------------------------------------------------------------------------------
+2025-07-14 17:10:27 [✓] host_config.yaml access checks passed
+2025-07-14 17:10:27 [✓] host_config_validation.yaml access checks passed
+2025-07-14 17:10:27 [✓] Configuration validation passed
+2025-07-14 17:10:27 [i] Applied default for: pve_host_username = root
+2025-07-14 17:10:27 [i] Applied default for: pve_domain = pch.dk
+2025-07-14 17:10:27 [i] Applied default for: pve_sshkey_public = ['ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHvc23S7OC9wV4w02BddwEzGkl8DJy2F06Mk/eMCStk2 AutomationKey-Proxmox']
+2025-07-14 17:10:27 [i] Applied default for: pve_iso_urls = ['https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img', 'https://releases.ubuntu.com/24.04/ubuntu-24.04.1-live-server-amd64.iso']
+2025-07-14 17:10:27 [i] Applied default for: pve_host_change_pwd = False
+2025-07-14 17:17:06 --------------------------------------------------------------------------------
+2025-07-14 17:17:06 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-14 17:17:06 --------------------------------------------------------------------------------
+2025-07-14 17:17:06 [i] Initial script      : ./run_configure_host.py
+2025-07-14 17:17:06 [i] Active script       : /home/nije/proton.drive.pch/Active/git.repo/proxmox/host/configure_host.py
+2025-07-14 17:17:06 [i] Config file         : /home/nije/git.local/proxmox-host/host_config.yaml
+2025-07-14 17:17:06 [i] Validation file     : /home/nije/git.local/proxmox-host/host_config_validation.yaml
+2025-07-14 17:17:06 [i] Default logfile     : logs/configure_host.log
+2025-07-14 17:17:06 --------------------------------------------------------------------------------
+2025-07-14 17:17:06 -                                CHECKING FILES                                -
+2025-07-14 17:17:06 --------------------------------------------------------------------------------
+2025-07-14 17:17:06 [✓] host_config.yaml access checks passed
+2025-07-14 17:17:06 [✓] host_config_validation.yaml access checks passed
+2025-07-14 17:17:06 [✓] Configuration validation passed
+2025-07-14 17:17:06 [i] pve_host_ip: set by user
+2025-07-14 17:17:06 [i] pve_hostname: set by user
+2025-07-14 17:17:06 [i] pve_host_username: using default
+2025-07-14 17:17:06 [i] pve_domain: using default
+2025-07-14 17:17:06 [i] pve_sshkey_public: using default
+2025-07-14 17:17:06 [i] pve_iso_urls: using default
+2025-07-14 17:17:06 [i] pve_host_change_pwd: using default
+2025-07-14 17:17:42 --------------------------------------------------------------------------------
+2025-07-14 17:17:42 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-14 17:17:42 --------------------------------------------------------------------------------
+2025-07-14 17:17:42 [i] Initial script      : ./run_configure_host.py
+2025-07-14 17:17:42 [i] Active script       : /home/nije/proton.drive.pch/Active/git.repo/proxmox/host/configure_host.py
+2025-07-14 17:17:42 [i] Config file         : /home/nije/git.local/proxmox-host/host_config.yaml
+2025-07-14 17:17:42 [i] Validation file     : /home/nije/git.local/proxmox-host/host_config_validation.yaml
+2025-07-14 17:17:42 [i] Default logfile     : logs/configure_host.log
+2025-07-14 17:17:42 --------------------------------------------------------------------------------
+2025-07-14 17:17:42 -                                CHECKING FILES                                -
+2025-07-14 17:17:42 --------------------------------------------------------------------------------
+2025-07-14 17:17:42 [✓] host_config.yaml access checks passed
+2025-07-14 17:17:42 [✓] host_config_validation.yaml access checks passed
+2025-07-14 17:17:42 [✓] Configuration validation passed
+2025-07-14 17:17:42 [i] pve_host_ip: set by user
+2025-07-14 17:17:42 [i] pve_hostname: set by user
+2025-07-14 17:17:42 [i] pve_host_username: using default
+2025-07-14 17:17:42 [i] pve_domain: using default
+2025-07-14 17:17:42 [i] pve_sshkey_public: using default
+2025-07-14 17:17:42 [i] pve_iso_urls: using default
+2025-07-14 17:17:42 [i] pve_host_change_pwd: using default
+2025-07-14 18:17:01 --------------------------------------------------------------------------------
+2025-07-14 18:17:01 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-14 18:17:01 --------------------------------------------------------------------------------
+2025-07-14 18:17:01 [i] Initial script      : ./run_configure_host.py
+2025-07-14 18:17:01 [i] Active script       : /home/nije/proton.drive.pch/Active/git.repo/proxmox/host/configure_host.py
+2025-07-14 18:17:01 [i] Config file         : /home/nije/git.local/proxmox-host/host_config.yaml
+2025-07-14 18:17:01 [i] Validation file     : /home/nije/git.local/proxmox-host/host_config_validation.yaml
+2025-07-14 18:17:01 [i] Default logfile     : logs/configure_host.log
+2025-07-14 18:17:01 --------------------------------------------------------------------------------
+2025-07-14 18:17:01 -                                CHECKING FILES                                -
+2025-07-14 18:17:01 --------------------------------------------------------------------------------
+2025-07-14 18:17:01 [✓] host_config.yaml access checks passed
+2025-07-14 18:17:01 [✓] host_config_validation.yaml access checks passed
+2025-07-14 18:17:01 [✓] Configuration validation passed
+2025-07-14 18:17:01 [i] pve_host_ip: set by user
+2025-07-14 18:17:01 [i] pve_hostname: set by user
+2025-07-14 18:17:01 [i] pve_host_username: using default
+2025-07-14 18:17:01 [i] pve_domain: using default
+2025-07-14 18:17:01 [i] pve_sshkey_public: using default
+2025-07-14 18:17:01 [i] pve_iso_urls: using default
+2025-07-14 18:17:01 [i] pve_host_change_pwd: using default
+2025-07-14 18:17:01 --------------------------------------------------------------------------------
+2025-07-14 18:17:01 -                          CHECKING SSH CONNECTIVITY                           -
+2025-07-14 18:17:01 --------------------------------------------------------------------------------
+2025-07-14 18:17:20 --------------------------------------------------------------------------------
+2025-07-14 18:17:20 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-14 18:17:20 --------------------------------------------------------------------------------
+2025-07-14 18:17:20 [i] Initial script      : ./run_configure_host.py
+2025-07-14 18:17:20 [i] Active script       : /home/nije/proton.drive.pch/Active/git.repo/proxmox/host/configure_host.py
+2025-07-14 18:17:20 [i] Config file         : /home/nije/git.local/proxmox-host/host_config.yaml
+2025-07-14 18:17:20 [i] Validation file     : /home/nije/git.local/proxmox-host/host_config_validation.yaml
+2025-07-14 18:17:20 [i] Default logfile     : logs/configure_host.log
+2025-07-14 18:17:20 --------------------------------------------------------------------------------
+2025-07-14 18:17:20 -                                CHECKING FILES                                -
+2025-07-14 18:17:20 --------------------------------------------------------------------------------
+2025-07-14 18:17:20 [✓] host_config.yaml access checks passed
+2025-07-14 18:17:20 [✓] host_config_validation.yaml access checks passed
+2025-07-14 18:17:20 [✓] Configuration validation passed
+2025-07-14 18:17:20 [i] pve_host_ip: set by user
+2025-07-14 18:17:20 [i] pve_hostname: set by user
+2025-07-14 18:17:20 [i] pve_host_username: using default
+2025-07-14 18:17:20 [i] pve_domain: using default
+2025-07-14 18:17:20 [i] pve_sshkey_public: using default
+2025-07-14 18:17:20 [i] pve_iso_urls: using default
+2025-07-14 18:17:20 [i] pve_host_change_pwd: using default
+2025-07-14 18:17:20 --------------------------------------------------------------------------------
+2025-07-14 18:17:20 -                          CHECKING SSH CONNECTIVITY                           -
+2025-07-14 18:17:20 --------------------------------------------------------------------------------

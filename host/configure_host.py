@@ -7,11 +7,12 @@ import yaml
 from lib.output_handler import OutputHandler
 from lib.check_files_handler import CheckFiles
 from lib.yaml_config_loader import LoaderNoDuplicates
-# from lib.yaml_validation_handler import ValidationHandler
+from cerberus import Validator
+from lib.ssh_handler import SSHConnection
+
 
 DEFAULT_YAML_VALIDATION_FILE = "config/host_config_validation.yaml"
 DEFAULT_LOGFILE = "logs/configure_host.log"
-DEFAULT_CONST = "const/host_const.yaml"
 
 output = OutputHandler(DEFAULT_LOGFILE)
 
@@ -30,16 +31,7 @@ def parse_args():
         default=DEFAULT_YAML_VALIDATION_FILE,
         help=(
             "Optional: Specify a differant set of validation rules "
-            "for the config file, if the default is not to be used"
-        )
-    )
-    parser.add_argument(
-        "--const",
-        dest="const_file",
-        default=DEFAULT_CONST,
-        help=(
-            "Optional: Specify a differant constants file (default values) "
-            "for the config file, if the default is not to be used"
+            "for the config file, if the default file is not to be used"
         )
     )
     return parser.parse_args()
@@ -81,6 +73,22 @@ def load_yaml_file(yaml_file):
     return yaml_dict
 
 
+def validate_config(config, validation_rules):
+    validator = Validator(validation_rules)
+    if not validator.validate(config):
+        for field, errors in validator.errors.items():
+            for error in errors:
+                output.output(f"{field}: {error}", type="e")
+        output.output(
+            "Configuration validation failed",
+            type="e",
+            exit_on_error=True
+        )
+    else:
+        output.output("Configuration validation passed", type="s")
+        return validator.document
+
+
 def run():
     args = parse_args()
     this_script = os.path.abspath(__file__)
@@ -92,13 +100,29 @@ def run():
     output.output(f"Active script       : {this_script}", type="i")
     output.output(f"Config file         : {args.config_file}", type="i")
     output.output(f"Validation file     : {args.validation_file}", type="i")
-    output.output(f"Default value file  : {args.const_file}", type="i")
     output.output(f"Default logfile     : {DEFAULT_LOGFILE}", type="i")
     output.output()
     output.output("Checking files", type="h")
     output.output()
     check_files(args.config_file)
     check_files(args.validation_file)
-    check_files(args.const_file)
     config_values = load_yaml_file(args.config_file)
     validation_rules = load_yaml_file(args.validation_file)
+    v_config = validate_config(config_values, validation_rules)
+    for key in v_config:
+        if key in config_values:
+            output.output(f"{key}: set by user", type="i")
+        else:
+            output.output(f"{key}: using default", type="i")
+    output.output()
+    output.output("Checking SSH connectivity", type="h")
+    output.output()
+
+    ssh = SSHConnection(
+        host=v_config['host'],
+        username=v_config['username'],
+        password=v_config.get('password'),
+        key_filename=v_config.get('key_filename')
+    )
+    flag, message = ssh.connect()
+    output.output(message, type="s" if flag else "e", exit_on_error=not flag)
