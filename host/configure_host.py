@@ -119,10 +119,12 @@ def run():
     output.output()
 
     ssh = SSHConnection(
-        host=v_config['host'],
-        username=v_config['username'],
-        password=v_config.get('password'),
-        key_filename=v_config.get('key_filename')
-    )
+        host=v_config["pve_host_ip"],
+        username=v_config["pve_host_username"],
+        key_filename=v_config["pve_host_keyfile"],
+        )
     flag, message = ssh.connect()
+    output.output(message, type="s" if flag else "e", exit_on_error=not flag)
+
+    flag, message = ssh.close()
     output.output(message, type="s" if flag else "e", exit_on_error=not flag)

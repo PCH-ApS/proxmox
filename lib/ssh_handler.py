@@ -50,3 +50,4 @@ class SSHConnection:
     def close(self):
         if self.ssh:
             self.ssh.close()
+        return True, f"Closed connection to {self.host} as {self.username}"
