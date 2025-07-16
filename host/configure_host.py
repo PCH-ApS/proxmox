@@ -9,7 +9,7 @@ from lib.check_files_handler import CheckFiles
 from lib.yaml_config_loader import LoaderNoDuplicates
 from cerberus import Validator
 from lib.ssh_handler import SSHConnection
-
+from lib.proxmox_host_handler import ProxmoxHost
 
 DEFAULT_YAML_VALIDATION_FILE = "config/host_config_validation.yaml"
 DEFAULT_LOGFILE = "logs/configure_host.log"
@@ -104,6 +104,7 @@ def run():
     output.output()
     output.output("Checking files", type="h")
     output.output()
+
     check_files(args.config_file)
     check_files(args.validation_file)
     config_values = load_yaml_file(args.config_file)
@@ -114,6 +115,7 @@ def run():
             output.output(f"{key}: set by user", type="i")
         else:
             output.output(f"{key}: using default", type="i")
+
     output.output()
     output.output("Checking SSH connectivity", type="h")
     output.output()
@@ -125,6 +127,63 @@ def run():
         )
     flag, message = ssh.connect()
     output.output(message, type="s" if flag else "e", exit_on_error=not flag)
-
     flag, message = ssh.close()
+    output.output(message, type="s" if flag else "e", exit_on_error=not flag)
+
+    output.output()
+    output.output("Checking Proxmox host", type="h")
+    output.output()
+
+    host = ProxmoxHost(
+        host=v_config["pve_host_ip"],
+        username=v_config["pve_host_username"],
+        key_filename=v_config["pve_host_keyfile"],
+    )
+    connect_flag, connect_message = host.connect()
+    output.output(
+        connect_message,
+        type="s" if connect_flag else "e",
+        exit_on_error=not connect_flag
+        )
+
+    hostname_flag, hostname_message, current_hostname = (
+        host.is_hostname_correct(
+            v_config["pve_hostname"]
+        )
+    )
+    output.output(
+        hostname_message,
+        type="s" if hostname_flag else "w",
+    )
+
+    DEFAULT_FOLDERS = [
+        f"/etc/pve/nodes/{current_hostname}/lxc",
+        f"/etc/pve/nodes/{current_hostname}/qemu-server",
+    ]
+
+    if not hostname_flag:
+        output.output(
+            "Checking host is empty - no vms or templates allowd.",
+            type="i"
+        )
+
+    for folderpath in DEFAULT_FOLDERS:
+        output.output(f"Checking folder: {folderpath}", type="i")
+        folder_flag, folder_message = host.is_folder_empty(folderpath)
+        if folder_flag:
+            output.output(
+                f"Folder '{folderpath}': {folder_message}",
+                type="i"
+            )
+        else:
+            output.output(
+                f"Folder '{folderpath}': {folder_message}",
+                type="w"
+            )
+            output.output(
+            "Not renaming Proxmox host.",
+            type="e",
+        )
+
+    flag, message = host.close()
     output.output(message, type="s" if flag else "e", exit_on_error=not flag)

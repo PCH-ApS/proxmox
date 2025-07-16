@@ -36,7 +36,7 @@ class SSHConnection:
         except Exception as e:
             return False, f"Unexpected error: {e}"
 
-    def execute_command(self, command):
+    def run(self, command):
         if not self.ssh:
             raise RuntimeError("SSH connection not established")
 
