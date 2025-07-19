@@ -100,3 +100,72 @@ class ProxmoxHost:
                 True,
                 f"Hostname successfully changed to {new_hostname}"
             )
+
+    def change_hostname(
+            self,
+            new_hostname,
+            ip_address,
+            domain,
+            hostfile,
+            default_folders
+            ):
+
+        host_output = []
+
+        correct_flag, correct_messege, current_hostname = (
+            self.is_hostname_correct(new_hostname)
+        )
+        if correct_flag:
+            host_output.append((True, f"{correct_messege}"))
+            return host_output
+        else:
+            host_output.append((False, f"{correct_messege}"))
+
+        all_empty = True
+        for folderpath in default_folders:
+            folder_flag, folder_messege = self.is_folder_empty(folderpath)
+            if not folder_flag:
+                all_empty = False
+                host_output.append((False, f"{folder_messege}: {folderpath}"))
+            else:
+                host_output.append((True, f"{folder_messege}: {folderpath}"))
+
+        if not all_empty:
+            return host_output
+
+        add_flag, add_messege = self.add_to_file(
+                content=(
+                    f"{ip_address} "
+                    f"{new_hostname}.{domain} "
+                    f"{new_hostname}"
+                    ),
+                file_path=hostfile
+            )
+        if not add_flag:
+            host_output.append((False, f"{add_messege}"))
+            return host_output
+
+        host_output.append((True, f"{add_messege}"))
+
+        remove_flag, remove_messege = self.remove_line_with_content(
+            content=(
+                f"{ip_address} "
+                f"{current_hostname}.{domain} "
+                f"{current_hostname}"
+            ),
+            file_path=hostfile
+        )
+        if not remove_flag:
+            host_output.append((False, f"{remove_messege}"))
+            return host_output
+
+        host_output.append((True, f"{remove_messege}"))
+
+        set_flag, set_messege = self.set_hostname(new_hostname)
+        if not set_flag:
+            host_output.append((False, f"{set_messege}"))
+            return host_output
+
+        host_output.append((True, f"{set_messege}"))
+
+        return host_output

@@ -147,109 +147,22 @@ def run():
         exit_on_error=not connect_flag
         )
 
-    hostname_flag, hostname_message, current_hostname = (
-        host.is_hostname_correct(
-            v_config["pve_hostname"]
-        )
-    )
-    output.output(
-        hostname_message,
-        type="s" if hostname_flag else "w",
-    )
-
+    current_hostname = host.get_hostname()
     DEFAULT_FOLDERS = [
-        f"/etc/pve/nodes/{current_hostname}/lxc",
-        f"/etc/pve/nodes/{current_hostname}/qemu-server",
+        f"/etc/pve/nodes/{current_hostname[1]}/lxc",
+        f"/etc/pve/nodes/{current_hostname[1]}/qemu-server",
     ]
+    file_path = DEFAULT_HOSTFILE
+    host_messege = host.change_hostname(
+        v_config["pve_hostname"],
+        v_config['pve_host_ip'],
+        v_config["pve_domain"],
+        file_path,
+        DEFAULT_FOLDERS
+    )
 
-    if not hostname_flag:
-        output.output(
-            "Checking host is empty - no vms or templates allowd.",
-            type="i"
-        )
+    for host_line in host_messege:
+        output.output(host_line[1], type="s" if host_line[0] else "e")
 
-        EMPTY_FOLDERS = []
-
-        for folderpath in DEFAULT_FOLDERS:
-            output.output(f"Checking folder: {folderpath}", type="i")
-            folder_flag, folder_message = host.is_folder_empty(folderpath)
-            if folder_flag:
-                EMPTY_FOLDERS.append(True)
-            else:
-                output.output(
-                    f"Folder '{folderpath}': {folder_message}",
-                    type="w"
-                )
-                EMPTY_FOLDERS.append(False)
-
-        if not all(EMPTY_FOLDERS):
-            output.output(
-                "All folders are NOT empty, not renaming Proxmox host.",
-                type="e",
-                )
-
-        else:
-            output.output(
-                "All folders are empty, renaming Proxmox host.",
-                type="i"
-                )
-
-            add_flag, add_message = host.add_to_file(
-                content=(
-                    f"{v_config['pve_host_ip']} "
-                    f"{v_config['pve_hostname']}.{v_config['pve_domain']} "
-                    f"{v_config['pve_hostname']}"
-                    ),
-                file_path=DEFAULT_HOSTFILE
-            )
-            if not add_flag:
-                output.output(
-                    f"Failed to add hostname to file: {add_message}",
-                    type="e",
-                )
-            else:
-                output.output(
-                    f"{add_message}",
-                    type="s",
-                )
-
-                content = (
-                        f"{v_config['pve_host_ip']} "
-                        f"{current_hostname}.{v_config['pve_domain']} "
-                        f"{current_hostname}"
-                        )
-                file_path = DEFAULT_HOSTFILE
-                remove_flag, remove_message = host.remove_line_with_content(
-                    content,
-                    file_path
-                    )
-
-                if not remove_flag:
-                    output.output(
-                        ("Failed to remove old hostname from file: "
-                         f"{remove_message}"),
-                        type="e",
-                    )
-                else:
-                    output.output(
-                        f"{remove_message}",
-                        type="s",
-                    )
-
-                hostname_flag, hostname_message = host.set_hostname(
-                    v_config["pve_hostname"]
-                )
-
-                if not hostname_flag:
-                    output.output(
-                        f"Failed to set new hostname: {hostname_message}",
-                        type="e",
-                    )
-                else:
-                    output.output(
-                        f"{hostname_message}",
-                        type="s",
-                    )
-
-        flag, message = host.close()
+    flag, message = host.close()
     output.output(message, type="s" if flag else "e", exit_on_error=not flag)
