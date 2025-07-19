@@ -153,16 +153,16 @@ def run():
         f"/etc/pve/nodes/{current_hostname[1]}/qemu-server",
     ]
     file_path = DEFAULT_HOSTFILE
-    host_messege = host.change_hostname(
+    host_message = host.change_hostname(
         v_config["pve_hostname"],
         v_config['pve_host_ip'],
         v_config["pve_domain"],
         file_path,
-        DEFAULT_FOLDERS
+        DEFAULT_FOLDERS,
+        v_config["pve_host_reboot"]
     )
 
-    for host_line in host_messege:
-        output.output(host_line[1], type="s" if host_line[0] else "e")
+    output.output(host_message, type="i")
 
     flag, message = host.close()
     output.output(message, type="s" if flag else "e", exit_on_error=not flag)

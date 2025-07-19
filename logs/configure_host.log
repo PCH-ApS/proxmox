@@ -3644,3 +3644,309 @@ bash: -c: line 1: `ls -A /etc/pve/nodes/(True, 'pve01')/qemu-server'
 2025-07-19 12:24:23 [✓] Line with content '192.168.6.3 pve012.pch.dk pve012' removed from /etc/hosts
 2025-07-19 12:24:23 [✓] Hostname successfully changed to pve01
 2025-07-19 12:24:23 [✓] Closed connection to 192.168.6.3 as root
+2025-07-19 12:53:43 --------------------------------------------------------------------------------
+2025-07-19 12:53:43 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-19 12:53:43 --------------------------------------------------------------------------------
+2025-07-19 12:53:43 [i] Initial script      : ./run_configure_host.py
+2025-07-19 12:53:43 [i] Active script       : /home/nije/proton.drive.pch/Active/git.repo/proxmox/host/configure_host.py
+2025-07-19 12:53:43 [i] Config file         : /home/nije/git.local/proxmox-host/host_config.yaml
+2025-07-19 12:53:43 [i] Validation file     : /home/nije/git.local/proxmox-host/host_config_validation.yaml
+2025-07-19 12:53:43 [i] Default logfile     : logs/configure_host.log
+2025-07-19 12:53:43 --------------------------------------------------------------------------------
+2025-07-19 12:53:43 -                                CHECKING FILES                                -
+2025-07-19 12:53:43 --------------------------------------------------------------------------------
+2025-07-19 12:53:43 [✓] host_config.yaml access checks passed
+2025-07-19 12:53:43 [✓] host_config_validation.yaml access checks passed
+2025-07-19 12:53:43 [✓] Configuration validation passed
+2025-07-19 12:53:43 [i] pve_host_ip: set by user
+2025-07-19 12:53:43 [i] pve_hostname: set by user
+2025-07-19 12:53:43 [i] pve_host_reboot: set by user
+2025-07-19 12:53:43 [i] pve_host_username: using default
+2025-07-19 12:53:43 [i] pve_domain: using default
+2025-07-19 12:53:43 [i] pve_sshkey_public: using default
+2025-07-19 12:53:43 [i] pve_iso_urls: using default
+2025-07-19 12:53:43 [i] pve_host_change_pwd: using default
+2025-07-19 12:53:43 [i] pve_host_keyfile: using default
+2025-07-19 12:53:43 --------------------------------------------------------------------------------
+2025-07-19 12:53:43 -                          CHECKING SSH CONNECTIVITY                           -
+2025-07-19 12:53:43 --------------------------------------------------------------------------------
+2025-07-19 12:53:44 [✓] Connected to 192.168.6.3 as root
+2025-07-19 12:53:44 [✓] Closed connection to 192.168.6.3 as root
+2025-07-19 12:53:44 --------------------------------------------------------------------------------
+2025-07-19 12:53:44 -                            CHECKING PROXMOX HOST                             -
+2025-07-19 12:53:44 --------------------------------------------------------------------------------
+2025-07-19 12:53:44 [✓] Connected to 192.168.6.3 as root
+2025-07-19 12:53:45 [✓] Current hostname is correct: 'pve01'
+2025-07-19 12:53:45 [✓] Closed connection to 192.168.6.3 as root
+2025-07-19 12:53:59 --------------------------------------------------------------------------------
+2025-07-19 12:53:59 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-19 12:53:59 --------------------------------------------------------------------------------
+2025-07-19 12:53:59 [i] Initial script      : ./run_configure_host.py
+2025-07-19 12:53:59 [i] Active script       : /home/nije/proton.drive.pch/Active/git.repo/proxmox/host/configure_host.py
+2025-07-19 12:53:59 [i] Config file         : /home/nije/git.local/proxmox-host/host_config.yaml
+2025-07-19 12:53:59 [i] Validation file     : /home/nije/git.local/proxmox-host/host_config_validation.yaml
+2025-07-19 12:53:59 [i] Default logfile     : logs/configure_host.log
+2025-07-19 12:53:59 --------------------------------------------------------------------------------
+2025-07-19 12:53:59 -                                CHECKING FILES                                -
+2025-07-19 12:53:59 --------------------------------------------------------------------------------
+2025-07-19 12:53:59 [✓] host_config.yaml access checks passed
+2025-07-19 12:53:59 [✓] host_config_validation.yaml access checks passed
+2025-07-19 12:53:59 [✓] Configuration validation passed
+2025-07-19 12:53:59 [i] pve_host_ip: set by user
+2025-07-19 12:53:59 [i] pve_hostname: set by user
+2025-07-19 12:53:59 [i] pve_host_reboot: set by user
+2025-07-19 12:53:59 [i] pve_host_username: using default
+2025-07-19 12:53:59 [i] pve_domain: using default
+2025-07-19 12:53:59 [i] pve_sshkey_public: using default
+2025-07-19 12:53:59 [i] pve_iso_urls: using default
+2025-07-19 12:53:59 [i] pve_host_change_pwd: using default
+2025-07-19 12:53:59 [i] pve_host_keyfile: using default
+2025-07-19 12:53:59 --------------------------------------------------------------------------------
+2025-07-19 12:53:59 -                          CHECKING SSH CONNECTIVITY                           -
+2025-07-19 12:53:59 --------------------------------------------------------------------------------
+2025-07-19 12:53:59 [✓] Connected to 192.168.6.3 as root
+2025-07-19 12:53:59 [✓] Closed connection to 192.168.6.3 as root
+2025-07-19 12:53:59 --------------------------------------------------------------------------------
+2025-07-19 12:53:59 -                            CHECKING PROXMOX HOST                             -
+2025-07-19 12:53:59 --------------------------------------------------------------------------------
+2025-07-19 12:54:00 [✓] Connected to 192.168.6.3 as root
+2025-07-19 12:55:04 [x] Current hostname 'pve01' does not match desired hostname 'pve012'
+2025-07-19 12:55:04 [✓] Folder is empty: /etc/pve/nodes/pve01/lxc
+2025-07-19 12:55:04 [✓] Folder is empty: /etc/pve/nodes/pve01/qemu-server
+2025-07-19 12:55:04 [✓] 192.168.6.3 pve012.pch.dk pve012 succesfully added to /etc/hosts
+2025-07-19 12:55:04 [✓] Line with content '192.168.6.3 pve01.pch.dk pve01' removed from /etc/hosts
+2025-07-19 12:55:04 [✓] Hostname successfully changed to pve012
+2025-07-19 12:55:04 [✓] Reconnected successfully after reboot
+2025-07-19 12:55:04 [✓] Closed connection to 192.168.6.3 as root
+2025-07-19 13:00:27 --------------------------------------------------------------------------------
+2025-07-19 13:00:27 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-19 13:00:27 --------------------------------------------------------------------------------
+2025-07-19 13:00:27 [i] Initial script      : ./run_configure_host.py
+2025-07-19 13:00:27 [i] Active script       : /home/nije/proton.drive.pch/Active/git.repo/proxmox/host/configure_host.py
+2025-07-19 13:00:27 [i] Config file         : /home/nije/git.local/proxmox-host/host_config.yaml
+2025-07-19 13:00:27 [i] Validation file     : /home/nije/git.local/proxmox-host/host_config_validation.yaml
+2025-07-19 13:00:27 [i] Default logfile     : logs/configure_host.log
+2025-07-19 13:00:27 --------------------------------------------------------------------------------
+2025-07-19 13:00:27 -                                CHECKING FILES                                -
+2025-07-19 13:00:27 --------------------------------------------------------------------------------
+2025-07-19 13:00:27 [✓] host_config.yaml access checks passed
+2025-07-19 13:00:27 [✓] host_config_validation.yaml access checks passed
+2025-07-19 13:00:27 [✓] Configuration validation passed
+2025-07-19 13:00:27 [i] pve_host_ip: set by user
+2025-07-19 13:00:27 [i] pve_hostname: set by user
+2025-07-19 13:00:27 [i] pve_host_reboot: set by user
+2025-07-19 13:00:27 [i] pve_host_username: using default
+2025-07-19 13:00:27 [i] pve_domain: using default
+2025-07-19 13:00:27 [i] pve_sshkey_public: using default
+2025-07-19 13:00:27 [i] pve_iso_urls: using default
+2025-07-19 13:00:27 [i] pve_host_change_pwd: using default
+2025-07-19 13:00:27 [i] pve_host_keyfile: using default
+2025-07-19 13:00:27 --------------------------------------------------------------------------------
+2025-07-19 13:00:27 -                          CHECKING SSH CONNECTIVITY                           -
+2025-07-19 13:00:27 --------------------------------------------------------------------------------
+2025-07-19 13:00:28 [✓] Connected to 192.168.6.3 as root
+2025-07-19 13:00:28 [✓] Closed connection to 192.168.6.3 as root
+2025-07-19 13:00:28 --------------------------------------------------------------------------------
+2025-07-19 13:00:28 -                            CHECKING PROXMOX HOST                             -
+2025-07-19 13:00:28 --------------------------------------------------------------------------------
+2025-07-19 13:00:28 [✓] Connected to 192.168.6.3 as root
+2025-07-19 13:05:15 --------------------------------------------------------------------------------
+2025-07-19 13:05:15 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-19 13:05:15 --------------------------------------------------------------------------------
+2025-07-19 13:05:15 [i] Initial script      : ./run_configure_host.py
+2025-07-19 13:05:15 [i] Active script       : /home/nije/proton.drive.pch/Active/git.repo/proxmox/host/configure_host.py
+2025-07-19 13:05:15 [i] Config file         : /home/nije/git.local/proxmox-host/host_config.yaml
+2025-07-19 13:05:15 [i] Validation file     : /home/nije/git.local/proxmox-host/host_config_validation.yaml
+2025-07-19 13:05:15 [i] Default logfile     : logs/configure_host.log
+2025-07-19 13:05:15 --------------------------------------------------------------------------------
+2025-07-19 13:05:15 -                                CHECKING FILES                                -
+2025-07-19 13:05:15 --------------------------------------------------------------------------------
+2025-07-19 13:05:15 [✓] host_config.yaml access checks passed
+2025-07-19 13:05:15 [✓] host_config_validation.yaml access checks passed
+2025-07-19 13:05:15 [✓] Configuration validation passed
+2025-07-19 13:05:15 [i] pve_host_ip: set by user
+2025-07-19 13:05:15 [i] pve_hostname: set by user
+2025-07-19 13:05:15 [i] pve_host_reboot: set by user
+2025-07-19 13:05:15 [i] pve_host_username: using default
+2025-07-19 13:05:15 [i] pve_domain: using default
+2025-07-19 13:05:15 [i] pve_sshkey_public: using default
+2025-07-19 13:05:15 [i] pve_iso_urls: using default
+2025-07-19 13:05:15 [i] pve_host_change_pwd: using default
+2025-07-19 13:05:15 [i] pve_host_keyfile: using default
+2025-07-19 13:05:15 --------------------------------------------------------------------------------
+2025-07-19 13:05:15 -                          CHECKING SSH CONNECTIVITY                           -
+2025-07-19 13:05:15 --------------------------------------------------------------------------------
+2025-07-19 13:05:16 [✓] Connected to 192.168.6.3 as root
+2025-07-19 13:05:16 [✓] Closed connection to 192.168.6.3 as root
+2025-07-19 13:05:16 --------------------------------------------------------------------------------
+2025-07-19 13:05:16 -                            CHECKING PROXMOX HOST                             -
+2025-07-19 13:05:16 --------------------------------------------------------------------------------
+2025-07-19 13:05:16 [✓] Connected to 192.168.6.3 as root
+2025-07-19 13:05:17 [i] [(True, "Current hostname is correct: 'pve01'")]
+2025-07-19 13:05:17 [✓] Closed connection to 192.168.6.3 as root
+2025-07-19 13:06:20 --------------------------------------------------------------------------------
+2025-07-19 13:06:20 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-19 13:06:20 --------------------------------------------------------------------------------
+2025-07-19 13:06:20 [i] Initial script      : ./run_configure_host.py
+2025-07-19 13:06:20 [i] Active script       : /home/nije/proton.drive.pch/Active/git.repo/proxmox/host/configure_host.py
+2025-07-19 13:06:20 [i] Config file         : /home/nije/git.local/proxmox-host/host_config.yaml
+2025-07-19 13:06:20 [i] Validation file     : /home/nije/git.local/proxmox-host/host_config_validation.yaml
+2025-07-19 13:06:20 [i] Default logfile     : logs/configure_host.log
+2025-07-19 13:06:20 --------------------------------------------------------------------------------
+2025-07-19 13:06:20 -                                CHECKING FILES                                -
+2025-07-19 13:06:20 --------------------------------------------------------------------------------
+2025-07-19 13:06:20 [✓] host_config.yaml access checks passed
+2025-07-19 13:06:20 [✓] host_config_validation.yaml access checks passed
+2025-07-19 13:06:20 [✓] Configuration validation passed
+2025-07-19 13:06:20 [i] pve_host_ip: set by user
+2025-07-19 13:06:20 [i] pve_hostname: set by user
+2025-07-19 13:06:20 [i] pve_host_reboot: set by user
+2025-07-19 13:06:20 [i] pve_host_username: using default
+2025-07-19 13:06:20 [i] pve_domain: using default
+2025-07-19 13:06:20 [i] pve_sshkey_public: using default
+2025-07-19 13:06:20 [i] pve_iso_urls: using default
+2025-07-19 13:06:20 [i] pve_host_change_pwd: using default
+2025-07-19 13:06:20 [i] pve_host_keyfile: using default
+2025-07-19 13:06:20 --------------------------------------------------------------------------------
+2025-07-19 13:06:20 -                          CHECKING SSH CONNECTIVITY                           -
+2025-07-19 13:06:20 --------------------------------------------------------------------------------
+2025-07-19 13:06:20 [✓] Connected to 192.168.6.3 as root
+2025-07-19 13:06:20 [✓] Closed connection to 192.168.6.3 as root
+2025-07-19 13:06:20 --------------------------------------------------------------------------------
+2025-07-19 13:06:20 -                            CHECKING PROXMOX HOST                             -
+2025-07-19 13:06:20 --------------------------------------------------------------------------------
+2025-07-19 13:06:21 [✓] Connected to 192.168.6.3 as root
+2025-07-19 13:08:32 --------------------------------------------------------------------------------
+2025-07-19 13:08:32 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-19 13:08:32 --------------------------------------------------------------------------------
+2025-07-19 13:08:32 [i] Initial script      : ./run_configure_host.py
+2025-07-19 13:08:32 [i] Active script       : /home/nije/proton.drive.pch/Active/git.repo/proxmox/host/configure_host.py
+2025-07-19 13:08:32 [i] Config file         : /home/nije/git.local/proxmox-host/host_config.yaml
+2025-07-19 13:08:32 [i] Validation file     : /home/nije/git.local/proxmox-host/host_config_validation.yaml
+2025-07-19 13:08:32 [i] Default logfile     : logs/configure_host.log
+2025-07-19 13:08:32 --------------------------------------------------------------------------------
+2025-07-19 13:08:32 -                                CHECKING FILES                                -
+2025-07-19 13:08:32 --------------------------------------------------------------------------------
+2025-07-19 13:08:32 [✓] host_config.yaml access checks passed
+2025-07-19 13:08:32 [✓] host_config_validation.yaml access checks passed
+2025-07-19 13:08:32 [✓] Configuration validation passed
+2025-07-19 13:08:32 [i] pve_host_ip: set by user
+2025-07-19 13:08:32 [i] pve_hostname: set by user
+2025-07-19 13:08:32 [i] pve_host_reboot: set by user
+2025-07-19 13:08:32 [i] pve_host_username: using default
+2025-07-19 13:08:32 [i] pve_domain: using default
+2025-07-19 13:08:32 [i] pve_sshkey_public: using default
+2025-07-19 13:08:32 [i] pve_iso_urls: using default
+2025-07-19 13:08:32 [i] pve_host_change_pwd: using default
+2025-07-19 13:08:32 [i] pve_host_keyfile: using default
+2025-07-19 13:08:32 --------------------------------------------------------------------------------
+2025-07-19 13:08:32 -                          CHECKING SSH CONNECTIVITY                           -
+2025-07-19 13:08:32 --------------------------------------------------------------------------------
+2025-07-19 13:08:33 [✓] Connected to 192.168.6.3 as root
+2025-07-19 13:08:33 [✓] Closed connection to 192.168.6.3 as root
+2025-07-19 13:08:33 --------------------------------------------------------------------------------
+2025-07-19 13:08:33 -                            CHECKING PROXMOX HOST                             -
+2025-07-19 13:08:33 --------------------------------------------------------------------------------
+2025-07-19 13:08:33 [✓] Connected to 192.168.6.3 as root
+2025-07-19 13:10:13 --------------------------------------------------------------------------------
+2025-07-19 13:10:13 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-19 13:10:13 --------------------------------------------------------------------------------
+2025-07-19 13:10:13 [i] Initial script      : ./run_configure_host.py
+2025-07-19 13:10:13 [i] Active script       : /home/nije/proton.drive.pch/Active/git.repo/proxmox/host/configure_host.py
+2025-07-19 13:10:13 [i] Config file         : /home/nije/git.local/proxmox-host/host_config.yaml
+2025-07-19 13:10:13 [i] Validation file     : /home/nije/git.local/proxmox-host/host_config_validation.yaml
+2025-07-19 13:10:13 [i] Default logfile     : logs/configure_host.log
+2025-07-19 13:10:13 --------------------------------------------------------------------------------
+2025-07-19 13:10:13 -                                CHECKING FILES                                -
+2025-07-19 13:10:13 --------------------------------------------------------------------------------
+2025-07-19 13:10:13 [✓] host_config.yaml access checks passed
+2025-07-19 13:10:13 [✓] host_config_validation.yaml access checks passed
+2025-07-19 13:10:13 [✓] Configuration validation passed
+2025-07-19 13:10:13 [i] pve_host_ip: set by user
+2025-07-19 13:10:13 [i] pve_hostname: set by user
+2025-07-19 13:10:13 [i] pve_host_reboot: set by user
+2025-07-19 13:10:13 [i] pve_host_username: using default
+2025-07-19 13:10:13 [i] pve_domain: using default
+2025-07-19 13:10:13 [i] pve_sshkey_public: using default
+2025-07-19 13:10:13 [i] pve_iso_urls: using default
+2025-07-19 13:10:13 [i] pve_host_change_pwd: using default
+2025-07-19 13:10:13 [i] pve_host_keyfile: using default
+2025-07-19 13:10:13 --------------------------------------------------------------------------------
+2025-07-19 13:10:13 -                          CHECKING SSH CONNECTIVITY                           -
+2025-07-19 13:10:13 --------------------------------------------------------------------------------
+2025-07-19 13:10:13 [✓] Connected to 192.168.6.3 as root
+2025-07-19 13:10:13 [✓] Closed connection to 192.168.6.3 as root
+2025-07-19 13:10:13 --------------------------------------------------------------------------------
+2025-07-19 13:10:13 -                            CHECKING PROXMOX HOST                             -
+2025-07-19 13:10:13 --------------------------------------------------------------------------------
+2025-07-19 13:10:14 [✓] Connected to 192.168.6.3 as root
+2025-07-19 13:10:14 [i] Current hostname is correct: 'pve01'
+2025-07-19 13:10:14 [✓] Closed connection to 192.168.6.3 as root
+2025-07-19 13:10:30 --------------------------------------------------------------------------------
+2025-07-19 13:10:30 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-19 13:10:30 --------------------------------------------------------------------------------
+2025-07-19 13:10:30 [i] Initial script      : ./run_configure_host.py
+2025-07-19 13:10:30 [i] Active script       : /home/nije/proton.drive.pch/Active/git.repo/proxmox/host/configure_host.py
+2025-07-19 13:10:30 [i] Config file         : /home/nije/git.local/proxmox-host/host_config.yaml
+2025-07-19 13:10:30 [i] Validation file     : /home/nije/git.local/proxmox-host/host_config_validation.yaml
+2025-07-19 13:10:30 [i] Default logfile     : logs/configure_host.log
+2025-07-19 13:10:30 --------------------------------------------------------------------------------
+2025-07-19 13:10:30 -                                CHECKING FILES                                -
+2025-07-19 13:10:30 --------------------------------------------------------------------------------
+2025-07-19 13:10:30 [✓] host_config.yaml access checks passed
+2025-07-19 13:10:30 [✓] host_config_validation.yaml access checks passed
+2025-07-19 13:10:30 [✓] Configuration validation passed
+2025-07-19 13:10:30 [i] pve_host_ip: set by user
+2025-07-19 13:10:30 [i] pve_hostname: set by user
+2025-07-19 13:10:30 [i] pve_host_reboot: set by user
+2025-07-19 13:10:30 [i] pve_host_username: using default
+2025-07-19 13:10:30 [i] pve_domain: using default
+2025-07-19 13:10:30 [i] pve_sshkey_public: using default
+2025-07-19 13:10:30 [i] pve_iso_urls: using default
+2025-07-19 13:10:30 [i] pve_host_change_pwd: using default
+2025-07-19 13:10:30 [i] pve_host_keyfile: using default
+2025-07-19 13:10:30 --------------------------------------------------------------------------------
+2025-07-19 13:10:30 -                          CHECKING SSH CONNECTIVITY                           -
+2025-07-19 13:10:30 --------------------------------------------------------------------------------
+2025-07-19 13:10:31 [✓] Connected to 192.168.6.3 as root
+2025-07-19 13:10:31 [✓] Closed connection to 192.168.6.3 as root
+2025-07-19 13:10:31 --------------------------------------------------------------------------------
+2025-07-19 13:10:31 -                            CHECKING PROXMOX HOST                             -
+2025-07-19 13:10:31 --------------------------------------------------------------------------------
+2025-07-19 13:10:31 [✓] Connected to 192.168.6.3 as root
+2025-07-19 13:11:24 [i] Change hostname - done
+2025-07-19 13:11:24 [✓] Closed connection to 192.168.6.3 as root
+2025-07-19 13:15:08 --------------------------------------------------------------------------------
+2025-07-19 13:15:08 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-19 13:15:08 --------------------------------------------------------------------------------
+2025-07-19 13:15:08 [i] Initial script      : ./run_configure_host.py
+2025-07-19 13:15:08 [i] Active script       : /home/nije/proton.drive.pch/Active/git.repo/proxmox/host/configure_host.py
+2025-07-19 13:15:08 [i] Config file         : /home/nije/git.local/proxmox-host/host_config.yaml
+2025-07-19 13:15:08 [i] Validation file     : /home/nije/git.local/proxmox-host/host_config_validation.yaml
+2025-07-19 13:15:08 [i] Default logfile     : logs/configure_host.log
+2025-07-19 13:15:08 --------------------------------------------------------------------------------
+2025-07-19 13:15:08 -                                CHECKING FILES                                -
+2025-07-19 13:15:08 --------------------------------------------------------------------------------
+2025-07-19 13:15:08 [✓] host_config.yaml access checks passed
+2025-07-19 13:15:08 [✓] host_config_validation.yaml access checks passed
+2025-07-19 13:15:08 [✓] Configuration validation passed
+2025-07-19 13:15:08 [i] pve_host_ip: set by user
+2025-07-19 13:15:08 [i] pve_hostname: set by user
+2025-07-19 13:15:08 [i] pve_host_reboot: set by user
+2025-07-19 13:15:08 [i] pve_host_username: using default
+2025-07-19 13:15:08 [i] pve_domain: using default
+2025-07-19 13:15:08 [i] pve_sshkey_public: using default
+2025-07-19 13:15:08 [i] pve_iso_urls: using default
+2025-07-19 13:15:08 [i] pve_host_change_pwd: using default
+2025-07-19 13:15:08 [i] pve_host_keyfile: using default
+2025-07-19 13:15:08 --------------------------------------------------------------------------------
+2025-07-19 13:15:08 -                          CHECKING SSH CONNECTIVITY                           -
+2025-07-19 13:15:08 --------------------------------------------------------------------------------
+2025-07-19 13:15:08 [✓] Connected to 192.168.6.3 as root
+2025-07-19 13:15:08 [✓] Closed connection to 192.168.6.3 as root
+2025-07-19 13:15:08 --------------------------------------------------------------------------------
+2025-07-19 13:15:08 -                            CHECKING PROXMOX HOST                             -
+2025-07-19 13:15:08 --------------------------------------------------------------------------------
+2025-07-19 13:15:09 [✓] Connected to 192.168.6.3 as root
+2025-07-19 13:16:07 [i] Change hostname - done
+2025-07-19 13:16:07 [✓] Closed connection to 192.168.6.3 as root

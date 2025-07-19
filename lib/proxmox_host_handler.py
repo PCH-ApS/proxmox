@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 from lib.ssh_handler import SSHConnection
+from lib.output_handler import OutputHandler
 import shlex
 import re
-# import time
-# import paramiko
+import time
+import socket
 
 
 class ProxmoxHost:
@@ -19,6 +20,7 @@ class ProxmoxHost:
         self.username = username
         self.domain = domain
         self.ssh = SSHConnection(host, username, password, key_filename)
+        self.Output = OutputHandler()
 
     def connect(self):
         success, message = self.ssh.connect()
@@ -52,11 +54,11 @@ class ProxmoxHost:
 
     def is_folder_empty(self, folder_path):
         command = f'ls -A {folder_path}'
-        empty_messege = self.ssh.run(command)
-        if empty_messege['exit_code'] != 0:
-            return False, empty_messege['stderr']
+        empty_message = self.ssh.run(command)
+        if empty_message['exit_code'] != 0:
+            return False, empty_message['stderr']
         else:
-            if len(empty_messege['stdout'].strip()) == 0:
+            if len(empty_message['stdout'].strip()) == 0:
                 return True, "Folder is empty"
             else:
                 return False, "Folder is not empty"
@@ -107,33 +109,34 @@ class ProxmoxHost:
             ip_address,
             domain,
             hostfile,
-            default_folders
+            default_folders,
+            host_reboot
             ):
 
         host_output = []
 
-        correct_flag, correct_messege, current_hostname = (
+        correct_flag, correct_message, current_hostname = (
             self.is_hostname_correct(new_hostname)
         )
         if correct_flag:
-            host_output.append((True, f"{correct_messege}"))
-            return host_output
+            host_output.append((True, f"{correct_message}"))
+            return host_output[0][1]
         else:
-            host_output.append((False, f"{correct_messege}"))
+            host_output.append((False, f"{correct_message}"))
 
         all_empty = True
         for folderpath in default_folders:
-            folder_flag, folder_messege = self.is_folder_empty(folderpath)
+            folder_flag, folder_message = self.is_folder_empty(folderpath)
             if not folder_flag:
                 all_empty = False
-                host_output.append((False, f"{folder_messege}: {folderpath}"))
+                host_output.append((False, f"{folder_message}: {folderpath}"))
             else:
-                host_output.append((True, f"{folder_messege}: {folderpath}"))
+                host_output.append((True, f"{folder_message}: {folderpath}"))
 
         if not all_empty:
             return host_output
 
-        add_flag, add_messege = self.add_to_file(
+        add_flag, add_message = self.add_to_file(
                 content=(
                     f"{ip_address} "
                     f"{new_hostname}.{domain} "
@@ -142,12 +145,12 @@ class ProxmoxHost:
                 file_path=hostfile
             )
         if not add_flag:
-            host_output.append((False, f"{add_messege}"))
+            host_output.append((False, f"{add_message}"))
             return host_output
 
-        host_output.append((True, f"{add_messege}"))
+        host_output.append((True, f"{add_message}"))
 
-        remove_flag, remove_messege = self.remove_line_with_content(
+        remove_flag, remove_message = self.remove_line_with_content(
             content=(
                 f"{ip_address} "
                 f"{current_hostname}.{domain} "
@@ -156,16 +159,62 @@ class ProxmoxHost:
             file_path=hostfile
         )
         if not remove_flag:
-            host_output.append((False, f"{remove_messege}"))
+            host_output.append((False, f"{remove_message}"))
             return host_output
 
-        host_output.append((True, f"{remove_messege}"))
+        host_output.append((True, f"{remove_message}"))
 
-        set_flag, set_messege = self.set_hostname(new_hostname)
+        set_flag, set_message = self.set_hostname(new_hostname)
         if not set_flag:
-            host_output.append((False, f"{set_messege}"))
+            host_output.append((False, f"{set_message}"))
             return host_output
 
-        host_output.append((True, f"{set_messege}"))
+        host_output.append((True, f"{set_message}"))
 
-        return host_output
+        for host_line in host_output:
+            self.Output.output(host_line[1], type="s" if host_line[0] else "e")
+
+        if host_reboot:
+            reboot_flag, reboot_message = (
+                self.reboot_and_reconnect(wait_time=10, timeout=180)
+                )
+            self.Output.output(
+                f"{reboot_message}",
+                type="s" if reboot_flag else "e"
+            )
+        else:
+            self.Output.output(
+                (True, "Reboot flag set to NOT reboot Proxmox host"))
+
+        return "Change hostname - done"
+
+    def reboot_and_reconnect(self, wait_time=10, timeout=180):
+        result = self.ssh.run("reboot")
+        if result['exit_code'] != 0:
+            return False, "Failed to send reboot command"
+
+        self.ssh.close()
+
+        self.Output.output("Waiting for host to reboot...", "i")
+        time.sleep(wait_time)
+
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            try:
+                # Try to open a raw socket to port 22
+                sock = socket.create_connection((self.host, 22), timeout=5)
+                sock.close()
+
+                # 4. Try reconnecting via SSH
+                self.Output.output(
+                    "SSH port is open, trying to reconnect...", "i"
+                    )
+                success, message = self.ssh.connect()
+                if success:
+                    return True, "Reconnected successfully after reboot"
+            except (OSError, socket.error):
+                pass
+
+            time.sleep(5)
+
+        return False, f"Failed to reconnect within {timeout} seconds"
