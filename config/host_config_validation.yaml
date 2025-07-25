@@ -68,6 +68,13 @@ pve_iso_urls:
     # Validates URLs for ISO images
     # Allows http, https, and ftp protocols
 
+pve_iso_path:
+  type: string
+  required: false
+  default: '/var/lib/vz/template/iso'
+  regex: '^\/([a-zA-Z0-9._+-]+\/)*[a-zA-Z0-9._+-]+$'
+  # Path to Promox ISO folder
+  
 pve_host_change_pwd:
   type: boolean
   default: false

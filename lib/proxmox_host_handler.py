@@ -6,6 +6,7 @@ import re
 import time
 import socket
 import datetime
+import getpass
 
 
 class ProxmoxHost:
@@ -557,3 +558,259 @@ class ProxmoxHost:
                 return return_value
 
         return return_value
+
+    def check_pve_no_subscribtion(self):
+        while True:
+            command = (
+                'grep -q "^deb .*pve-no-subscription" '
+                '/etc/apt/sources.list && echo "enabled"'
+            )
+            result = self.ssh.run(command)
+            if result['stdout'].strip() == "enabled":
+                self.Output.output(
+                    "pve-no-subscription repository is enabled.",
+                    "s"
+                )
+                return
+
+            command = (
+                'grep -q "^# deb .*pve-no-subscription" '
+                '/etc/apt/sources.list && echo "commented"'
+            )
+            result = self.ssh.run(command)
+            if result['stdout'].strip() == "commented":
+                self.Output.output(
+                    "pve-no-subscription repository is found "
+                    "but not enabled. Enabling it now...",
+                    "w"
+                )
+
+                command = (
+                    "sed -i 's/^# deb \\(.*pve-no-subscription\\)/deb \\1/' "
+                    "/etc/apt/sources.list"
+                )
+                result = self.ssh.run(command)
+                if result['exit_code'] == 0:
+                    continue
+                else:
+                    self.Output.output(
+                        "Error enabling pve-no-subscription repository.",
+                        "e"
+                    )
+                    return
+
+            self.Output.output(
+                "pve-no-subscription repository is not found. "
+                "Adding it now...",
+                "w"
+            )
+            http_str = "deb http://download.proxmox.com/debian/pve "
+            pve_no = "bookworm pve-no-subscription"
+            command = (
+                'echo '
+                f'"{http_str} {pve_no}"'
+                ' | tee -a /etc/apt/sources.list'
+            )
+            result = self.ssh.run(command)
+            if result['exit_code'] == 0:
+                continue
+
+            else:
+                self.Output.output(
+                    "Error adding pve-no-subscription repository"
+                    " to /etc/apt/sources.list.",
+                    "e"
+                )
+                return
+
+    def check_pve_enterprise(self):
+        while True:
+            command = (
+                'grep -q "^deb .*bookworm pve-enterprise" '
+                '/etc/apt/sources.list.d/pve-enterprise.list '
+                '&& echo "enabled" || echo "disabled"'
+            )
+            result = self.ssh.run(command)
+            if result['stdout'].strip() == "disabled":
+                self.Output.output(
+                    "pve-enterprise repository is disabled.",
+                    "s"
+                )
+                return
+
+            if result['stdout'].strip() == "enabled":
+                self.Output.output(
+                    "pve-enterprise repository is enabled. "
+                    "Disabling it now...",
+                    "w"
+                )
+
+                command = (
+                    r"sed -i 's/^\(deb .*bookworm pve-enterprise\)/# \1/' "
+                    r"/etc/apt/sources.list.d/pve-enterprise.list"
+                )
+                result = self.ssh.run(command)
+                if result['exit_code'] == 0:
+                    continue
+                else:
+                    self.Output.output(
+                        "Error disabling pve-enterprise repository.",
+                        "e"
+                    )
+                    return
+
+    def check_pve_ceph(self):
+        while True:
+            command = (
+                'grep -q "^deb .*ceph-quincy bookworm enterprise" '
+                '/etc/apt/sources.list.d/ceph.list && '
+                'echo "enabled" || echo "disabled"'
+            )
+            result = self.ssh.run(command)
+            if result['stdout'].strip() == "disabled":
+                self.Output.output(
+                    "pve-ceph repository is disabled.",
+                    "s"
+                )
+                return
+
+            if result['stdout'].strip() == "enabled":
+                self.Output.output(
+                    "pve-ceph repository is enabled. "
+                    "Disabling it now...",
+                    "w"
+                )
+
+                command = (
+                    r"sed -i 's/^\(deb .*bookworm enterprise\)/# \1/' "
+                    r"/etc/apt/sources.list.d/ceph.list"
+                    )
+                result = self.ssh.run(command)
+                if result['exit_code'] == 0:
+                    continue
+                else:
+                    self.Output.output(
+                        "Error disabling pve-ceph repository.",
+                        "e"
+                    )
+                    return
+
+    def check_pve_pve_no_subscription_patch(self):
+        file_path = '/usr/share/perl5/PVE/API2/Subscription.pm'
+        find_str = 'NotFound'
+        replace_str = 'Active'
+
+        while True:
+            command = (
+                f'test -f "{file_path}" && echo "exists" '
+                '|| echo "not_exists"'
+            )
+            result = self.ssh.run(command)
+            if result['stdout'].strip() == "not_exists":
+                self.Output.output(
+                    (
+                        f"pve-no-subscription patch error: {file_path} "
+                        "does not exist! Are you sure this is PVE?"
+                    ),
+                    "e"
+                )
+                return
+
+            # File exists
+            command = (
+                f'grep -i "{find_str}" "{file_path}" >/dev/null && '
+                'echo "found" || echo "not_found"'
+            )
+            result = self.ssh.run(command)
+            if result['stdout'].strip() == "not_found":
+                self.Output.output(
+                    "pve-no-subscription patch already applied.",
+                    "s"
+                )
+                return
+
+            if result['stdout'].strip() == "found":
+                command = (
+                    f'sed -i "s/{find_str}/{replace_str}/gi" "{file_path}"'
+                )
+                result = self.ssh.run(command)
+                if result['exit_code'] == 0:
+                    self.Output.output(
+                        "pve-no-subscription patch has been applied.",
+                        "s"
+                    )
+                    self.ssh.run("systemctl restart pvedaemon")
+                    self.ssh.run("systemctl restart pveproxy")
+                    return
+                else:
+                    self.Output.output(
+                        "Error applying pve-no-subscription patch.",
+                        "e"
+                    )
+                    return
+
+    def download_iso_files(self, v_config):
+        path = v_config['pve_iso_path']
+        command = f"mkdir -p {path}"
+        result = self.ssh.run(command)
+        if result['exit_code'] != 0:
+            self.Output.output(
+                f"Error creating: {path}",
+                "e"
+            )
+            return
+
+        if result['exit_code'] == 0:
+            urls = v_config['pve_iso_urls']
+            for url in urls:
+                iso_filename = url.split('/')[-1]
+                iso_filepath = f"{path}/{iso_filename}"
+                command = (
+                        f"test -f {iso_filepath} && "
+                        "echo 'exists' || echo 'not_exists'"
+                    )
+                result = self.ssh.run(command)
+                if result['stdout'].strip() == "exists":
+                    self.Output.output(
+                        f"{iso_filename} already exists, skipping download.",
+                        "s"
+                    )
+                if result['stdout'].strip() == "not_exists":
+                    self.Output.output(
+                        f"Downloading {iso_filename}",
+                        "i"
+                    )
+                    command = f"wget -q -P {path} {url}"
+                    result = self.ssh.run(command)
+                    if result['exit_code'] == 0:
+                        self.Output.output(
+                            f"{iso_filename} downloaded",
+                            "s"
+                        )
+
+                    if result['exit_code'] != 0:
+                        self.Output.output(
+                            f"Error downloading {iso_filename}",
+                            "e"
+                        )
+
+    def change_pwd(self, v_config):
+        pwd1 = getpass.getpass("Enter new root password: ")
+        pwd2 = getpass.getpass("Confirm new root password: ")
+
+        if pwd1 != pwd2:
+            self.Output.output("Passwords do not match. Aborting.", "e")
+            return
+
+        if not pwd1:
+            self.Output.output("Empty password is not allowed.", "e")
+            return
+
+        user = v_config['pve_host_username']
+        command = f"echo {shlex.quote(f'{user}:{pwd1}')} | chpasswd"
+        result = self.ssh.run(command)
+
+        if result['exit_code'] == 0:
+            self.Output.output("Root password changed successfully.", "s")
+        else:
+            self.Output.output("Failed to change root password!", "e")

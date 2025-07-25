@@ -581,7 +581,7 @@ def set_pve_no_subscription(ssh, values):
                 command = (
                     'echo '
                     f'"{http_str} {pve_no}"'
-                    ' | tee -a /etc/apt/sources.list > /dev/null'
+                    ' | tee -a /etc/apt/sources.list >> /dev/null'
                 )
                 functions.execute_ssh_command(
                     ssh,

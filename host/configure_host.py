@@ -174,5 +174,28 @@ def main():
             "e"
         )
 
+    output.output()
+    output.output("Checking Proxmox repository settings", type="h")
+    output.output()
+    host.check_pve_no_subscribtion()
+    host.check_pve_enterprise()
+    host.check_pve_ceph()
+    host.check_pve_pve_no_subscription_patch()
+
+    output.output()
+    output.output("Downloading ISO files", type="h")
+    output.output()
+    host.download_iso_files(v_config)
+
+    if v_config['pve_host_change_pwd']:
+        output.output()
+        output.output("Root password change", type="h")
+        output.output()
+        host.change_pwd(v_config)
+
+    output.output()
+    output.output("Closing SSH", type="h")
+    output.output()
     flag, message = host.close()
     output.output(message, type="s" if flag else "e", exit_on_error=not flag)
+    output.output()
