@@ -5,6 +5,7 @@ import shlex
 import re
 import time
 import socket
+import datetime
 
 
 class ProxmoxHost:
@@ -14,13 +15,14 @@ class ProxmoxHost:
             username,
             password=None,
             key_filename=None,
-            domain=None
+            domain=None,
+            logfile=None
             ):
         self.host = host
         self.username = username
         self.domain = domain
         self.ssh = SSHConnection(host, username, password, key_filename)
-        self.Output = OutputHandler()
+        self.Output = OutputHandler(logfile)
 
     def connect(self):
         success, message = self.ssh.connect()
@@ -218,3 +220,340 @@ class ProxmoxHost:
             time.sleep(5)
 
         return False, f"Failed to reconnect within {timeout} seconds"
+
+    def get_active_sshd_config(self):
+        result = self.ssh.run('sshd -T')
+        if result['exit_code'] != 0:
+            return []
+        active_sshd_config = result['stdout'].splitlines()
+        active_sshd_dict = {}
+        for line in active_sshd_config:
+            parts = line.strip().split(None, 1)
+            if len(parts) == 2:
+                key, value = parts
+                active_sshd_dict[key] = value
+        return active_sshd_dict
+
+    def get_missing_sshd_keys(self, active_config, desired_config):
+        missing = []
+        prefix = desired_config['pve_key_prefix']
+        for v_key in desired_config:
+
+            if not v_key.startswith(f"{prefix}"):
+                if not v_key.lower() in active_config:
+                    missing.append(v_key)
+
+        return missing
+
+    def get_wrong_value_sshd_keys(self, active_config, desired_config):
+        wrong = []
+        prefix = desired_config['pve_key_prefix']
+        for v_key, desired_value in desired_config.items():
+
+            if not v_key.startswith(f"{prefix}"):
+                active_value = active_config.get(v_key.lower())
+                if active_value is not None:
+                    if str(desired_value).lower() != str(active_value).lower():
+                        wrong.append(v_key)
+
+        return wrong
+
+    def resolve_wildcard_path(self, path):
+        command = f"ls -1 {path}"
+        result = self.ssh.run(command)
+
+        if result['exit_code'] != 0:
+            return False, []
+
+        resolved_paths = result['stdout'].splitlines()
+        return True, resolved_paths
+
+    def search_configfile(self, searchstring, path):
+        actual_paths = []
+        command = (
+            f"grep -i {shlex.quote(searchstring)} {shlex.quote(path)}"
+            )
+        result = self.ssh.run(command)
+        if result['exit_code'] != 0:
+            return []
+
+        config_lines = result['stdout'].splitlines()
+        included_paths = []
+        for line in config_lines:
+            # Naive way: split on whitespace, take everything after "Include"
+            tokens = line.strip().split()
+            if len(tokens) > 1 and tokens[0].lower() == searchstring.lower():
+                included_paths.append(tokens[1])
+
+        for path in included_paths:
+            if "*" in path:
+                success, files = self.resolve_wildcard_path(path)
+                if success:
+                    actual_paths.extend(files)
+                else:
+                    actual_paths.append(path)
+
+        return actual_paths
+
+    def get_all_config_files(self, v_config):
+        visited = set()
+        config_files = []
+        config_files.append(v_config['pve_sshd_config_path'])
+
+        while config_files:
+            current = config_files.pop()
+            if current not in visited:
+                included = self.search_configfile(
+                    v_config['pve_sshd_searchstring'],
+                    current
+                    )
+                if not len(included) == 0:
+                    config_files.extend(included)
+
+                visited.add(current)
+
+        return visited
+
+    def comment_out_param_in_file(self, param, path):
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_path = f"{path}.{timestamp}.bak"
+
+        copy_cmd = f"cp {shlex.quote(path)} {shlex.quote(backup_path)}"
+        self.ssh.run(copy_cmd)
+
+        cmd = f"sed -i '/^{shlex.quote(param)}\\b/ s/^/#/' {shlex.quote(path)}"
+        result = self.ssh.run(cmd)
+        return result['exit_code'] == 0
+
+    def is_param_explicitly_set(self, param, filepath):
+        # grep_cmd = f"grep -i '^{param}\\b' {shlex.quote(filepath)}"
+        grep_cmd = (
+            f"grep -i '^[[:space:]]*{param}\\b' {shlex.quote(filepath)} "
+            "| grep -v '^[[:space:]]*#'"
+        )
+        result = self.ssh.run(grep_cmd)
+        return result['exit_code'] == 0 and result['stdout'].strip() != ''
+
+    def append_custom_sshd_file(self, missing, v_config):
+        lines = []
+        path = v_config['pve_sshd_custom_config']
+        for param in missing:
+            param_value = v_config[f"{param}"]
+            line = f"{param} {param_value}"
+            lines.append(line)
+        content = "\n".join(lines) + "\n"
+        command = f'echo {shlex.quote(content)} >> {shlex.quote(path)}'
+        return self.ssh.run(command)['exit_code'] == 0
+
+    def check_sshd_config(self, v_config):
+        return_value = "success"
+        sshd_files = self.get_all_config_files(v_config)
+        if len(sshd_files) > 0:
+            for file in sshd_files:
+                self.Output.output(
+                    f"SSHD config file found: '{file}'",
+                    "i"
+                )
+        else:
+            self.Output.output(
+                "No SSHD config file found",
+                "e"
+            )
+            return_value = "error"
+            return return_value
+
+        active_config_dict = self.get_active_sshd_config()
+        if len(active_config_dict) > 0:
+            self.Output.output(
+                "Retriving active SSHD config (sshd -T)",
+                "i"
+            )
+        else:
+            self.Output.output(
+                "Error retriving active SSHD config",
+                "e"
+            )
+            return_value = "error"
+            return return_value
+
+        missing = self.get_missing_sshd_keys(active_config_dict, v_config)
+        missing_set = set()
+        if len(missing) > 0:
+            for missing_param in missing:
+                missing_set.add(missing_param)
+                self.Output.output(
+                    f"Missing key: '{missing_param}'",
+                    "i"
+                )
+        else:
+            self.Output.output(
+                "No missing keys found in SSHD config",
+                "i"
+            )
+
+        wrong = (
+            self.get_wrong_value_sshd_keys(active_config_dict, v_config)
+        )
+        wrong_set = set()
+        if len(wrong) > 0:
+            for wrong_param in wrong:
+                wrong_set.add(wrong_param)
+                self.Output.output(
+                    f"Wrong value in key: '{wrong_param}'",
+                    "i"
+                )
+        else:
+            self.Output.output(
+                "No wrong keys found in SSHD config",
+                "i"
+            )
+
+        if len(wrong) > 0:
+            explicit_keys = []
+            implicit_keys = []
+            for param in wrong:
+                explicit_set = []
+                for file in sshd_files:
+                    if self.is_param_explicitly_set(param, file):
+                        explicit_set.append((param, file))
+
+                if len(explicit_set) > 0:
+                    explicit_keys.extend(explicit_set)
+                else:
+                    implicit_keys.append(param)
+
+            if len(explicit_keys) > 0:
+                for key in explicit_keys:
+                    e_key, e_path = key
+                    self.Output.output(
+                        f"Explicit set key: '{e_key}' in '{e_path}'",
+                        "i"
+                    )
+            else:
+                self.Output.output(
+                    "No explicit set keys in SSHD config",
+                    "i"
+                )
+
+            if len(implicit_keys) > 0:
+                for key in implicit_keys:
+                    self.Output.output(
+                        f"Implicit set key: '{key}'",
+                        "i"
+                    )
+            else:
+                self.Output.output(
+                    "No implicit set keys in SSHD config",
+                    "i"
+                )
+
+            if len(explicit_keys) > 0:
+                for key in explicit_keys:
+                    e_key, e_path = key
+                    success = self.comment_out_param_in_file(e_key, e_path)
+                    if success:
+                        self.Output.output(
+                            (
+                                "Commented out explicit key: "
+                                f"'{e_key}' in '{e_path}'"
+                            ),
+                            "s"
+                        )
+                        self.Output.output(
+                            (
+                                f"Adding '{e_key}' to missing list"
+                            ),
+                            "s"
+                        )
+                        missing_set.add(e_key)
+                    else:
+                        self.Output.output(
+                            (
+                                "Error commenting out explicit key: "
+                                f"'{e_key}' in "
+                                f"'{v_config['pve_sshd_config_path']}'"
+                            ),
+                            "e"
+                        )
+
+            if len(implicit_keys) > 0:
+                for im_key in implicit_keys:
+                    self.Output.output(
+                        (
+                            f"Adding impllicit key '{im_key}' to missing list"
+                        ),
+                        "s"
+                        )
+                    missing_set.add(im_key)
+
+        if len(missing_set) > 0:
+            for m_key in missing_set:
+                self.Output.output(
+                        f"Missing key: '{m_key}'",
+                        "i"
+                    )
+
+            missing = list(missing_set)
+            success = self.append_custom_sshd_file(
+                    missing,
+                    v_config
+                )
+            if success:
+                self.Output.output(
+                    "Appended missing keys to custom config: "
+                    f"'{v_config['pve_sshd_custom_config']}'",
+                    "s"
+                )
+                return_value = "check"
+                return return_value
+            else:
+                self.Output.output("Failed to append missing keys", "e")
+                return_value = "error"
+                return return_value
+
+            sshd_files = self.get_all_config_files(v_config)
+            if v_config['pve_sshd_custom_config'] not in sshd_files:
+                include_cmd = (
+                    "echo Include "
+                    f"{shlex.quote(v_config['pve_sshd_custom_config'])} "
+                    ">> "
+                    f"{shlex.quote(v_config['pve_sshd_config_path'])}"
+                )
+                success = self.ssh.run(include_cmd)['exit_code'] == 0
+                if success:
+                    self.Output.output(
+                        "Included custom config in "
+                        f"'{v_config['pve_sshd_config_path']}'",
+                        "s"
+                    )
+                else:
+                    self.Output.output(
+                        "Custom config file NOT included in "
+                        f"'{v_config['pve_sshd_config_path']}'",
+                        "e"
+                    )
+                    return_value = "error"
+                    return return_value
+            else:
+                self.Output.output(
+                    "Custom config file already part of existing 'Include'"
+                    " statements'",
+                    "s"
+                )
+
+            reload_cmd = "systemctl reload sshd"
+            success = self.ssh.run(reload_cmd)['exit_code'] == 0
+            if success:
+                self.Output.output(
+                    "SHHD confing reloaded",
+                    "s"
+                )
+            else:
+                self.Output.output(
+                    "Failed to reload SSHD config",
+                    "e"
+                )
+                return_value = "error"
+                return return_value
+
+        return return_value

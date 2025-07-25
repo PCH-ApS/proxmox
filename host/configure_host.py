@@ -8,13 +8,10 @@ from lib.output_handler import OutputHandler
 from lib.check_files_handler import CheckFiles
 from lib.yaml_config_loader import LoaderNoDuplicates
 from cerberus import Validator
-from lib.ssh_handler import SSHConnection
 from lib.proxmox_host_handler import ProxmoxHost
 
 DEFAULT_YAML_VALIDATION_FILE = "config/host_config_validation.yaml"
 DEFAULT_LOGFILE = "logs/configure_host.log"
-DEFAULT_HOSTFILE = "/etc/hosts"
-
 output = OutputHandler(DEFAULT_LOGFILE)
 
 
@@ -90,7 +87,7 @@ def validate_config(config, validation_rules):
         return validator.document
 
 
-def run():
+def main():
     args = parse_args()
     this_script = os.path.abspath(__file__)
 
@@ -106,39 +103,28 @@ def run():
     output.output("Checking files", type="h")
     output.output()
 
+    # Check config files
     check_files(args.config_file)
     check_files(args.validation_file)
     config_values = load_yaml_file(args.config_file)
     validation_rules = load_yaml_file(args.validation_file)
     v_config = validate_config(config_values, validation_rules)
+
+    # Format key for display
+    max_key_len = max(len(key) for key in v_config)
     for key in v_config:
-        if key in config_values:
-            output.output(f"{key}: set by user", type="i")
-        else:
-            output.output(f"{key}: using default", type="i")
+        label = "set by user" if key in config_values else "using default"
+        output.output(f"{key.ljust(max_key_len + 1)}: {label}", type="i")
 
     output.output()
     output.output("Checking SSH connectivity", type="h")
-    output.output()
-
-    ssh = SSHConnection(
-        host=v_config["pve_host_ip"],
-        username=v_config["pve_host_username"],
-        key_filename=v_config["pve_host_keyfile"],
-        )
-    flag, message = ssh.connect()
-    output.output(message, type="s" if flag else "e", exit_on_error=not flag)
-    flag, message = ssh.close()
-    output.output(message, type="s" if flag else "e", exit_on_error=not flag)
-
-    output.output()
-    output.output("Checking Proxmox host", type="h")
     output.output()
 
     host = ProxmoxHost(
         host=v_config["pve_host_ip"],
         username=v_config["pve_host_username"],
         key_filename=v_config["pve_host_keyfile"],
+        logfile=DEFAULT_LOGFILE
     )
     connect_flag, connect_message = host.connect()
     output.output(
@@ -147,22 +133,46 @@ def run():
         exit_on_error=not connect_flag
         )
 
+    output.output()
+    output.output("Checking Proxmox hostname", type="h")
+    output.output()
+
     current_hostname = host.get_hostname()
     DEFAULT_FOLDERS = [
         f"/etc/pve/nodes/{current_hostname[1]}/lxc",
         f"/etc/pve/nodes/{current_hostname[1]}/qemu-server",
-    ]
-    file_path = DEFAULT_HOSTFILE
+        ]
     host_message = host.change_hostname(
         v_config["pve_hostname"],
         v_config['pve_host_ip'],
         v_config["pve_domain"],
-        file_path,
+        v_config['pve_host_file'],
         DEFAULT_FOLDERS,
         v_config["pve_host_reboot"]
-    )
-
+        )
     output.output(host_message, type="i")
+
+    output.output()
+    output.output("Checking Proxmox sshd config", type="h")
+    output.output()
+
+    success = host.check_sshd_config(v_config)
+    if success == "check":
+        output.output(
+            "Rechecking SSHD config",
+            "i"
+        )
+        sshd_success = host.check_sshd_config(v_config)
+        if len(sshd_success) == 0:
+            output.output(
+                "SSHD config check ended with errors",
+                "e"
+            )
+    if success == "error":
+        output.output(
+            "SSHD config check ended with errors",
+            "e"
+        )
 
     flag, message = host.close()
     output.output(message, type="s" if flag else "e", exit_on_error=not flag)
