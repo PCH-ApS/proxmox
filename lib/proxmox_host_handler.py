@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from lib.ssh_handler import SSHConnection
-from lib.output_handler import OutputHandler
+# from lib.output_handler import OutputHandler
+# from lib.proxmox_common import ProxmoxCommon
 import shlex
 import re
 import time
@@ -23,7 +24,7 @@ class ProxmoxHost:
         self.username = username
         self.domain = domain
         self.ssh = SSHConnection(host, username, password, key_filename)
-        self.Output = OutputHandler(logfile)
+        # self.Output = OutputHandler(logfile)
 
     def connect(self):
         success, message = self.ssh.connect()
@@ -113,7 +114,6 @@ class ProxmoxHost:
             domain,
             hostfile,
             default_folders,
-            host_reboot
             ):
 
         host_output = []
@@ -122,19 +122,23 @@ class ProxmoxHost:
             self.is_hostname_correct(new_hostname)
         )
         if correct_flag:
-            host_output.append((True, f"{correct_message}"))
-            return host_output[0][1]
+            host_output.append((True, f"{correct_message}", "s"))
+            return host_output
         else:
-            host_output.append((False, f"{correct_message}"))
+            host_output.append((False, f"{correct_message}", "e"))
 
         all_empty = True
         for folderpath in default_folders:
             folder_flag, folder_message = self.is_folder_empty(folderpath)
             if not folder_flag:
                 all_empty = False
-                host_output.append((False, f"{folder_message}: {folderpath}"))
+                host_output.append(
+                    (False, f"{folder_message}: {folderpath}", "e")
+                    )
             else:
-                host_output.append((True, f"{folder_message}: {folderpath}"))
+                host_output.append(
+                    (True, f"{folder_message}: {folderpath}", "s")
+                    )
 
         if not all_empty:
             return host_output
@@ -148,10 +152,10 @@ class ProxmoxHost:
                 file_path=hostfile
             )
         if not add_flag:
-            host_output.append((False, f"{add_message}"))
+            host_output.append((False, f"{add_message}", "e"))
             return host_output
 
-        host_output.append((True, f"{add_message}"))
+        host_output.append((True, f"{add_message}", "s"))
 
         remove_flag, remove_message = self.remove_line_with_content(
             content=(
@@ -162,70 +166,62 @@ class ProxmoxHost:
             file_path=hostfile
         )
         if not remove_flag:
-            host_output.append((False, f"{remove_message}"))
+            host_output.append((False, f"{remove_message}", "e"))
             return host_output
 
-        host_output.append((True, f"{remove_message}"))
+        host_output.append((True, f"{remove_message}", "s"))
 
         set_flag, set_message = self.set_hostname(new_hostname)
         if not set_flag:
-            host_output.append((False, f"{set_message}"))
+            host_output.append((False, f"{set_message}", "e"))
             return host_output
 
-        host_output.append((True, f"{set_message}"))
+        host_output.append((True, f"{set_message}", "s"))
 
-        for host_line in host_output:
-            self.Output.output(host_line[1], type="s" if host_line[0] else "e")
-
-        if host_reboot:
-            reboot_flag, reboot_message = (
-                self.reboot_and_reconnect(wait_time=10, timeout=180)
-                )
-            self.Output.output(
-                f"{reboot_message}",
-                type="s" if reboot_flag else "e"
-            )
-        else:
-            self.Output.output(
-                (True, "Reboot flag set to NOT reboot Proxmox host"))
-
-        return "Change hostname - done"
+        return host_output
 
     def reboot_and_reconnect(self, wait_time=10, timeout=180):
+        reboot_output = []
         result = self.ssh.run("reboot")
         if result['exit_code'] != 0:
-            return False, "Failed to send reboot command"
+            reboot_output.append((False, "Failed to send reboot command", "e"))
+            return reboot_output
 
         self.ssh.close()
 
-        self.Output.output("Waiting for host to reboot...", "i")
+        reboot_output.append((True, "Waiting for host to reboot...", "i"))
         time.sleep(wait_time)
 
         start_time = time.time()
         while time.time() - start_time < timeout:
             try:
-                # Try to open a raw socket to port 22
                 sock = socket.create_connection((self.host, 22), timeout=5)
                 sock.close()
 
-                # 4. Try reconnecting via SSH
-                self.Output.output(
-                    "SSH port is open, trying to reconnect...", "i"
+                reboot_output.append(
+                    (True, "SSH port is open, trying to reconnect...", "i")
                     )
                 success, message = self.ssh.connect()
+                reboot_output.append(
+                    (
+                        True if success else False,
+                        f"{message}",
+                        "s" if success else "e"
+                        )
+                )
                 if success:
-                    return True, "Reconnected successfully after reboot"
+                    return reboot_output
             except (OSError, socket.error):
                 pass
 
             time.sleep(5)
 
-        return False, f"Failed to reconnect within {timeout} seconds"
+        return reboot_output
 
     def get_active_sshd_config(self):
         result = self.ssh.run('sshd -T')
         if result['exit_code'] != 0:
-            return []
+            return False, result['stderr']
         active_sshd_config = result['stdout'].splitlines()
         active_sshd_dict = {}
         for line in active_sshd_config:
@@ -233,7 +229,7 @@ class ProxmoxHost:
             if len(parts) == 2:
                 key, value = parts
                 active_sshd_dict[key] = value
-        return active_sshd_dict
+        return True, active_sshd_dict
 
     def get_missing_sshd_keys(self, active_config, desired_config):
         missing = []
@@ -264,7 +260,7 @@ class ProxmoxHost:
         result = self.ssh.run(command)
 
         if result['exit_code'] != 0:
-            return False, []
+            return False, result['stderr']
 
         resolved_paths = result['stdout'].splitlines()
         return True, resolved_paths
@@ -276,7 +272,7 @@ class ProxmoxHost:
             )
         result = self.ssh.run(command)
         if result['exit_code'] != 0:
-            return []
+            return False, result['stderr']
 
         config_lines = result['stdout'].splitlines()
         included_paths = []
@@ -291,25 +287,24 @@ class ProxmoxHost:
                 success, files = self.resolve_wildcard_path(path)
                 if success:
                     actual_paths.extend(files)
-                else:
-                    actual_paths.append(path)
+            if "*" not in path:
+                actual_paths.append(path)
 
-        return actual_paths
+        return True, actual_paths
 
-    def get_all_config_files(self, v_config):
+    def get_all_config_files(self, searchstring, path):
         visited = set()
-        config_files = []
-        config_files.append(v_config['pve_sshd_config_path'])
+        config_files = [path]
 
         while config_files:
             current = config_files.pop()
             if current not in visited:
                 included = self.search_configfile(
-                    v_config['pve_sshd_searchstring'],
+                    searchstring,
                     current
                     )
-                if not len(included) == 0:
-                    config_files.extend(included)
+                if not len(included[1]) == 0:
+                    config_files.extend(included[1])
 
                 visited.add(current)
 
@@ -320,7 +315,9 @@ class ProxmoxHost:
         backup_path = f"{path}.{timestamp}.bak"
 
         copy_cmd = f"cp {shlex.quote(path)} {shlex.quote(backup_path)}"
-        self.ssh.run(copy_cmd)
+        result = self.ssh.run(copy_cmd)
+        if result['exit_code'] != 0:
+            return False, result['stderr']
 
         cmd = f"sed -i '/^{shlex.quote(param)}\\b/ s/^/#/' {shlex.quote(path)}"
         result = self.ssh.run(cmd)
@@ -347,50 +344,57 @@ class ProxmoxHost:
         return self.ssh.run(command)['exit_code'] == 0
 
     def check_sshd_config(self, v_config):
-        return_value = "success"
-        sshd_files = self.get_all_config_files(v_config)
+        config_output = []
+        sshd_files = self.get_all_config_files(
+            v_config['pve_sshd_searchstring'],
+            v_config['pve_sshd_config_path']
+            )
         if len(sshd_files) > 0:
             for file in sshd_files:
-                self.Output.output(
+                config_output.append((
+                    True,
                     f"SSHD config file found: '{file}'",
-                    "i"
-                )
+                    "s"
+                ))
         else:
-            self.Output.output(
-                "No SSHD config file found",
-                "e"
-            )
-            return_value = "error"
-            return return_value
+            config_output.append((
+                    False,
+                    "No SSHD config file found",
+                    "e"
+                ))
+            return config_output
 
-        active_config_dict = self.get_active_sshd_config()
-        if len(active_config_dict) > 0:
-            self.Output.output(
-                "Retriving active SSHD config (sshd -T)",
-                "i"
-            )
+        config_flag, active_config_dict = self.get_active_sshd_config()
+        if config_flag:
+            config_output.append((
+                    True,
+                    "Reading active SSHD config (sshd -T)",
+                    "s"
+                ))
         else:
-            self.Output.output(
-                "Error retriving active SSHD config",
-                "e"
-            )
-            return_value = "error"
-            return return_value
+            config_output.append((
+                    False,
+                    "Errot reading active SSHD config (sshd -T)",
+                    "e"
+                ))
+            return config_output
 
         missing = self.get_missing_sshd_keys(active_config_dict, v_config)
         missing_set = set()
         if len(missing) > 0:
             for missing_param in missing:
                 missing_set.add(missing_param)
-                self.Output.output(
+                config_output.append((
+                    False,
                     f"Missing key: '{missing_param}'",
-                    "i"
-                )
+                    "e"
+                ))
         else:
-            self.Output.output(
-                "No missing keys found in SSHD config",
-                "i"
-            )
+            config_output.append((
+                    True,
+                    "No keys missing in SSHD configuration",
+                    "s"
+                ))
 
         wrong = (
             self.get_wrong_value_sshd_keys(active_config_dict, v_config)
@@ -399,15 +403,18 @@ class ProxmoxHost:
         if len(wrong) > 0:
             for wrong_param in wrong:
                 wrong_set.add(wrong_param)
-                self.Output.output(
-                    f"Wrong value in key: '{wrong_param}'",
-                    "i"
-                )
+                config_output.append((
+                    False,
+                    f"Wrong key value: '{wrong_param}'",
+                    "e"
+                ))
         else:
-            self.Output.output(
-                "No wrong keys found in SSHD config",
-                "i"
-            )
+            config_output.append((
+                    True,
+                    "No keys with wrong value in SSHD configuration",
+                    "s"
+                ))
+            return config_output
 
         if len(wrong) > 0:
             explicit_keys = []
@@ -426,73 +433,74 @@ class ProxmoxHost:
             if len(explicit_keys) > 0:
                 for key in explicit_keys:
                     e_key, e_path = key
-                    self.Output.output(
+                    config_output.append((
+                        True,
                         f"Explicit set key: '{e_key}' in '{e_path}'",
                         "i"
-                    )
+                    ))
             else:
-                self.Output.output(
-                    "No explicit set keys in SSHD config",
-                    "i"
-                )
+                config_output.append((
+                        True,
+                        "No keys set explicitly in SSHD config",
+                        "s"
+                    ))
 
             if len(implicit_keys) > 0:
                 for key in implicit_keys:
-                    self.Output.output(
+                    config_output.append((
+                        True,
                         f"Implicit set key: '{key}'",
                         "i"
-                    )
+                    ))
             else:
-                self.Output.output(
-                    "No implicit set keys in SSHD config",
-                    "i"
-                )
+                config_output.append((
+                        True,
+                        "No keys set implicitly in SSHD config",
+                        "s"
+                    ))
 
             if len(explicit_keys) > 0:
                 for key in explicit_keys:
                     e_key, e_path = key
                     success = self.comment_out_param_in_file(e_key, e_path)
                     if success:
-                        self.Output.output(
-                            (
-                                "Commented out explicit key: "
-                                f"'{e_key}' in '{e_path}'"
-                            ),
+                        config_output.append((
+                            True,
+                            "Commented out explicit key: "
+                            f"'{e_key}' in '{e_path}'",
                             "s"
-                        )
-                        self.Output.output(
-                            (
-                                f"Adding '{e_key}' to missing list"
-                            ),
+                        ))
+                        config_output.append((
+                            True,
+                            f"Adding '{e_key}' to missing list",
                             "s"
-                        )
+                        ))
                         missing_set.add(e_key)
                     else:
-                        self.Output.output(
-                            (
-                                "Error commenting out explicit key: "
-                                f"'{e_key}' in "
-                                f"'{v_config['pve_sshd_config_path']}'"
-                            ),
+                        config_output.append((
+                            False,
+                            "Error commenting out explicit key: "
+                            f"'{e_key}' in "
+                            f"'{v_config['pve_sshd_config_path']}'",
                             "e"
-                        )
+                        ))
 
             if len(implicit_keys) > 0:
                 for im_key in implicit_keys:
-                    self.Output.output(
-                        (
-                            f"Adding impllicit key '{im_key}' to missing list"
-                        ),
+                    config_output.append((
+                        True,
+                        f"Adding '{im_key}' to missing list",
                         "s"
-                        )
+                    ))
                     missing_set.add(im_key)
 
         if len(missing_set) > 0:
             for m_key in missing_set:
-                self.Output.output(
-                        f"Missing key: '{m_key}'",
-                        "i"
-                    )
+                config_output.append((
+                    True,
+                    f"Missing key: '{m_key}'",
+                    "e"
+                ))
 
             missing = list(missing_set)
             success = self.append_custom_sshd_file(
@@ -500,19 +508,23 @@ class ProxmoxHost:
                     v_config
                 )
             if success:
-                self.Output.output(
+                config_output.append((
+                    True,
                     "Appended missing keys to custom config: "
                     f"'{v_config['pve_sshd_custom_config']}'",
                     "s"
-                )
-                return_value = "check"
-                return return_value
+                ))
             else:
-                self.Output.output("Failed to append missing keys", "e")
-                return_value = "error"
-                return return_value
+                config_output.append((
+                    False,
+                    "Failed to append missing keys",
+                    "e"
+                ))
 
-            sshd_files = self.get_all_config_files(v_config)
+            sshd_files = self.get_all_config_files(
+                v_config['pve_sshd_searchstring'],
+                v_config['pve_sshd_config_path']
+                )
             if v_config['pve_sshd_custom_config'] not in sshd_files:
                 include_cmd = (
                     "echo Include "
@@ -522,42 +534,45 @@ class ProxmoxHost:
                 )
                 success = self.ssh.run(include_cmd)['exit_code'] == 0
                 if success:
-                    self.Output.output(
+                    config_output.append((
+                        True,
                         "Included custom config in "
                         f"'{v_config['pve_sshd_config_path']}'",
                         "s"
-                    )
+                    ))
                 else:
-                    self.Output.output(
+                    config_output.append((
+                        False,
                         "Custom config file NOT included in "
                         f"'{v_config['pve_sshd_config_path']}'",
                         "e"
-                    )
-                    return_value = "error"
-                    return return_value
+                    ))
+                    return config_output
             else:
-                self.Output.output(
-                    "Custom config file already part of existing 'Include'"
-                    " statements'",
-                    "s"
-                )
+                config_output.append((
+                        True,
+                        "Custom config file already part of existing 'Include'"
+                        " statements'",
+                        "s"
+                    ))
 
             reload_cmd = "systemctl reload sshd"
             success = self.ssh.run(reload_cmd)['exit_code'] == 0
             if success:
-                self.Output.output(
-                    "SHHD confing reloaded",
-                    "s"
-                )
+                config_output.append((
+                        True,
+                        "SSHD config reloaded",
+                        "s"
+                    ))
             else:
-                self.Output.output(
-                    "Failed to reload SSHD config",
+                config_output.append((
+                    True,
+                    "SSHD config failed to reload",
                     "e"
-                )
-                return_value = "error"
-                return return_value
+                ))
+                return config_output
 
-        return return_value
+        return config_output
 
     def check_pve_no_subscribtion(self):
         while True:
