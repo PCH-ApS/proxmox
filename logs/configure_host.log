@@ -18067,3 +18067,283 @@ bash: -c: line 1: `ls -A /etc/pve/nodes/(True, 'pve01')/qemu-server'
 2025-07-26 20:52:03 [✓] Reading active SSHD config (sshd -T)
 2025-07-26 20:52:03 [✓] No keys missing in SSHD configuration
 2025-07-26 20:52:03 [✓] No keys with wrong value in SSHD configuration
+2025-07-26 21:12:38 --------------------------------------------------------------------------------
+2025-07-26 21:12:38 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-26 21:12:38 --------------------------------------------------------------------------------
+2025-07-26 21:12:38 [i] Initial script      : /home/nije/git.repo/proxmox/run_configure_host.py
+2025-07-26 21:12:38 [i] Active script       : /home/nije/git.repo/proxmox/host/configure_host.py
+2025-07-26 21:12:38 [i] Config file         : /home/nije/git.local/proxmox-host/host_config.yaml
+2025-07-26 21:12:38 [i] Validation file     : /home/nije/git.local/proxmox-host/host_config_validation.yaml
+2025-07-26 21:12:38 [i] Default logfile     : logs/configure_host.log
+2025-07-26 21:12:38 --------------------------------------------------------------------------------
+2025-07-26 21:12:38 -                                CHECKING FILES                                -
+2025-07-26 21:12:38 --------------------------------------------------------------------------------
+2025-07-26 21:12:38 [✓] host_config.yaml access checks passed
+2025-07-26 21:12:38 [✓] host_config_validation.yaml access checks passed
+2025-07-26 21:12:38 [✓] Configuration validation passed
+2025-07-26 21:12:38 [i] pve_host_ip            : set by user
+2025-07-26 21:12:38 [i] pve_hostname           : set by user
+2025-07-26 21:12:38 [i] pve_host_reboot        : set by user
+2025-07-26 21:12:38 [i] pve_host_change_pwd    : set by user
+2025-07-26 21:12:38 [i] pve_key_prefix         : using default
+2025-07-26 21:12:38 [i] pve_host_username      : using default
+2025-07-26 21:12:38 [i] pve_domain             : using default
+2025-07-26 21:12:38 [i] pve_sshkey_public      : using default
+2025-07-26 21:12:38 [i] pve_iso_urls           : using default
+2025-07-26 21:12:38 [i] pve_iso_path           : using default
+2025-07-26 21:12:38 [i] pve_host_keyfile       : using default
+2025-07-26 21:12:38 [i] pve_host_file          : using default
+2025-07-26 21:12:38 [i] pve_sshd_searchstring  : using default
+2025-07-26 21:12:38 [i] pve_sshd_config_path   : using default
+2025-07-26 21:12:38 [i] pve_sshd_custom_config : using default
+2025-07-26 21:12:38 [i] PermitRootLogin        : using default
+2025-07-26 21:12:38 [i] PasswordAuthentication : using default
+2025-07-26 21:12:38 [i] PermitEmptyPasswords   : using default
+2025-07-26 21:12:38 [i] UseDNS                 : using default
+2025-07-26 21:12:38 [i] AllowTcpForwarding     : using default
+2025-07-26 21:12:38 [i] X11Forwarding          : using default
+2025-07-26 21:12:38 [i] ClientAliveInterval    : using default
+2025-07-26 21:12:38 [i] ClientAliveCountMax    : using default
+2025-07-26 21:12:38 [i] MaxAuthTries           : using default
+2025-07-26 21:12:38 [i] MaxSessions            : using default
+2025-07-26 21:12:38 [i] Compression            : using default
+2025-07-26 21:12:38 [i] LogLevel               : using default
+2025-07-26 21:12:38 [i] LoginGraceTime         : using default
+2025-07-26 21:12:38 [i] Subsystem              : using default
+2025-07-26 21:12:38 --------------------------------------------------------------------------------
+2025-07-26 21:12:38 -                          CHECKING SSH CONNECTIVITY                           -
+2025-07-26 21:12:38 --------------------------------------------------------------------------------
+2025-07-26 21:12:39 [✓] Connected to 192.168.6.3 as root
+2025-07-26 21:12:39 --------------------------------------------------------------------------------
+2025-07-26 21:12:39 -                          CHECKING PROXMOX HOSTNAME                           -
+2025-07-26 21:12:39 --------------------------------------------------------------------------------
+2025-07-26 21:12:39 [✓] Current hostname is correct: 'pve01'
+2025-07-26 21:12:39 --------------------------------------------------------------------------------
+2025-07-26 21:12:39 -                         CHECKING PROXMOX SSHD CONFIG                         -
+2025-07-26 21:12:39 --------------------------------------------------------------------------------
+2025-07-26 21:12:40 [✓] SSHD config file found: '/etc/ssh/sshd_config.d/99-custom.conf'
+2025-07-26 21:12:40 [✓] SSHD config file found: '/etc/ssh/sshd_config'
+2025-07-26 21:12:40 [✓] Reading active SSHD config (sshd -T)
+2025-07-26 21:12:40 [✓] No keys missing in SSHD configuration
+2025-07-26 21:12:40 [✓] No keys with wrong value in SSHD configuration
+2025-07-26 21:12:40 --------------------------------------------------------------------------------
+2025-07-26 21:12:40 -                     CHECKING PROXMOX REPOSITORY SETTINGS                     -
+2025-07-26 21:12:40 --------------------------------------------------------------------------------
+2025-07-26 21:12:45 [✓] pve-no-subscription repository is enabled.
+2025-07-26 21:12:45 [✓] pve-enterprise repository is disabled.
+2025-07-26 21:12:45 [✓] pve-ceph repository is disabled.
+2025-07-26 21:12:46 [✓] pve-no-subscription patch already applied.
+2025-07-26 21:23:59 --------------------------------------------------------------------------------
+2025-07-26 21:23:59 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-26 21:23:59 --------------------------------------------------------------------------------
+2025-07-26 21:23:59 [i] Initial script      : /home/nije/git.repo/proxmox/run_configure_host.py
+2025-07-26 21:23:59 [i] Active script       : /home/nije/git.repo/proxmox/host/configure_host.py
+2025-07-26 21:23:59 [i] Config file         : /home/nije/git.local/proxmox-host/host_config.yaml
+2025-07-26 21:23:59 [i] Validation file     : /home/nije/git.local/proxmox-host/host_config_validation.yaml
+2025-07-26 21:23:59 [i] Default logfile     : logs/configure_host.log
+2025-07-26 21:23:59 --------------------------------------------------------------------------------
+2025-07-26 21:23:59 -                                CHECKING FILES                                -
+2025-07-26 21:23:59 --------------------------------------------------------------------------------
+2025-07-26 21:23:59 [✓] host_config.yaml access checks passed
+2025-07-26 21:23:59 [✓] host_config_validation.yaml access checks passed
+2025-07-26 21:23:59 [✓] Configuration validation passed
+2025-07-26 21:23:59 [i] pve_host_ip            : set by user
+2025-07-26 21:23:59 [i] pve_hostname           : set by user
+2025-07-26 21:23:59 [i] pve_host_reboot        : set by user
+2025-07-26 21:23:59 [i] pve_host_change_pwd    : set by user
+2025-07-26 21:23:59 [i] pve_key_prefix         : using default
+2025-07-26 21:23:59 [i] pve_host_username      : using default
+2025-07-26 21:23:59 [i] pve_domain             : using default
+2025-07-26 21:23:59 [i] pve_sshkey_public      : using default
+2025-07-26 21:23:59 [i] pve_iso_urls           : using default
+2025-07-26 21:23:59 [i] pve_iso_path           : using default
+2025-07-26 21:23:59 [i] pve_host_keyfile       : using default
+2025-07-26 21:23:59 [i] pve_host_file          : using default
+2025-07-26 21:23:59 [i] pve_sshd_searchstring  : using default
+2025-07-26 21:23:59 [i] pve_sshd_config_path   : using default
+2025-07-26 21:23:59 [i] pve_sshd_custom_config : using default
+2025-07-26 21:23:59 [i] PermitRootLogin        : using default
+2025-07-26 21:23:59 [i] PasswordAuthentication : using default
+2025-07-26 21:23:59 [i] PermitEmptyPasswords   : using default
+2025-07-26 21:23:59 [i] UseDNS                 : using default
+2025-07-26 21:23:59 [i] AllowTcpForwarding     : using default
+2025-07-26 21:23:59 [i] X11Forwarding          : using default
+2025-07-26 21:23:59 [i] ClientAliveInterval    : using default
+2025-07-26 21:23:59 [i] ClientAliveCountMax    : using default
+2025-07-26 21:23:59 [i] MaxAuthTries           : using default
+2025-07-26 21:23:59 [i] MaxSessions            : using default
+2025-07-26 21:23:59 [i] Compression            : using default
+2025-07-26 21:23:59 [i] LogLevel               : using default
+2025-07-26 21:23:59 [i] LoginGraceTime         : using default
+2025-07-26 21:23:59 [i] Subsystem              : using default
+2025-07-26 21:23:59 --------------------------------------------------------------------------------
+2025-07-26 21:23:59 -                          CHECKING SSH CONNECTIVITY                           -
+2025-07-26 21:23:59 --------------------------------------------------------------------------------
+2025-07-26 21:24:35 [✓] Connected to 192.168.6.3 as root
+2025-07-26 21:24:35 --------------------------------------------------------------------------------
+2025-07-26 21:24:35 -                          CHECKING PROXMOX HOSTNAME                           -
+2025-07-26 21:24:35 --------------------------------------------------------------------------------
+2025-07-26 21:24:36 [✓] Current hostname is correct: 'pve01'
+2025-07-26 21:24:36 --------------------------------------------------------------------------------
+2025-07-26 21:24:36 -                         CHECKING PROXMOX SSHD CONFIG                         -
+2025-07-26 21:24:36 --------------------------------------------------------------------------------
+2025-07-26 21:24:37 [✓] SSHD config file found: '/etc/ssh/sshd_config.d/99-custom.conf'
+2025-07-26 21:24:37 [✓] SSHD config file found: '/etc/ssh/sshd_config'
+2025-07-26 21:24:37 [✓] Reading active SSHD config (sshd -T)
+2025-07-26 21:24:37 [✓] No keys missing in SSHD configuration
+2025-07-26 21:24:37 [✓] No keys with wrong value in SSHD configuration
+2025-07-26 21:24:37 --------------------------------------------------------------------------------
+2025-07-26 21:24:37 -                     CHECKING PROXMOX REPOSITORY SETTINGS                     -
+2025-07-26 21:24:37 --------------------------------------------------------------------------------
+2025-07-26 21:24:37 [✓] pve-no-subscription repository is enabled.
+2025-07-26 21:24:38 [✓] pve-enterprise repository is disabled.
+2025-07-26 21:24:38 [✓] pve-ceph repository is disabled.
+2025-07-26 21:24:39 [✓] pve-no-subscription patch already applied.
+2025-07-26 21:24:57 --------------------------------------------------------------------------------
+2025-07-26 21:24:57 -                            DOWNLOADING ISO FILES                             -
+2025-07-26 21:24:57 --------------------------------------------------------------------------------
+2025-07-26 21:25:29 --------------------------------------------------------------------------------
+2025-07-26 21:25:29 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-26 21:25:29 --------------------------------------------------------------------------------
+2025-07-26 21:25:29 [i] Initial script      : /home/nije/git.repo/proxmox/run_configure_host.py
+2025-07-26 21:25:29 [i] Active script       : /home/nije/git.repo/proxmox/host/configure_host.py
+2025-07-26 21:25:29 [i] Config file         : /home/nije/git.local/proxmox-host/host_config.yaml
+2025-07-26 21:25:29 [i] Validation file     : /home/nije/git.local/proxmox-host/host_config_validation.yaml
+2025-07-26 21:25:29 [i] Default logfile     : logs/configure_host.log
+2025-07-26 21:25:29 --------------------------------------------------------------------------------
+2025-07-26 21:25:29 -                                CHECKING FILES                                -
+2025-07-26 21:25:29 --------------------------------------------------------------------------------
+2025-07-26 21:25:29 [✓] host_config.yaml access checks passed
+2025-07-26 21:25:29 [✓] host_config_validation.yaml access checks passed
+2025-07-26 21:25:29 [✓] Configuration validation passed
+2025-07-26 21:25:29 [i] pve_host_ip            : set by user
+2025-07-26 21:25:29 [i] pve_hostname           : set by user
+2025-07-26 21:25:29 [i] pve_host_reboot        : set by user
+2025-07-26 21:25:29 [i] pve_host_change_pwd    : set by user
+2025-07-26 21:25:29 [i] pve_key_prefix         : using default
+2025-07-26 21:25:29 [i] pve_host_username      : using default
+2025-07-26 21:25:29 [i] pve_domain             : using default
+2025-07-26 21:25:29 [i] pve_sshkey_public      : using default
+2025-07-26 21:25:29 [i] pve_iso_urls           : using default
+2025-07-26 21:25:29 [i] pve_iso_path           : using default
+2025-07-26 21:25:29 [i] pve_host_keyfile       : using default
+2025-07-26 21:25:29 [i] pve_host_file          : using default
+2025-07-26 21:25:29 [i] pve_sshd_searchstring  : using default
+2025-07-26 21:25:29 [i] pve_sshd_config_path   : using default
+2025-07-26 21:25:29 [i] pve_sshd_custom_config : using default
+2025-07-26 21:25:29 [i] PermitRootLogin        : using default
+2025-07-26 21:25:29 [i] PasswordAuthentication : using default
+2025-07-26 21:25:29 [i] PermitEmptyPasswords   : using default
+2025-07-26 21:25:29 [i] UseDNS                 : using default
+2025-07-26 21:25:29 [i] AllowTcpForwarding     : using default
+2025-07-26 21:25:29 [i] X11Forwarding          : using default
+2025-07-26 21:25:29 [i] ClientAliveInterval    : using default
+2025-07-26 21:25:29 [i] ClientAliveCountMax    : using default
+2025-07-26 21:25:29 [i] MaxAuthTries           : using default
+2025-07-26 21:25:29 [i] MaxSessions            : using default
+2025-07-26 21:25:29 [i] Compression            : using default
+2025-07-26 21:25:29 [i] LogLevel               : using default
+2025-07-26 21:25:29 [i] LoginGraceTime         : using default
+2025-07-26 21:25:29 [i] Subsystem              : using default
+2025-07-26 21:25:29 --------------------------------------------------------------------------------
+2025-07-26 21:25:29 -                          CHECKING SSH CONNECTIVITY                           -
+2025-07-26 21:25:29 --------------------------------------------------------------------------------
+2025-07-26 21:25:29 [✓] Connected to 192.168.6.3 as root
+2025-07-26 21:25:29 --------------------------------------------------------------------------------
+2025-07-26 21:25:29 -                          CHECKING PROXMOX HOSTNAME                           -
+2025-07-26 21:25:29 --------------------------------------------------------------------------------
+2025-07-26 21:25:30 [✓] Current hostname is correct: 'pve01'
+2025-07-26 21:25:30 --------------------------------------------------------------------------------
+2025-07-26 21:25:30 -                         CHECKING PROXMOX SSHD CONFIG                         -
+2025-07-26 21:25:30 --------------------------------------------------------------------------------
+2025-07-26 21:25:32 [✓] SSHD config file found: '/etc/ssh/sshd_config.d/99-custom.conf'
+2025-07-26 21:25:32 [✓] SSHD config file found: '/etc/ssh/sshd_config'
+2025-07-26 21:25:32 [✓] Reading active SSHD config (sshd -T)
+2025-07-26 21:25:32 [✓] No keys missing in SSHD configuration
+2025-07-26 21:25:32 [✓] No keys with wrong value in SSHD configuration
+2025-07-26 21:25:32 --------------------------------------------------------------------------------
+2025-07-26 21:25:32 -                     CHECKING PROXMOX REPOSITORY SETTINGS                     -
+2025-07-26 21:25:32 --------------------------------------------------------------------------------
+2025-07-26 21:25:32 [✓] pve-no-subscription repository is enabled.
+2025-07-26 21:25:32 [✓] pve-enterprise repository is disabled.
+2025-07-26 21:25:33 [✓] pve-ceph repository is disabled.
+2025-07-26 21:25:33 [✓] pve-no-subscription patch already applied.
+2025-07-26 21:25:33 --------------------------------------------------------------------------------
+2025-07-26 21:25:33 -                            DOWNLOADING ISO FILES                             -
+2025-07-26 21:25:33 --------------------------------------------------------------------------------
+2025-07-26 21:27:05 --------------------------------------------------------------------------------
+2025-07-26 21:27:05 -                            CONFIGURE PROXMOX HOST                            -
+2025-07-26 21:27:05 --------------------------------------------------------------------------------
+2025-07-26 21:27:05 [i] Initial script      : /home/nije/git.repo/proxmox/run_configure_host.py
+2025-07-26 21:27:05 [i] Active script       : /home/nije/git.repo/proxmox/host/configure_host.py
+2025-07-26 21:27:05 [i] Config file         : /home/nije/git.local/proxmox-host/host_config.yaml
+2025-07-26 21:27:05 [i] Validation file     : /home/nije/git.local/proxmox-host/host_config_validation.yaml
+2025-07-26 21:27:05 [i] Default logfile     : logs/configure_host.log
+2025-07-26 21:27:05 --------------------------------------------------------------------------------
+2025-07-26 21:27:05 -                                CHECKING FILES                                -
+2025-07-26 21:27:05 --------------------------------------------------------------------------------
+2025-07-26 21:27:05 [✓] host_config.yaml access checks passed
+2025-07-26 21:27:05 [✓] host_config_validation.yaml access checks passed
+2025-07-26 21:27:05 [✓] Configuration validation passed
+2025-07-26 21:27:05 [i] pve_host_ip            : set by user
+2025-07-26 21:27:05 [i] pve_hostname           : set by user
+2025-07-26 21:27:05 [i] pve_host_reboot        : set by user
+2025-07-26 21:27:05 [i] pve_host_change_pwd    : set by user
+2025-07-26 21:27:05 [i] pve_key_prefix         : using default
+2025-07-26 21:27:05 [i] pve_host_username      : using default
+2025-07-26 21:27:05 [i] pve_domain             : using default
+2025-07-26 21:27:05 [i] pve_sshkey_public      : using default
+2025-07-26 21:27:05 [i] pve_iso_urls           : using default
+2025-07-26 21:27:05 [i] pve_iso_path           : using default
+2025-07-26 21:27:05 [i] pve_host_keyfile       : using default
+2025-07-26 21:27:05 [i] pve_host_file          : using default
+2025-07-26 21:27:05 [i] pve_sshd_searchstring  : using default
+2025-07-26 21:27:05 [i] pve_sshd_config_path   : using default
+2025-07-26 21:27:05 [i] pve_sshd_custom_config : using default
+2025-07-26 21:27:05 [i] PermitRootLogin        : using default
+2025-07-26 21:27:05 [i] PasswordAuthentication : using default
+2025-07-26 21:27:05 [i] PermitEmptyPasswords   : using default
+2025-07-26 21:27:05 [i] UseDNS                 : using default
+2025-07-26 21:27:05 [i] AllowTcpForwarding     : using default
+2025-07-26 21:27:05 [i] X11Forwarding          : using default
+2025-07-26 21:27:05 [i] ClientAliveInterval    : using default
+2025-07-26 21:27:05 [i] ClientAliveCountMax    : using default
+2025-07-26 21:27:05 [i] MaxAuthTries           : using default
+2025-07-26 21:27:05 [i] MaxSessions            : using default
+2025-07-26 21:27:05 [i] Compression            : using default
+2025-07-26 21:27:05 [i] LogLevel               : using default
+2025-07-26 21:27:05 [i] LoginGraceTime         : using default
+2025-07-26 21:27:05 [i] Subsystem              : using default
+2025-07-26 21:27:05 --------------------------------------------------------------------------------
+2025-07-26 21:27:05 -                          CHECKING SSH CONNECTIVITY                           -
+2025-07-26 21:27:05 --------------------------------------------------------------------------------
+2025-07-26 21:27:06 [✓] Connected to 192.168.6.3 as root
+2025-07-26 21:27:06 --------------------------------------------------------------------------------
+2025-07-26 21:27:06 -                          CHECKING PROXMOX HOSTNAME                           -
+2025-07-26 21:27:06 --------------------------------------------------------------------------------
+2025-07-26 21:27:07 [✓] Current hostname is correct: 'pve01'
+2025-07-26 21:27:07 --------------------------------------------------------------------------------
+2025-07-26 21:27:07 -                         CHECKING PROXMOX SSHD CONFIG                         -
+2025-07-26 21:27:07 --------------------------------------------------------------------------------
+2025-07-26 21:27:09 [✓] SSHD config file found: '/etc/ssh/sshd_config'
+2025-07-26 21:27:09 [✓] SSHD config file found: '/etc/ssh/sshd_config.d/99-custom.conf'
+2025-07-26 21:27:09 [✓] Reading active SSHD config (sshd -T)
+2025-07-26 21:27:09 [✓] No keys missing in SSHD configuration
+2025-07-26 21:27:09 [✓] No keys with wrong value in SSHD configuration
+2025-07-26 21:27:09 --------------------------------------------------------------------------------
+2025-07-26 21:27:09 -                     CHECKING PROXMOX REPOSITORY SETTINGS                     -
+2025-07-26 21:27:09 --------------------------------------------------------------------------------
+2025-07-26 21:27:09 [✓] pve-no-subscription repository is enabled.
+2025-07-26 21:27:09 [✓] pve-enterprise repository is disabled.
+2025-07-26 21:27:10 [✓] pve-ceph repository is disabled.
+2025-07-26 21:27:11 [✓] pve-no-subscription patch already applied.
+2025-07-26 21:27:11 --------------------------------------------------------------------------------
+2025-07-26 21:27:11 -                            DOWNLOADING ISO FILES                             -
+2025-07-26 21:27:11 --------------------------------------------------------------------------------
+2025-07-26 21:27:20 [✓] noble-server-cloudimg-amd64.img already exists, skipping download.
+2025-07-26 21:27:20 [✓] ubuntu-24.04.2-live-server-amd64.iso already exists, skipping download.
+2025-07-26 21:27:20 --------------------------------------------------------------------------------
+2025-07-26 21:27:20 -                                 CLOSING SSH                                  -
+2025-07-26 21:27:20 --------------------------------------------------------------------------------
+2025-07-26 21:27:20 [✓] Closed connection to 192.168.6.3 as root
+2025-07-26 21:27:20 --------------------------------------------------------------------------------

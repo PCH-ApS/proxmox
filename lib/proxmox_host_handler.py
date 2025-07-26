@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 from lib.ssh_handler import SSHConnection
-# from lib.output_handler import OutputHandler
 # from lib.proxmox_common import ProxmoxCommon
 import shlex
 import re
@@ -575,6 +574,7 @@ class ProxmoxHost:
         return config_output
 
     def check_pve_no_subscribtion(self):
+        subscription_output = []
         while True:
             command = (
                 'grep -q "^deb .*pve-no-subscription" '
@@ -582,11 +582,12 @@ class ProxmoxHost:
             )
             result = self.ssh.run(command)
             if result['stdout'].strip() == "enabled":
-                self.Output.output(
+                subscription_output.append((
+                    True,
                     "pve-no-subscription repository is enabled.",
                     "s"
-                )
-                return
+                ))
+                return subscription_output
 
             command = (
                 'grep -q "^# deb .*pve-no-subscription" '
@@ -594,11 +595,12 @@ class ProxmoxHost:
             )
             result = self.ssh.run(command)
             if result['stdout'].strip() == "commented":
-                self.Output.output(
+                subscription_output.append((
+                    True,
                     "pve-no-subscription repository is found "
                     "but not enabled. Enabling it now...",
                     "w"
-                )
+                ))
 
                 command = (
                     "sed -i 's/^# deb \\(.*pve-no-subscription\\)/deb \\1/' "
@@ -608,17 +610,20 @@ class ProxmoxHost:
                 if result['exit_code'] == 0:
                     continue
                 else:
-                    self.Output.output(
+                    subscription_output.append((
+                        False,
                         "Error enabling pve-no-subscription repository.",
                         "e"
-                    )
-                    return
+                    ))
+                    return subscription_output
 
-            self.Output.output(
+            subscription_output.append((
+                True,
                 "pve-no-subscription repository is not found. "
                 "Adding it now...",
                 "w"
-            )
+            ))
+
             http_str = "deb http://download.proxmox.com/debian/pve "
             pve_no = "bookworm pve-no-subscription"
             command = (
@@ -631,14 +636,16 @@ class ProxmoxHost:
                 continue
 
             else:
-                self.Output.output(
+                subscription_output.append((
+                    False,
                     "Error adding pve-no-subscription repository"
                     " to /etc/apt/sources.list.",
                     "e"
-                )
-                return
+                ))
+                return subscription_output
 
     def check_pve_enterprise(self):
+        enterprise_message = []
         while True:
             command = (
                 'grep -q "^deb .*bookworm pve-enterprise" '
@@ -647,18 +654,20 @@ class ProxmoxHost:
             )
             result = self.ssh.run(command)
             if result['stdout'].strip() == "disabled":
-                self.Output.output(
+                enterprise_message.append((
+                    True,
                     "pve-enterprise repository is disabled.",
                     "s"
-                )
-                return
+                ))
+                return enterprise_message
 
             if result['stdout'].strip() == "enabled":
-                self.Output.output(
+                enterprise_message.append((
+                    True,
                     "pve-enterprise repository is enabled. "
                     "Disabling it now...",
                     "w"
-                )
+                ))
 
                 command = (
                     r"sed -i 's/^\(deb .*bookworm pve-enterprise\)/# \1/' "
@@ -668,13 +677,15 @@ class ProxmoxHost:
                 if result['exit_code'] == 0:
                     continue
                 else:
-                    self.Output.output(
+                    enterprise_message.append((
+                        False,
                         "Error disabling pve-enterprise repository.",
                         "e"
-                    )
-                    return
+                    ))
+                    return enterprise_message
 
     def check_pve_ceph(self):
+        ceph_message = []
         while True:
             command = (
                 'grep -q "^deb .*ceph-quincy bookworm enterprise" '
@@ -683,18 +694,20 @@ class ProxmoxHost:
             )
             result = self.ssh.run(command)
             if result['stdout'].strip() == "disabled":
-                self.Output.output(
+                ceph_message.append((
+                    True,
                     "pve-ceph repository is disabled.",
                     "s"
-                )
-                return
+                ))
+                return ceph_message
 
             if result['stdout'].strip() == "enabled":
-                self.Output.output(
+                ceph_message.append((
+                    True,
                     "pve-ceph repository is enabled. "
                     "Disabling it now...",
                     "w"
-                )
+                ))
 
                 command = (
                     r"sed -i 's/^\(deb .*bookworm enterprise\)/# \1/' "
@@ -704,13 +717,15 @@ class ProxmoxHost:
                 if result['exit_code'] == 0:
                     continue
                 else:
-                    self.Output.output(
+                    ceph_message.append((
+                        False,
                         "Error disabling pve-ceph repository.",
                         "e"
-                    )
-                    return
+                    ))
+                    return ceph_message
 
     def check_pve_pve_no_subscription_patch(self):
+        patch_message = []
         file_path = '/usr/share/perl5/PVE/API2/Subscription.pm'
         find_str = 'NotFound'
         replace_str = 'Active'
@@ -722,14 +737,15 @@ class ProxmoxHost:
             )
             result = self.ssh.run(command)
             if result['stdout'].strip() == "not_exists":
-                self.Output.output(
+                patch_message.append((
+                    False,
                     (
                         f"pve-no-subscription patch error: {file_path} "
                         "does not exist! Are you sure this is PVE?"
                     ),
                     "e"
-                )
-                return
+                ))
+                return patch_message
 
             # File exists
             command = (
@@ -738,11 +754,12 @@ class ProxmoxHost:
             )
             result = self.ssh.run(command)
             if result['stdout'].strip() == "not_found":
-                self.Output.output(
+                patch_message.append((
+                    True,
                     "pve-no-subscription patch already applied.",
                     "s"
-                )
-                return
+                ))
+                return patch_message
 
             if result['stdout'].strip() == "found":
                 command = (
@@ -750,30 +767,34 @@ class ProxmoxHost:
                 )
                 result = self.ssh.run(command)
                 if result['exit_code'] == 0:
-                    self.Output.output(
+                    patch_message.append((
+                        True,
                         "pve-no-subscription patch has been applied.",
                         "s"
-                    )
+                    ))
                     self.ssh.run("systemctl restart pvedaemon")
                     self.ssh.run("systemctl restart pveproxy")
-                    return
+                    return patch_message
                 else:
-                    self.Output.output(
+                    patch_message.append((
+                        False,
                         "Error applying pve-no-subscription patch.",
                         "e"
-                    )
-                    return
+                    ))
+                    return patch_message
 
     def download_iso_files(self, v_config):
+        download_output = []
         path = v_config['pve_iso_path']
         command = f"mkdir -p {path}"
         result = self.ssh.run(command)
         if result['exit_code'] != 0:
-            self.Output.output(
+            download_output.append((
+                False,
                 f"Error creating: {path}",
                 "e"
-            )
-            return
+            ))
+            return download_output
 
         if result['exit_code'] == 0:
             urls = v_config['pve_iso_urls']
@@ -786,46 +807,70 @@ class ProxmoxHost:
                     )
                 result = self.ssh.run(command)
                 if result['stdout'].strip() == "exists":
-                    self.Output.output(
+                    download_output.append((
+                        True,
                         f"{iso_filename} already exists, skipping download.",
                         "s"
-                    )
+                    ))
                 if result['stdout'].strip() == "not_exists":
-                    self.Output.output(
+                    download_output.append((
+                        True,
                         f"Downloading {iso_filename}",
                         "i"
-                    )
+                    ))
                     command = f"wget -q -P {path} {url}"
                     result = self.ssh.run(command)
                     if result['exit_code'] == 0:
-                        self.Output.output(
+                        download_output.append((
+                            True,
                             f"{iso_filename} downloaded",
                             "s"
-                        )
+                        ))
 
                     if result['exit_code'] != 0:
-                        self.Output.output(
+                        download_output.append((
+                            False,
                             f"Error downloading {iso_filename}",
                             "e"
-                        )
+                        ))
+        return download_output
 
     def change_pwd(self, v_config):
+        password_output = []
         pwd1 = getpass.getpass("Enter new root password: ")
         pwd2 = getpass.getpass("Confirm new root password: ")
 
         if pwd1 != pwd2:
-            self.Output.output("Passwords do not match. Aborting.", "e")
-            return
+            password_output.append((
+                False,
+                "Passwords do not match. Aborting.",
+                "e"
+            ))
+            return password_output
 
         if not pwd1:
-            self.Output.output("Empty password is not allowed.", "e")
-            return
+            password_output.append((
+                False,
+                "Empty password is not allowed.",
+                "e"
+            ))
+            return password_output
 
         user = v_config['pve_host_username']
         command = f"echo {shlex.quote(f'{user}:{pwd1}')} | chpasswd"
         result = self.ssh.run(command)
 
         if result['exit_code'] == 0:
-            self.Output.output("Root password changed successfully.", "s")
+            password_output.append((
+                True,
+                "Root password changed successfully.",
+                "s"
+            ))
         else:
-            self.Output.output("Failed to change root password!", "e")
+            password_output.append((
+                False,
+                "Failed to change root password!",
+                "e"
+            ))
+
+        return password_output

@@ -203,21 +203,54 @@ def main():
     output.output()
     output.output("Checking Proxmox repository settings", type="h")
     output.output()
-    host.check_pve_no_subscribtion()
-    host.check_pve_enterprise()
-    host.check_pve_ceph()
-    host.check_pve_pve_no_subscription_patch()
+    subscription_message = host.check_pve_no_subscribtion()
+    for line in subscription_message:
+        output.output(
+            f"{line[1]}",
+            f"{line[2]}"
+        )
+
+    enterprise_message = host.check_pve_enterprise()
+    for line in enterprise_message:
+        output.output(
+            f"{line[1]}",
+            f"{line[2]}"
+        )
+
+    ceph_message = host.check_pve_ceph()
+    for line in ceph_message:
+        output.output(
+            f"{line[1]}",
+            f"{line[2]}"
+        )
+
+    patch_message = host.check_pve_pve_no_subscription_patch()
+    for line in patch_message:
+        output.output(
+            f"{line[1]}",
+            f"{line[2]}"
+        )
 
     output.output()
     output.output("Downloading ISO files", type="h")
     output.output()
-    host.download_iso_files(v_config)
+    download_message = host.download_iso_files(v_config)
+    for line in download_message:
+        output.output(
+            f"{line[1]}",
+            f"{line[2]}"
+        )
 
     if v_config['pve_host_change_pwd']:
         output.output()
         output.output("Root password change", type="h")
         output.output()
-        host.change_pwd(v_config)
+        password_message = host.change_pwd(v_config)
+        for line in password_message:
+            output.output(
+                f"{line[1]}",
+                f"{line[2]}"
+            )
 
     output.output()
     output.output("Closing SSH", type="h")
