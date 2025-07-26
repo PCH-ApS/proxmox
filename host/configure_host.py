@@ -9,6 +9,7 @@ from lib.check_files_handler import CheckFiles
 from lib.yaml_config_loader import LoaderNoDuplicates
 from cerberus import Validator
 from lib.proxmox_host_handler import ProxmoxHost
+# from lib.promox_common import ProxmoxCommon
 
 DEFAULT_YAML_VALIDATION_FILE = "config/host_config_validation.yaml"
 DEFAULT_LOGFILE = "logs/configure_host.log"
@@ -116,16 +117,17 @@ def main():
         label = "set by user" if key in config_values else "using default"
         output.output(f"{key.ljust(max_key_len + 1)}: {label}", type="i")
 
-    output.output()
-    output.output("Checking SSH connectivity", type="h")
-    output.output()
-
     host = ProxmoxHost(
         host=v_config["pve_host_ip"],
         username=v_config["pve_host_username"],
         key_filename=v_config["pve_host_keyfile"],
         logfile=DEFAULT_LOGFILE
     )
+
+    output.output()
+    output.output("Checking SSH connectivity", type="h")
+    output.output()
+
     connect_flag, connect_message = host.connect()
     output.output(
         connect_message,
@@ -147,51 +149,108 @@ def main():
         v_config['pve_host_ip'],
         v_config["pve_domain"],
         v_config['pve_host_file'],
-        DEFAULT_FOLDERS,
-        v_config["pve_host_reboot"]
+        DEFAULT_FOLDERS
         )
-    output.output(host_message, type="i")
+
+    for line in host_message:
+        output.output(
+            f"{line[1]}",
+            f"{line[2]}"
+        )
+
+    if line[1] != f"Current hostname is correct: '{v_config["pve_hostname"]}'":
+        if v_config["pve_host_reboot"]:
+            wait_time = 10
+            timeout = 180
+            output.output(
+                f"Reboot wait between try: {wait_time}s, timeout: {timeout}s",
+                "i"
+                )
+            reboot_message = (
+                host.reboot_and_reconnect(wait_time, timeout)
+                )
+            for line in reboot_message:
+                output.output(
+                    f"{line[1]}",
+                    f"{line[2]}"
+                )
+        else:
+            output.output("Reboot flag set to NOT reboot Proxmox host", "i")
 
     output.output()
     output.output("Checking Proxmox sshd config", type="h")
     output.output()
 
-    success = host.check_sshd_config(v_config)
-    if success == "check":
+    check_message = host.check_sshd_config(v_config)
+    for line in check_message:
+        output.output(
+            f"{line[1]}",
+            f"{line[2]}"
+        )
+
+    if len(check_message) > 5:
         output.output(
             "Rechecking SSHD config",
             "i"
         )
         sshd_success = host.check_sshd_config(v_config)
-        if len(sshd_success) == 0:
+        for line in sshd_success:
             output.output(
-                "SSHD config check ended with errors",
-                "e"
+                f"{line[1]}",
+                f"{line[2]}"
             )
-    if success == "error":
-        output.output(
-            "SSHD config check ended with errors",
-            "e"
-        )
 
     output.output()
     output.output("Checking Proxmox repository settings", type="h")
     output.output()
-    host.check_pve_no_subscribtion()
-    host.check_pve_enterprise()
-    host.check_pve_ceph()
-    host.check_pve_pve_no_subscription_patch()
+    subscription_message = host.check_pve_no_subscribtion()
+    for line in subscription_message:
+        output.output(
+            f"{line[1]}",
+            f"{line[2]}"
+        )
+
+    enterprise_message = host.check_pve_enterprise()
+    for line in enterprise_message:
+        output.output(
+            f"{line[1]}",
+            f"{line[2]}"
+        )
+
+    ceph_message = host.check_pve_ceph()
+    for line in ceph_message:
+        output.output(
+            f"{line[1]}",
+            f"{line[2]}"
+        )
+
+    patch_message = host.check_pve_pve_no_subscription_patch()
+    for line in patch_message:
+        output.output(
+            f"{line[1]}",
+            f"{line[2]}"
+        )
 
     output.output()
     output.output("Downloading ISO files", type="h")
     output.output()
-    host.download_iso_files(v_config)
+    download_message = host.download_iso_files(v_config)
+    for line in download_message:
+        output.output(
+            f"{line[1]}",
+            f"{line[2]}"
+        )
 
     if v_config['pve_host_change_pwd']:
         output.output()
         output.output("Root password change", type="h")
         output.output()
-        host.change_pwd(v_config)
+        password_message = host.change_pwd(v_config)
+        for line in password_message:
+            output.output(
+                f"{line[1]}",
+                f"{line[2]}"
+            )
 
     output.output()
     output.output("Closing SSH", type="h")
