@@ -874,3 +874,56 @@ class ProxmoxHost:
             ))
 
         return password_output
+
+    def check_ssh_keys(self, ssh_keys):
+        keys_output = []
+
+        setup_commands = [
+            "mkdir -p ~/.ssh",
+            "chmod 700 ~/.ssh",
+            "touch ~/.ssh/authorized_keys",
+            "chmod 600 ~/.ssh/authorized_keys"
+        ]
+
+        for cmd in setup_commands:
+            result = self.ssh.run(cmd)
+            if result['exit_code'] != 0:
+                keys_output.append((
+                    False,
+                    f"Error running command: '{cmd}':"
+                    f"{result['stderr'].strip()}",
+                    "e"
+                ))
+
+        result = self.ssh.run("cat ~/.ssh/authorized_keys")
+        current_keys = (
+            result['stdout'].splitlines()
+            if result['exit_code'] == 0 else []
+        )
+
+        for key in ssh_keys:
+            key = key.strip()
+            if key and key not in current_keys:
+                add_cmd = f'echo {shlex.quote(key)} >> ~/.ssh/authorized_keys'
+                res = self.ssh.run(add_cmd)
+                if res["exit_code"] == 0:
+                    keys_output.append((
+                        True,
+                        f"Added SSH key: {key[:40]}...",
+                        "s"
+                    ))
+                else:
+                    keys_output.append((
+                        False,
+                        f"Failed to add key: {key[:40]}... -"
+                        f" {res['stderr'].strip()}",
+                        "e"
+                    ))
+            else:
+                keys_output.append((
+                    True,
+                    f"SSH key already present: {key[:40]}...",
+                    "i"
+                ))
+
+        return keys_output

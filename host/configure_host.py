@@ -201,6 +201,17 @@ def main():
             )
 
     output.output()
+    output.output("Checking SSH keys on Proxmox", type="h")
+    output.output()
+
+    keys_message = host.check_ssh_keys(v_config["pve_sshkey_public"])
+    for line in keys_message:
+        output.output(
+            f"{line[1]}",
+            f"{line[2]}"
+        )
+
+    output.output()
     output.output("Checking Proxmox repository settings", type="h")
     output.output()
     subscription_message = host.check_pve_no_subscribtion()
