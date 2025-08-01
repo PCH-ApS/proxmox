@@ -30,6 +30,7 @@ from typing import Protocol
 import shlex
 import socket
 import time
+import re
 
 
 class SSHLike(Protocol):
@@ -82,151 +83,157 @@ class RemoteHost:
     # ---------------------------------------------------------------------
     # Generic host operations
     # ---------------------------------------------------------------------
+
     def get_hostname(self) -> tuple[bool, str]:
-        """Return (success, hostname_or_error)."""
-        res = self.run("hostname")
-        if res["exit_code"] != 0:
-            return False, res["stderr"].strip()
-        return True, res["stdout"].strip()
+        result = self.ssh.run("hostname")
+        if result['exit_code'] != 0:
+            return False, result['stderr']
+        return True, result['stdout'].strip('\n')
 
-    def add_to_file(self, content: str, file_path: str) -> tuple[bool, str]:
-        """Add an exact line to a file if it's not already present.
-
-        Uses grep -Fxq for exact, fixed-string, whole-line match.
-        """
-        safe_line = shlex.quote(content)
+    def add_to_file(self, content, file_path) -> tuple[bool, str]:
+        safe_content = shlex.quote(content)
         safe_path = shlex.quote(file_path)
-
-        exists = self.run(f"grep -Fxq {safe_line} {safe_path}")
+        command = f'grep -Fxq {safe_content} {safe_path}'
+        exists = self.run(command)
         if exists["exit_code"] == 0:
-            return True, f"Line already present in {file_path}"
+            return True, f"{content} already exists in {safe_path}"
 
-        res = self.run(f"echo {safe_line} >> {safe_path}")
-        if res["exit_code"] != 0:
-            return False, res["stderr"].strip()
-        return True, f"Added line to {file_path}"
+        command = f'echo {safe_content} >> {safe_path}'
+        result = self.ssh.run(command)
+        if result['exit_code'] != 0:
+            return False, result['stderr']
+        return True, f"{content} succesfully added to {file_path}"
 
     def remove_line_with_content(
-        self,
-        content: str,
-        file_path: str
+            self,
+            content: str,
+            file_path: str
     ) -> tuple[bool, str]:
-        """Remove any line containing the given content (simple sed-based).
-
-        Escapes forward slashes to keep the sed pattern valid.
-        """
-        # Escape for sed delimiter
-        pattern = content.replace("/", r"\/")
         safe_path = shlex.quote(file_path)
-
-        res = self.run(f"sed -i \"/{pattern}/d\" {safe_path}")
-        if res["exit_code"] != 0:
-            return False, res["stderr"].strip()
-        return True, f"Removed lines containing '{content}' from {file_path}"
+        safe_content = re.escape(content)
+        command = f"sed -i '\\#{safe_content}#d' {safe_path}"
+        result = self.run(command)
+        if result['exit_code'] != 0:
+            return False, result['stderr']
+        return True, (
+            f"Line with content '{content}' "
+            f"removed from {file_path}"
+        )
 
     def reboot_and_reconnect(
-        self, *, wait_time: int = 10, timeout: int = 180
+            self,
+            wait_time=10,
+            timeout=180
     ) -> list[tuple[bool, str, str]]:
-        """Reboot the host and poll until SSH is reachable again.
+        reboot_output: list[tuple[bool, str, str]] = []
+        result = self.ssh.run("reboot")
+        if result['exit_code'] != 0:
+            reboot_output.append((False, "Failed to send reboot command", "e"))
+            return reboot_output
 
-        Returns a list of (ok, message, level) steps for logging.
-        """
-        out: list[tuple[bool, str, str]] = []
-
-        res = self.run("reboot")
-        if res["exit_code"] != 0:
-            out.append((False, "Failed to issue reboot command", "e"))
-            return out
-
-        # Close current session
         self.ssh.close()
-        out.append((True, "Waiting for host to reboot...", "i"))
+
+        reboot_output.append((True, "Waiting for host to reboot...", "i"))
         time.sleep(wait_time)
 
-        start = time.time()
-        while time.time() - start < timeout:
+        start_time = time.time()
+        while time.time() - start_time < timeout:
             try:
-                # Probe TCP/22 to see if SSH is up
                 sock = socket.create_connection((self.ssh.host, 22), timeout=5)
                 sock.close()
-                out.append((
-                    True,
-                    "SSH port open, attempting reconnect...",
-                    "i"
-                    ))
-                ok, msg = self.ssh.connect()
-                out.append((ok, msg, "s" if ok else "e"))
-                if ok:
-                    return out
-            except OSError:
-                pass
-            time.sleep(5)
 
-        out.append((False, "Timed out waiting for SSH after reboot", "e"))
-        return out
+                reboot_output.append(
+                    (True, "SSH port is open, trying to reconnect...", "i")
+                    )
+                success, message = self.ssh.connect()
+                reboot_output.append(
+                    (
+                        True if success else False,
+                        f"{message}",
+                        "s" if success else "e"
+                        )
+                )
+                if success:
+                    return reboot_output
+            except (OSError, socket.error):
+                pass
+
+            time.sleep(5)
+        reboot_output.append((
+            False,
+            "Timed out waiting for SSH after reboot",
+            "e"
+            ))
+        return reboot_output
 
     def check_ssh_keys(
-        self,
-        ssh_keys: list[str]
+            self,
+            ssh_keys: list[str]
     ) -> list[tuple[bool, str, str]]:
-        """Ensure each key exists in ~/.ssh/authorized_keys.
+        keys_output: list[tuple[bool, str, str]] = []
 
-        Idempotent: re-running will not duplicate keys.
-        """
-        output: list[tuple[bool, str, str]] = []
-
-        for cmd in (
+        setup_commands = [
             "mkdir -p ~/.ssh",
             "chmod 700 ~/.ssh",
             "touch ~/.ssh/authorized_keys",
-            "chmod 600 ~/.ssh/authorized_keys",
-        ):
-            res = self.run(cmd)
-            if res["exit_code"] != 0:
-                output.append((
-                    False,
-                    f"Error running '{cmd}': {res['stderr'].strip()}",
-                    "e"
-                    ))
+            "chmod 600 ~/.ssh/authorized_keys"
+        ]
 
-        res = self.run("cat ~/.ssh/authorized_keys")
-        if res["exit_code"] == 0:
-            current_keys = res["stdout"].splitlines()
-        else:
-            current_keys = []
+        for cmd in setup_commands:
+            result = self.ssh.run(cmd)
+            if result['exit_code'] != 0:
+                keys_output.append((
+                    False,
+                    f"Error running command: '{cmd}':"
+                    f"{result['stderr'].strip()}",
+                    "e"
+                ))
+
+        result = self.ssh.run("cat ~/.ssh/authorized_keys")
+        current_keys = (
+            result['stdout'].splitlines()
+            if result['exit_code'] == 0 else []
+        )
 
         for key in ssh_keys:
-            k = key.strip()
-            if not k:
-                continue
-            if k not in current_keys:
-                add_cmd = f"echo {shlex.quote(k)} >> ~/.ssh/authorized_keys"
-                add_res = self.run(add_cmd)
-                if add_res["exit_code"] == 0:
-                    output.append((True, f"Added SSH key: {k[:40]}...", "s"))
-                else:
-                    output.append((
-                        False,
-                        f"Failed to add key: {k[:40]}... - "
-                        f"{add_res['stderr'].strip()}",
-                        "e"
-                        ))
-            else:
-                output.append((
-                    True,
-                    f"SSH key already present: {k[:40]}...",
-                    "i"
+            key = key.strip()
+            if key and key not in current_keys:
+                add_cmd = f'echo {shlex.quote(key)} >> ~/.ssh/authorized_keys'
+                res = self.ssh.run(add_cmd)
+                if res["exit_code"] == 0:
+                    keys_output.append((
+                        True,
+                        f"Added SSH key: {key[:40]}...",
+                        "s"
                     ))
+                else:
+                    keys_output.append((
+                        False,
+                        f"Failed to add key: {key[:40]}... -"
+                        f" {res['stderr'].strip()}",
+                        "e"
+                    ))
+            else:
+                keys_output.append((
+                    True,
+                    f"SSH key already present: {key[:40]}...",
+                    "i"
+                ))
 
-        return output
+        return keys_output
 
     def change_pwd(
-            self,
-            user: str,
-            new_password: str
+        self,
+        user: str,
+        new_password: str
     ) -> list[tuple[bool, str, str]]:
-        """Change a user's password via chpasswd."""
-        cmd = f"echo {shlex.quote(f'{user}:{new_password}')} | chpasswd"
+        if not user:
+            return [(False, "Empty username is not allowed.", "e")]
+
+        is_root = getattr(self.ssh, "username", "") == "root"
+        prog = "chpasswd" if is_root else "sudo -n chpasswd"
+        cmd = f"echo {shlex.quote(f'{user}:{new_password}')} | {prog}"
+
         res = self.run(cmd)
         if res["exit_code"] == 0:
             return [
@@ -244,3 +251,178 @@ class RemoteHost:
                 "e"
                 )
                 ]
+
+    def get_active_sshd_config(self) -> tuple[bool, dict[str, str]]:
+        result = self.run("sshd -T")
+        if result["exit_code"] != 0:
+            return False, {"error": result["stderr"].strip()}
+
+        active_sshd_dict: dict[str, str] = {}
+        active_sshd_config = result['stdout'].splitlines()
+
+        for line in active_sshd_config:
+            parts = line.strip().split(None, 1)
+            if len(parts) == 2:
+                key, value = parts
+                active_sshd_dict[key] = value
+
+        return True, active_sshd_dict
+
+    def resolve_wildcard_path(self, path: str) -> tuple[bool, list[str] | str]:
+        command = f"ls -1 {path}"
+        result = self.ssh.run(command)
+
+        if result['exit_code'] != 0:
+            return False, result['stderr']
+
+        resolved_paths = result['stdout'].splitlines()
+        return True, resolved_paths
+
+    def search_configfile(
+            self,
+            searchstring: str,
+            path: str
+    ) -> tuple[bool, list[str] | str]:
+        command = f"grep -i {shlex.quote(searchstring)} {shlex.quote(path)}"
+        result = self.run(command)
+        if result["exit_code"] != 0:
+            return False, result["stderr"].strip()
+
+        included: list[str] = []
+        config_lines = result['stdout'].splitlines()
+        for line in config_lines:
+            tokens = line.strip().split()
+            if len(tokens) > 1 and tokens[0].lower() == searchstring.lower():
+                included.append(tokens[1])
+
+        actual: list[str] = []
+        for inc_path in included:
+            if "*" in inc_path:
+                ok, files = self.resolve_wildcard_path(inc_path)
+                if ok and isinstance(files, list):
+                    actual.extend(files)
+            else:
+                actual.append(inc_path)
+        return True, actual
+
+    def get_all_config_files(
+            self,
+            searchstring: str,
+            root_path: str
+    ) -> set[str]:
+        visited: set[str] = set()
+        files: list[str] = [root_path]
+        while files:
+            current = files.pop()
+            if current not in visited:
+                ok, included = self.search_configfile(searchstring, current)
+                if ok and isinstance(included, list) and included:
+                    files.extend(included)
+                visited.add(current)
+        return visited
+
+    def comment_out_param_in_file(self, param: str, path: str) -> bool:
+        # Backup
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        backup = f"{path}.{timestamp}.bak"
+        command = f"cp {shlex.quote(path)} {shlex.quote(backup)}"
+        if self.run(command)["exit_code"] != 0:
+            return False
+
+        # Comment out lines where PARAM starts the (non-commented)
+        # line (allow leading spaces)
+        # Use a non-slash delimiter and escape regex metacharacters.
+        pattern = re.escape(param)
+        safe_path = shlex.quote(path)
+        cmd = f"sed -i '/^[[:space:]]*{pattern}\\b/ s/^/#/' {safe_path}"
+        return self.run(cmd)["exit_code"] == 0
+
+    def is_param_explicitly_set(self, param: str, filepath: str) -> bool:
+        # Match non-commented lines where the param starts a token
+        grep_cmd = (
+            f"grep -i '^[[:space:]]*{param}\\b' {shlex.quote(filepath)} "
+            "| grep -v '^[[:space:]]*#'"
+        )
+        result = self.ssh.run(grep_cmd)
+        return result['exit_code'] == 0 and result['stdout'].strip() != ''
+
+    def get_missing_sshd_keys(
+        self,
+        active_config: dict[str, str],
+        desired_config: dict[str, str],
+        ignore_prefix: str | None = None,
+    ) -> list[str]:
+        missing: list[str] = []
+        for key in desired_config:
+            if ignore_prefix and key.startswith(ignore_prefix):
+                continue
+            if key.lower() not in active_config:
+                missing.append(key)
+        return missing
+
+    def get_wrong_value_sshd_keys(
+        self,
+        active_config: dict[str, str],
+        desired_config: dict[str, str],
+        ignore_prefix: str | None = None,
+    ) -> list[str]:
+        wrong: list[str] = []
+        for key, desired in desired_config.items():
+            if ignore_prefix and key.startswith(ignore_prefix):
+                continue
+            active = active_config.get(key.lower())
+            if (
+                active is not None
+                and str(desired).lower() != str(active).lower()
+            ):
+                wrong.append(key)
+        return wrong
+
+    def ensure_lines_in_file(
+            self,
+            lines: list[str],
+            path: str
+    ) -> list[tuple[bool, str, str]]:
+        """
+        Ensure each line appears in `path` exactly once (append if missing).
+        Returns [(ok, message, level)].
+        """
+        out: list[tuple[bool, str, str]] = []
+
+        # Ensure file exists
+        dir_cmd = f"mkdir -p $(dirname {shlex.quote(path)})"
+        touch_cmd = f"touch {shlex.quote(path)}"
+        for cmd in (dir_cmd, touch_cmd):
+            res = self.run(cmd)
+            if res["exit_code"] != 0:
+                out.append((
+                    False,
+                    f"Error running '{cmd}': {res['stderr'].strip()}",
+                    "e"
+                    ))
+                return out
+
+        safe_path = shlex.quote(path)
+
+        # For each line, append only if not present (fixed-string, whole-line)
+        for line in lines:
+            line = line.rstrip("\n")
+            if not line:
+                continue
+
+            safe_line = shlex.quote(line)
+            check = self.run(f"grep -Fxq {safe_line} {safe_path}")
+            if check["exit_code"] == 0:
+                out.append((True, f"Line already present: {line}", "i"))
+                continue
+            append = self.run(f"printf '%s\\n' {safe_line} >> {safe_path}")
+            if append["exit_code"] == 0:
+                out.append((True, f"Appended: {line}", "s"))
+            else:
+                out.append((
+                    False,
+                    f"Failed to append: {line} - {append['stderr'].strip()}",
+                    "e"
+                    ))
+
+        return out
