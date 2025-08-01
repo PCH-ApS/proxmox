@@ -3,13 +3,13 @@ import os
 import sys
 import argparse
 import yaml
+import getpass
 
 from lib.output_handler import OutputHandler
 from lib.check_files_handler import CheckFiles
 from lib.yaml_config_loader import LoaderNoDuplicates
 from cerberus import Validator
 from lib.proxmox_host_handler import ProxmoxHost
-# from lib.promox_common import ProxmoxCommon
 
 DEFAULT_YAML_VALIDATION_FILE = "config/host_config_validation.yaml"
 DEFAULT_LOGFILE = "logs/configure_host.log"
@@ -121,7 +121,6 @@ def main():
         host=v_config["pve_host_ip"],
         username=v_config["pve_host_username"],
         key_filename=v_config["pve_host_keyfile"],
-        logfile=DEFAULT_LOGFILE
     )
 
     output.output()
@@ -256,7 +255,26 @@ def main():
         output.output()
         output.output("Root password change", type="h")
         output.output()
-        password_message = host.change_pwd(v_config)
+
+        pwd1 = getpass.getpass("Enter new root password: ")
+        pwd2 = getpass.getpass("Confirm new root password: ")
+
+        if pwd1 != pwd2:
+            output.output(
+                "Passwords do not match. Aborting.",
+                "e"
+            )
+            return
+
+        if not pwd1:
+            output.output(
+                "Empty password is not allowed.",
+                "e"
+            )
+            return
+
+        user = v_config['pve_host_username']
+        password_message = host.change_pwd(user, pwd1)
         for line in password_message:
             output.output(
                 f"{line[1]}",
