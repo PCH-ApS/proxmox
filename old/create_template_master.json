@@ -1,8 +1,0 @@
-{
-  "name"          : "text: hostname for new vm",
-  "id"            : "integer: VM id",
-  "os"            : "text: os type",
-  "image"         : "text: imagefile path"
- }
-
- 
