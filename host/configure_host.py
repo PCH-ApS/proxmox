@@ -57,19 +57,19 @@ def check_files(args):
                     )
 
 
-def load_yaml_file(yaml_file):
+def load_yaml_file(yaml_file: str) -> dict:
     try:
-        yaml_dict = yaml.load(
-            open(yaml_file, 'r').read(),
-            Loader=LoaderNoDuplicates
-        )
+        with open(yaml_file, "r") as fh:
+            return yaml.load(
+                fh.read(), Loader=LoaderNoDuplicates
+            )
     except Exception as e:
-        print(
-            f'File yaml load error in '
-            f'"{yaml_file}": {str(e)}'
-        )
-
-    return yaml_dict
+        output.output(
+            f'File yaml load error in "{yaml_file}": {e}',
+            "e",
+            exit_on_error=True
+            )
+        return {}
 
 
 def validate_config(config, validation_rules):
@@ -110,6 +110,13 @@ def main():
     config_values = load_yaml_file(args.config_file)
     validation_rules = load_yaml_file(args.validation_file)
     v_config = validate_config(config_values, validation_rules)
+    if not v_config:
+        output.output(
+            "Error retrieving config from yaml-files",
+            "e",
+            exit_on_error=True
+            )
+        return
 
     # Format key for display
     max_key_len = max(len(key) for key in v_config)
@@ -138,11 +145,18 @@ def main():
     output.output("Checking Proxmox hostname", type="h")
     output.output()
 
-    current_hostname = host.get_hostname()
+    ok, cur_host = host.get_hostname()
+    output.output(
+        cur_host if ok else f"Failed to get hostname: {cur_host}",
+        "s" if ok else "e",
+        exit_on_error=not ok
+        )
+
     DEFAULT_FOLDERS = [
-        f"/etc/pve/nodes/{current_hostname[1]}/lxc",
-        f"/etc/pve/nodes/{current_hostname[1]}/qemu-server",
+        f"/etc/pve/nodes/{cur_host}/lxc",
+        f"/etc/pve/nodes/{cur_host}/qemu-server"
         ]
+
     host_message = host.change_hostname(
         v_config["pve_hostname"],
         v_config['pve_host_ip'],
@@ -240,6 +254,17 @@ def main():
             f"{line[1]}",
             f"{line[2]}"
         )
+
+    output.output()
+    output.output("Ensuring snippets support", type="h")
+    output.output()
+
+    msgs = host.ensure_snippets(
+        storage="local",
+        snippets_dir="/var/lib/vz/snippets"
+        )
+    for ok, msg, lvl in msgs:
+        output.output(msg, lvl)
 
     output.output()
     output.output("Downloading ISO files", type="h")

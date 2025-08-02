@@ -3,6 +3,7 @@ import os
 import sys
 import argparse
 import yaml
+import shlex
 
 from lib.output_handler import OutputHandler
 from lib.check_files_handler import CheckFiles
@@ -56,19 +57,19 @@ def check_files(args):
                     )
 
 
-def load_yaml_file(yaml_file):
+def load_yaml_file(yaml_file: str) -> dict:
     try:
-        yaml_dict = yaml.load(
-            open(yaml_file, 'r').read(),
-            Loader=LoaderNoDuplicates
-        )
+        with open(yaml_file, "r") as fh:
+            return yaml.load(
+                fh.read(), Loader=LoaderNoDuplicates
+            )
     except Exception as e:
-        print(
-            f'File yaml load error in '
-            f'"{yaml_file}": {str(e)}'
-        )
-
-    return yaml_dict
+        output.output(
+            f'File yaml load error in "{yaml_file}": {e}',
+            "e",
+            exit_on_error=True
+            )
+        return {}
 
 
 def validate_config(config, validation_rules):
@@ -85,6 +86,24 @@ def validate_config(config, validation_rules):
     else:
         output.output("Configuration validation passed", type="s")
         return validator.document
+
+
+def run_steps(host, steps, *, fail_prefix="Error creating template"):
+    """
+    steps: list[tuple[str, str]] -> (command, success_message)
+    Executes each qm command; aborts on first error.
+    """
+    for cmd, ok_msg in steps:
+        res = host.run(cmd)
+        if res["exit_code"] != 0:
+            stderr = res.get("stderr", "").strip()
+            output.output(
+                f"{fail_prefix}: {stderr or cmd}",
+                "e",
+                exit_on_error=True
+                )
+        else:
+            output.output(ok_msg, "s")
 
 
 def main():
@@ -109,6 +128,13 @@ def main():
     config_values = load_yaml_file(args.config_file)
     validation_rules = load_yaml_file(args.validation_file)
     v_config = validate_config(config_values, validation_rules)
+    if not v_config:
+        output.output(
+            "Error retrieving config from yaml-files",
+            "e",
+            exit_on_error=True
+            )
+        return
 
     max_key_len = max(len(key) for key in v_config)
     for key in v_config:
@@ -138,159 +164,115 @@ def main():
 
     ok, msg = host.is_vmid_in_use(v_config["tmp_id"])
     output.output(msg, "s" if not ok else "e", exit_on_error=ok)
+
     ok, msg = host.check_cpu_model_supported(v_config["tmp_cpu"])
     output.output(msg, "s" if ok else "e", exit_on_error=not ok)
+
     ok, msg = host.check_storage_ctrl_exists(v_config["tmp_storage_ctrl"])
     output.output(msg, "s" if ok else "e", exit_on_error=not ok)
+
     ok, msg = host.check_storage_exists(v_config["tmp_local_storage"])
     output.output(msg, "s" if ok else "e", exit_on_error=not ok)
+
     ok, msg = host.check_bridge_exists(v_config["tmp_bridge"])
     output.output(msg, "s" if ok else "e", exit_on_error=not ok)
+
     ok, msg = host.check_network_ctrl_exists(v_config["tmp_network_ctrl"])
+    output.output(msg, "s" if ok else "e", exit_on_error=not ok)
+
+    ok, msg = host.check_image_file_exists(v_config["tmp_image_path"])
+    output.output(msg, "s" if ok else "e", exit_on_error=not ok)
+
+    # Optional: bootdisk slot sanity (e.g., scsi0 / sata0 / ide0 / virtio0)
+    ok, msg = host.validate_disk_slot(v_config["tmp_bootdisk"])
     output.output(msg, "s" if ok else "e", exit_on_error=not ok)
 
     output.output()
     output.output("Creating template", type="h")
     output.output()
 
-    command = f"qm create {v_config['tmp_id']} --name {v_config['tmp_name']}"
-    result = host.run(command)
-    if result["exit_code"] != 0:
-        output.output(
-            f"Error setting template id: {result['stderr']}",
-            "e",
-            exit_on_error=True
-            )
-    output.output(
-            f"Setting template id: {v_config['tmp_id']} "
-            f"and name: {v_config["tmp_name"]}",
-            "s",
-            )
+    vmid = v_config["tmp_id"]
+    name = shlex.quote(v_config["tmp_name"])
+    cpu = shlex.quote(v_config["tmp_cpu"])
+    cores = v_config["tmp_cores"]
+    memory = v_config["tmp_memory"]
+    scsihw = shlex.quote(v_config["tmp_storage_ctrl"])
+    netmdl = shlex.quote(v_config["tmp_network_ctrl"])
+    bridge = shlex.quote(v_config["tmp_bridge"])
+    store = shlex.quote(v_config["tmp_local_storage"])
+    slot = shlex.quote(v_config["tmp_bootdisk"])
+    img = shlex.quote(v_config["tmp_image_path"])
 
-    command = f"qm set {v_config['tmp_id']} --cpu {v_config['tmp_cpu']}"
-    result = host.run(command)
-    if result["exit_code"] != 0:
-        output.output(
-            f"Error setting CPU: {result['stderr']}",
-            "e",
-            exit_on_error=True
-            )
-    output.output(
-            f"Setting template CPU: {v_config['tmp_cpu']}",
-            "s",
-            )
+    # Build net0 parameter once (minimal: model + bridge)
+    net0 = f"model={netmdl},bridge={bridge}"
 
-    command = f"qm set {v_config['tmp_id']} --cores {v_config['tmp_cores']}"
-    result = host.run(command)
-    if result["exit_code"] != 0:
-        output.output(
-            f"Error setting CPU cores: {result['stderr']}",
-            "e",
-            exit_on_error=True
-            )
-    output.output(
-            f"Setting template CPU cores: {v_config["tmp_cores"]} ",
-            "s",
-            )
+    # Steps to create template. Each tuple = (command, success_message)
+    steps = [
+        (
+            f"qm create {vmid} --name {name}",
+            f"Setting template id: {vmid} and name: "
+            f"{v_config['tmp_name']}"
+            ),
 
-    command = f"qm set {v_config['tmp_id']} --memory {v_config['tmp_memory']}"
-    result = host.run(command)
-    if result["exit_code"] != 0:
-        output.output(
-            f"Error setting memory: {result['stderr']}",
-            "e",
-            exit_on_error=True
-            )
-    output.output(
-            f"Setting template memory: {v_config["tmp_memory"]} ",
-            "s",
-            )
+        (
+            f"qm set {vmid} --cpu {cpu}",
+            f"Setting template CPU: {v_config['tmp_cpu']}"
+            ),
 
-    command = (
-        f"qm set {v_config['tmp_id']} --scsihw {v_config['tmp_storage_ctrl']}"
-    )
-    result = host.run(command)
-    if result["exit_code"] != 0:
-        output.output(
-            f"Error setting storage controller: {result['stderr']}",
-            "e",
-            exit_on_error=True
-            )
-    output.output(
-            f"Setting template storage ctrl: {v_config['tmp_storage_ctrl']} ",
-            "s",
-            )
+        (
+            f"qm set {vmid} --cores {cores}",
+            f"Setting template CPU cores: {cores}"
+            ),
 
-    command = (
-        f"qm set {v_config['tmp_id']} --net0 model="
-        f"{v_config['tmp_network_ctrl']}"
-    )
-    result = host.run(command)
-    if result["exit_code"] != 0:
-        output.output(
-            f"Error setting network controller: {result['stderr']}",
-            "e",
-            exit_on_error=True
-            )
-    output.output(
+        (
+            f"qm set {vmid} --memory {memory}",
+            f"Setting template memory: {memory}"
+            ),
+
+        (
+            f"qm set {vmid} --scsihw {scsihw}",
+            f"Setting template storage ctrl: {v_config['tmp_storage_ctrl']}"
+            ),
+
+        (
+            f"qm set {vmid} --net0 {net0}",
             "Setting template network controller: "
-            f"{v_config['tmp_network_ctrl']}",
-            "s"
-            )
+            f"{v_config['tmp_network_ctrl']} on {v_config['tmp_bridge']}"
+            ),
 
-    command = (
-        f"qm set {v_config['tmp_id']} "
-        f"--{v_config['tmp_bootdisk']} "
-        f"{v_config['tmp_local_storage']}:0,"
-        f"import-from={v_config['tmp_image_path']},discard=on"
-    )
-    result = host.run(command)
-    if result["exit_code"] != 0:
-        output.output(
-            f"Error setting bootdisk: {result['stderr']}",
-            "e",
-            exit_on_error=True
-            )
-    output.output(
-            f"Setting template bootdisk: {v_config['tmp_bootdisk']} "
-            f"on {v_config['tmp_local_storage']}",
-            "s",
-            )
-    output.output(
-            f"Applying image file: {v_config['tmp_image_path']}",
-            "s",
-            )
+        # Import image into storage and attach as boot disk (PVE 8.x)
+        (
+            f"qm set {vmid} --{slot} {store}:0,import-from={img},discard=on",
+            "Setting template bootdisk: "
+            f"{v_config['tmp_bootdisk']} on {v_config['tmp_local_storage']}"
+            ),
+    ]
 
-    commands = [
-      f"qm set {v_config['tmp_id']} --agent enabled=1,fstrim_cloned_disks=1",
-      f"qm set {v_config['tmp_id']} --serial0 socket",
-      f"qm set {v_config['tmp_id']} --vga serial0",
-        ]
+    run_steps(host, steps)
 
-    # Execute each command via SSH
-    for command in commands:
-        result = host.run(command)
-        if result["exit_code"] != 0:
-            output.output(
-                f"Error creating template: {result['stderr']}",
-                "e",
-                exit_on_error=True
-                )
+    # Extra quality-of-life defaults for templates
+    extras = [
+        (
+            f"qm set {vmid} --agent enabled=1,fstrim_cloned_disks=1",
+            "Enabled qemu-guest-agent and fstrim for cloned disks"
+            ),
 
-    command = (
-        f"qm template {v_config['tmp_id']}"
-    )
-    result = host.run(command)
-    if result["exit_code"] != 0:
-        output.output(
-            f"Error creating template: {result['stderr']}",
-            "e",
-            exit_on_error=True
-            )
-    output.output(
-            "Conveting to template",
-            "s"
-            )
+        (
+            f"qm set {vmid} --serial0 socket",
+            "Added serial0 console socket"
+            ),
+
+        (
+            f"qm set {vmid} --vga serial0",
+            "Set VGA to serial0 (for console usability)"
+            ),
+    ]
+    run_steps(host, extras)
+
+    # Convert to template (finalize)
+    run_steps(host, [
+        (f"qm template {vmid}", "Converting to template"),
+    ])
 
     output.output()
     output.output("Closing SSH", type="h")

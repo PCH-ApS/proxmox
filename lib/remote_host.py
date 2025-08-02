@@ -426,3 +426,7 @@ class RemoteHost:
                     ))
 
         return out
+
+    def bool(self, value) -> str:
+        """Return '1' or '0' for truthy/falsy config values."""
+        return "1" if bool(value) else "0"
