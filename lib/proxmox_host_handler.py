@@ -625,3 +625,230 @@ class ProxmoxHost(RemoteHost):
                             "e"
                         ))
         return download_output
+
+    def check_bridge_exists(self, name: str) -> tuple[bool, str]:
+        """
+        Verify that a Proxmox bridge exists on the host.
+        Returns (ok, message). Accepts Linux bridges and OVS bridges.
+        """
+        if not name:
+            return False, "Empty bridge name."
+
+        safe = shlex.quote(name)
+
+        # Linux bridge?
+        res = self.run(
+            f"test -d /sys/class/net/{safe}/bridge && echo ok || echo no"
+            )
+        if res["exit_code"] == 0 and res["stdout"].strip() == "ok":
+            return True, f"Linux bridge '{name}' exists."
+
+        # OVS bridge?
+        res2 = self.run(
+            f"command -v ovs-vsctl >/dev/null 2>&1 "
+            f"&& ovs-vsctl br-exists {safe}"
+        )
+        if res2["exit_code"] == 0:
+            return True, f"OVS bridge '{name}' exists."
+
+        # Interface present at all?
+        res3 = self.run(f"test -d /sys/class/net/{safe} && echo ok || echo no")
+        if res3["exit_code"] == 0 and res3["stdout"].strip() == "ok":
+            return False, (
+                f"Interface '{name}' exists but is not a Linux/OVS bridge."
+            )
+
+        # Optional: suggest available bridges to help the user
+        hint = self.run(
+            "ls -1 /sys/class/net | xargs -I{} sh -c "
+            "'if [ -d /sys/class/net/{}/bridge ]; then echo {}; fi'"
+        )
+        candidates = ", ".join(hint["stdout"].split())
+        suffix = (
+            f" Available Linux bridges: {candidates}" if candidates else ""
+            )
+        return False, f"No such bridge '{name}'.{suffix}"
+
+    def check_storage_exists(self, storage_id: str) -> tuple[bool, str]:
+        """
+        Check that a storage ID is defined in /etc/pve/storage.cfg.
+        Returns (ok, message).
+        """
+        if not storage_id:
+            return False, "Empty storage id."
+
+        cmd = (
+            "awk -v id={id} '"
+            "$1 ~ /:$/ && $2==id {{ found=1; exit }} "
+            "END{{ exit !found }}' /etc/pve/storage.cfg"
+        ).format(id=shlex.quote(storage_id))
+
+        res = self.run(cmd)
+        if res["exit_code"] == 0:
+            return True, f"Storage '{storage_id}' exists."
+        if res["stderr"].strip():
+            return False, res["stderr"].strip()
+        return False, f"Storage '{storage_id}' not found."
+
+    def is_vmid_in_use(self, vmid: int) -> tuple[bool, str]:
+        """
+        True if VMID is used by a QEMU VM or LXC CT (or template),
+        based on cluster config files.
+        """
+        vid = str(vmid)
+        cmd = (
+            f"if test -f /etc/pve/qemu-server/{vid}.conf "
+            f"|| test -f /etc/pve/lxc/{vid}.conf; then "
+            f"echo in_use; else echo free; fi"
+        )
+        res = self.run(cmd)
+        if res["exit_code"] != 0:
+            return False, res["stderr"].strip() or (
+                f"Failed to check VMID {vmid}"
+                )
+        used = res["stdout"].strip() == "in_use"
+        return used, (
+            f"VMID {vmid} is already in use." if used else (
+                f"VMID {vmid} is free."
+                )
+            )
+
+    def check_cpu_model_supported(self, model: str) -> tuple[bool, str]:
+        """
+        Validate that a CPU model string is usable on this PVE host.
+
+        Accepts:
+        - 'host'
+        - Built-in QEMU models available on this host
+          (via qemu-system-<arch> -cpu help)
+        - Proxmox custom models defined in
+          /etc/pve/virtual-guest/cpu-models.conf
+          (must be referenced as 'custom-<name>' in VM config)
+        """
+        if not model:
+            return False, "Empty CPU model."
+
+        # 1) host is always allowed
+        if model == "host":
+            return True, "CPU model 'host' is supported."
+
+        # 2) custom-* models -> check cpu-models.conf
+        if model.startswith("custom-"):
+            name = model[len("custom-"):]
+            if not name:
+                return False, "Invalid custom CPU model (empty name)."
+            # Matches a section header line: 'cpu-model: <name>'
+            cmd = (
+                "test -f /etc/pve/virtual-guest/cpu-models.conf && "
+                f"grep -Eq '^\\s*cpu-model:\\s+{shlex.quote(name)}\\s*$' "
+                "/etc/pve/virtual-guest/cpu-models.conf"
+            )
+            res = self.run(cmd)
+            if res["exit_code"] == 0:
+                return True, f"Custom CPU model '{model}' is defined."
+            return False, (
+                f"Custom CPU model '{model}' is not defined in "
+                "/etc/pve/virtual-guest/cpu-models.conf"
+            )
+
+        # 3) built-in QEMU models: query the right qemu-system binary
+        # Map common arches; fallback to uname mapping.
+        qemu_bin_cmd = (
+            "arch=$(uname -m); "
+            "case \"$arch\" in "
+            "  x86_64) echo qemu-system-x86_64 ;; "
+            "  aarch64) echo qemu-system-aarch64 ;; "
+            "  armv7l|armv6l) echo qemu-system-arm ;; "
+            "  ppc64le) echo qemu-system-ppc64 ;; "
+            "  s390x) echo qemu-system-s390x ;; "
+            "  *) echo qemu-system-$arch ;; "
+            "esac"
+        )
+        rb = self.run(qemu_bin_cmd)
+        if rb["exit_code"] != 0:
+            return False, rb["stderr"].strip() or (
+                "Failed to determine qemu-system binary."
+                )
+
+        qemu_bin = rb["stdout"].strip() or "qemu-system-x86_64"
+
+        # Ask QEMU for supported CPU models and check for an exact match.
+        # We extract first "word" per line (how QEMU lists models) and
+        # grep -x for exact match.
+        cmd = (
+            f"{qemu_bin} -cpu help 2>/dev/null | "
+            "awk '{print $1}' | "
+            f"grep -x -- {shlex.quote(model)}"
+        )
+        res = self.run(cmd)
+        if res["exit_code"] == 0:
+            return True, f"CPU model '{model}' is supported by {qemu_bin}."
+
+        return False, (
+            f"CPU model '{model}' not found on this host. "
+            "Use 'host', a supported built-in model, or define"
+            " a custom model in cpu-models.conf."
+        )
+
+    def check_storage_ctrl_exists(self, controller: str) -> tuple[bool, str]:
+        """
+        Check if a storage controller/model is supported by the host's QEMU.
+        Matches both device 'name' and 'alias' from `-device help`.
+        """
+        if not controller:
+            return False, "Empty controller value."
+
+        ctrl = shlex.quote(controller)
+
+        # If you want arch detection, replace qemu-system-x86_64 with the bin
+        cmd = (
+            "qemu-system-x86_64 -device help 2>/dev/null | "
+            # Extract values inside quotes after name "/alias "
+            "awk -F\\\" '/name \\\"/{print $2} /alias \\\"/{print $2}' | "
+            "tr -d '\\r' | "          # strip any CRs just in case
+            f"grep -x -- {ctrl}"
+        )
+        res = self.run(cmd)
+        if res["exit_code"] == 0:
+            return True, f"Storage controller '{controller}' is supported."
+        return False, f"Storage controller '{controller}' is NOT supported."
+
+    def check_network_ctrl_exists(self, controller: str) -> tuple[bool, str]:
+        """
+        Check if a network controller/model is supported by the host's QEMU.
+        Matches both device 'name' and 'alias' from `-device help`.
+        Maps common Proxmox terms (e.g. 'virtio' -> 'virtio-net-pci').
+        Returns (ok, message).
+        """
+        if not controller:
+            return False, "Empty controller value."
+
+        # Map common PVE names to QEMU device names where needed
+        alias_map = {
+            "virtio": "virtio-net-pci",
+            # PVE 'virtio' NIC = QEMU 'virtio-net-pci'
+            # The others usually match QEMU names directly:
+            # 'e1000', 'e1000e', 'rtl8139', 'vmxnet3', 'ne2k_pci', 'pcnet'
+        }
+        target = alias_map.get(controller, controller)
+        target_q = shlex.quote(target)
+
+        # If you need arch detection, replace
+        # qemu-system-x86_64 with detected binary
+        cmd = (
+            "qemu-system-x86_64 -device help 2>/dev/null | "
+            # Extract values inside quotes after name "/ alias "
+            "awk -F\\\" '/name \\\"/{print $2} /alias \\\"/{print $2}' | "
+            "tr -d '\\r' | "
+            f"grep -x -- {target_q}"
+        )
+        res = self.run(cmd)
+        if res["exit_code"] == 0:
+            note = (
+                "" if target == controller
+                else f" (QEMU device: '{target}')"
+            )
+            return True, (
+                f"Network controller '{controller}' is supported{note}."
+            )
+        return False, f"Network controller '{controller}' is NOT supported."

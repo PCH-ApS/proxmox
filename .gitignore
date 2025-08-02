@@ -2,4 +2,4 @@ __pycache__/
 *.pyc
 .vscode
 __init__.py
-.log
+*.log
