@@ -297,6 +297,9 @@ def main():
             f"Set ciupgrade={desired}"
         ))
 
+    # -------------------------------------------------------------------------
+    # Apply plan with changes to virtual machine
+    # -------------------------------------------------------------------------
     output.output()
     output.output("Applying configuration deltas", "h")
     output.output()
@@ -331,31 +334,6 @@ def main():
             "i"
             )
 
-    """ Add custom Cloud-Init snippet to install
-    QEMU-agent on virtual machine """
-    snippet_storage, _ = host.find_snippet_storage()
-    custom_file = v_config.get("v_ci_custom")
-
-    if snippet_storage and custom_file:
-        command = (
-            f"qm set {vmid} --cicustom user={snippet_storage}"
-            f":snippets/{custom_file}"
-        )
-        result = host.run(command)
-        if result["exit_code"] != 0:
-            output.output(
-                f"Error setting custom CI file: {result['stderr'].strip()}",
-                "e",
-                exit_on_error=True
-            )
-        else:
-            output.output("Custom CI file set successfully", "s")
-    else:
-        output.output(
-            "Custom CI snippet was not set — missing storage or filename",
-            "w"
-        )
-
     """ cloud-init networking """
     if v_config["v_ci_network"].lower() == "dhcp":
         ok, msg = host.set_ci_network(vmid, "dhcp")
@@ -378,6 +356,10 @@ def main():
     output.output()
     ok, msg = host.start_vm(vmid)
     output.output(msg, "s" if ok else "e", exit_on_error=not ok)
+
+    # -------------------------------------------------------------------------
+    # On-guest configuration and finalization
+    # -------------------------------------------------------------------------
 
     output.output()
     output.output("Closing SSH", type="h")

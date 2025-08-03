@@ -123,21 +123,6 @@ pve_sshd_custom_config:
   required: false
   regex: '^(/[^/\0]+)+/?$'
   # Default path to desired sshd_config
-
-pve_qemu_snippet_source:
-  type: string
-  default: "config/snippets/qemu-agent.yaml"
-  required: false
-  regex: '^([a-zA-Z0-9_.\-/]+\/)?[a-zA-Z0-9_.-]+\.(ya?ml)$'
-
-
-pve_qemu_snippet_target:
-  type: string
-  default: "/var/lib/vz/snippets/qemu-agent.yaml"
-  required: false
-  regex: '^\/([a-zA-Z0-9._+-]+\/)*[a-zA-Z0-9._+-]+\.(ya?ml)$'
-# these keys are used to make sure the commands for installing qemu-agent on guests
-
 # --------------------------- PROXMOX SSHD DEFAULTS ---------------------------
 PermitRootLogin:
   type: string

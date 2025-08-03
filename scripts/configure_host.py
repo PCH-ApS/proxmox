@@ -266,19 +266,6 @@ def main():
     for ok, msg, lvl in msgs:
         output.output(msg, lvl)
 
-    src = v_config['pve_qemu_snippet_source']
-    dst = v_config['pve_qemu_snippet_target']
-    if not os.path.exists(src):
-        output.output(f"Local snippet not found: {src}", "e")
-
-    try:
-        sftp = host.ssh.ssh.open_sftp()
-        sftp.put(src, dst)
-        sftp.close()
-        output.output(f"Uploaded {src} to {dst}", "s")
-    except Exception as e:
-        output.output(f"Failed to upload snippet {src} -> {dst}: {e}", "e")
-
     output.output()
     output.output("Downloading ISO files", type="h")
     output.output()
