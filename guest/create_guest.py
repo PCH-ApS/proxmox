@@ -115,7 +115,9 @@ def main():
     output.output("Checking files", type="h")
     output.output()
 
-    # Check config files
+    # -------------------------------------------------------------------------
+    # Check config yaml files and get specific and defualt configuration
+    # -------------------------------------------------------------------------
     check_files(args.config_file)
     check_files(args.validation_file)
     config_values = load_yaml_file(args.config_file)
@@ -134,6 +136,9 @@ def main():
         label = "set by user" if key in config_values else "using default"
         output.output(f"{key.ljust(max_key_len + 1)}: {label}", type="i")
 
+    # -------------------------------------------------------------------------
+    # Set the ssh parameter for the SSH connection in class
+    # -------------------------------------------------------------------------
     host = ProxmoxHost(
         host=v_config["v_host_ip"],
         username=v_config["v_host_username"],
@@ -151,28 +156,26 @@ def main():
         exit_on_error=not connect_flag
         )
 
-    output.output()
-    output.output("Validating Proxmox prerequisites", type="h")
-    output.output()
-
-    ok, msg = host.is_vmid_in_use(v_config["v_clone_id"])
-    output.output(
-        f"Clone id exists. {v_config['v_clone_id']}",
-        "s" if ok else "e",
-        exit_on_error=not ok
-        )
+    # -------------------------------------------------------------------------
+    # setting up the virtual guest machine
+    # -------------------------------------------------------------------------
 
     output.output()
-    output.output("Cloning new VM or updating existing VM", "h")
+    output.output("Cloning new or updating existing machine", "h")
     output.output()
 
+    """ Check if guest id is in use and if clone id exists """
     ok, msg = host.clone_vmid_if_missing(
         v_config["v_clone_id"],
         v_config["v_id"]
         )
     output.output(msg, "s" if ok else "e", exit_on_error=not ok)
 
-    # --- Read current state ---
+    # -------------------------------------------------------------------------
+    # Create plan for virtual machine
+    # -------------------------------------------------------------------------
+
+    """  --- Read current state --- """
     ok, st = host.get_qm_status(v_config["v_id"])
     output.output(
         "Fetched qm status.",
@@ -187,11 +190,11 @@ def main():
         exit_on_error=not ok
         )
 
-    # --- Plan changes (only apply diffs) ---
+    """ --- Plan changes (only apply diffs) --- """
     vmid = v_config["v_id"]
     plan: list[tuple[str, str]] = []
 
-    # name
+    """ name """
     desired_name = shlex.quote(v_config["v_name"])
     if st.get("name") != v_config["v_name"]:
         plan.append((
@@ -199,20 +202,20 @@ def main():
             f"Set name to {v_config['v_name']}"
             ))
 
-    # cores
+    """ cores """
     if cfg.get("cores") != str(v_config["v_cores"]):
         plan.append((
             f"qm set {vmid} --cores {v_config['v_cores']}",
             f"Set cores to {v_config['v_cores']}"
             ))
 
-    # memory
+    """ memory """
     if cfg.get("memory") != str(v_config["v_memory"]):
         plan.append((
             f"qm set {vmid} --memory {v_config['v_memory']}",
             f"Set memory to {v_config['v_memory']} MB"))
 
-    # balloon
+    """ balloon """
     desired_balloon = str(v_config["v_balloon"])
     if cfg.get("balloon") != desired_balloon:
         plan.append((
@@ -220,7 +223,7 @@ def main():
             f"Set balloon to {desired_balloon}"
             ))
 
-    # onboot
+    """ start on boot """
     desired_onboot = "1" if v_config["v_boot_start"] else "0"
     if cfg.get("onboot") != desired_onboot:
         plan.append((
@@ -228,7 +231,7 @@ def main():
             f"Set onboot={desired_onboot}"
             ))
 
-    # NIC (model + bridge + vlan tag)
+    """ NIC (model + bridge + vlan tag) """
     want_model = v_config["v_driver"]
     want_bridge = v_config["v_bridge"]
     want_tag = v_config["v_vlan"]
@@ -245,7 +248,7 @@ def main():
             f"Set net0 to {net_str}"
             ))
 
-    # cloud-init user/pass/domain/dns/upgrade
+    """ cloud-init user/pass/domain/dns/upgrade """
     if (
         "v_ci_username" in v_config
         and cfg.get("ciuser") != v_config["v_ci_username"]
@@ -283,10 +286,9 @@ def main():
             f"Set nameserver={v_config['v_ci_dns_server']}"
             ))
 
-    # current value from `qm config` (usually '1' or '0')
+    """ current value from `qm config` (usually '1' or '0') """
     current = str(cfg.get("ciupgrade", "")).strip()
-
-    # desired value from YAML (boolean) converted to '1'/'0'
+    """ desired value from YAML (boolean) converted to '1'/'0' """
     desired = host.bool(v_config.get("v_ci_upgrade"))
 
     if "v_ci_upgrade" in v_config and current != desired:
@@ -295,25 +297,24 @@ def main():
             f"Set ciupgrade={desired}"
         ))
 
-    # apply plan
     output.output()
     output.output("Applying configuration deltas", "h")
     output.output()
     for cmd, msg_ok in plan:
         run_or_die(host, cmd, msg_ok, "Failed to apply qm setting")
 
-    # SSH public keys (list)
+    """ SSH public keys (list) """
     if v_config.get("v_ci_publickey"):
         ok, msg = host.ensure_sshkeys(vmid, v_config["v_ci_publickey"])
         output.output(msg, "s" if ok else "e", exit_on_error=not ok)
 
+    """ Cloudinit drive for virtual machine """
     ci_storage = v_config.get("v_local_storage")
-    # make sure this exists in your YAML
     if ci_storage:
         steps = host.ensure_cloudinit_drive(
             vmid=vmid,
             storage=ci_storage,
-            bus="ide",  # Proxmox commonly uses ide2 for CI
+            bus="ide",
             slot=2
         )
         for ok, msg, lvl in steps:
@@ -330,7 +331,32 @@ def main():
             "i"
             )
 
-    # cloud-init networking
+    """ Add custom Cloud-Init snippet to install
+    QEMU-agent on virtual machine """
+    snippet_storage, _ = host.find_snippet_storage()
+    custom_file = v_config.get("v_ci_custom")
+
+    if snippet_storage and custom_file:
+        command = (
+            f"qm set {vmid} --cicustom user={snippet_storage}"
+            f":snippets/{custom_file}"
+        )
+        result = host.run(command)
+        if result["exit_code"] != 0:
+            output.output(
+                f"Error setting custom CI file: {result['stderr'].strip()}",
+                "e",
+                exit_on_error=True
+            )
+        else:
+            output.output("Custom CI file set successfully", "s")
+    else:
+        output.output(
+            "Custom CI snippet was not set — missing storage or filename",
+            "w"
+        )
+
+    """ cloud-init networking """
     if v_config["v_ci_network"].lower() == "dhcp":
         ok, msg = host.set_ci_network(vmid, "dhcp")
         output.output(msg, "s" if ok else "e", exit_on_error=not ok)
@@ -342,11 +368,11 @@ def main():
         ok, msg = host.set_ci_network(vmid, "static", ip=ip, gw=gw, cidr=cidr)
         output.output(msg, "s" if ok else "e", exit_on_error=not ok)
 
-    # regenerate cloud-init
+    """ regenerate cloud-init """
     ok, msg = host.cloudinit_update(vmid)
     output.output(msg, "s" if ok else "e", exit_on_error=not ok)
 
-    # start VM
+    """ start VM """
     output.output()
     output.output("Starting VM", "h")
     output.output()

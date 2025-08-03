@@ -877,6 +877,11 @@ class ProxmoxHost(RemoteHost):
             clone_from: int,
             new_vmid: int
     ) -> tuple[bool, str]:
+        """ Check if clone id exists """
+        ok, _ = self.is_vmid_in_use(clone_from)
+        if not ok:
+            return False, "Clone id does not exist on Proxmox host"
+
         """Clone if `new_vmid` isn’t in use."""
         ok, _ = self.is_vmid_in_use(new_vmid)
         if ok:  # in use
@@ -884,6 +889,7 @@ class ProxmoxHost(RemoteHost):
                 f"VMID {new_vmid} already exists; "
                 "will update settings."
                 )
+
         r = self.run(f"qm clone {clone_from} {new_vmid} --full 1")
         if r["exit_code"] == 0:
             return True, f"Cloned {new_vmid} from {clone_from}."
@@ -1238,3 +1244,34 @@ class ProxmoxHost(RemoteHost):
 
         out.append((True, "Regenerated Cloud-Init image.", "s"))
         return out
+
+    def find_snippet_storage(self) -> tuple[str, str] | tuple[None, None]:
+        """
+        Find the first storage that supports 'snippets' content type.
+        Returns (storage_id, snippet_path) or (None, None) on failure.
+        """
+        result = self.run("cat /etc/pve/storage.cfg")
+        if result["exit_code"] != 0:
+            return None, None
+
+        config = result["stdout"]
+        blocks = config.strip().split('\n\n')  # Split storage entries
+        for block in blocks:
+            if 'snippets' in block:
+                storage_id = None
+                storage_path = None
+                lines = block.strip().splitlines()
+                for line in lines:
+                    line = line.strip()
+                    if line.startswith(
+                        ('dir:', 'zfspool:', 'lvmthin:', 'nfs:')
+                    ):
+                        storage_id = line.split(':')[1].strip()
+                    elif line.startswith('path'):
+                        parts = line.split()
+                        if len(parts) >= 2:
+                            storage_path = parts[1].strip()
+                if storage_id and storage_path:
+                    return storage_id, f"{storage_path}/snippets"
+
+        return None, None
