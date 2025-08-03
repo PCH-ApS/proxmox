@@ -24,4 +24,4 @@ Eventually I hope to get to a point where I can have one or more pipelines runni
 ### Proxmox
 I had a look at bootstapping Promox. I decided that the effort needed to get it to work, was not worth it, compared to a next, next, next installation of Proxmox that I then could modify with code and config files.
 
-Please read the [Promox installation (a prerequisite)](https://github.com/PCH-ApS/proxmox/blob/main/Promox%20installation%20(a%20prerequisite).md) to prepare the Proxmox host
+Please read the [Promox installation (a prerequisite)]([https://github.com/PCH-ApS/proxmox/blob/main/Promox%20installation%20(a%20prerequisite).md](https://github.com/PCH-ApS/proxmox/blob/main/md/Promox%20installation%20(a%20prerequisite).md)) to prepare the Proxmox host
