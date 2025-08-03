@@ -852,3 +852,426 @@ class ProxmoxHost(RemoteHost):
                 f"Network controller '{controller}' is supported{note}."
             )
         return False, f"Network controller '{controller}' is NOT supported."
+
+    def check_image_file_exists(self, path: str) -> tuple[bool, str]:
+        if not path:
+            return False, "Empty image path."
+        p = shlex.quote(path)
+        res = self.run(f"test -f {p}")
+        if res["exit_code"] == 0:
+            return True, f"Image file exists: {path}"
+        return False, f"Image file NOT found: {path}"
+
+    def validate_disk_slot(self, slot: str) -> tuple[bool, str]:
+        import re
+        if not slot:
+            return False, "Empty disk slot."
+        if re.fullmatch(r"(scsi|sata|ide|virtio)\d+", slot):
+            return True, f"Disk slot '{slot}' looks valid."
+        return False, (
+            f"Disk slot '{slot}' is invalid. Use scsi0/sata0/ide0/virtio0 etc."
+            )
+
+    def clone_vmid_if_missing(
+            self,
+            clone_from: int,
+            new_vmid: int
+    ) -> tuple[bool, str]:
+        """ Check if clone id exists """
+        ok, _ = self.is_vmid_in_use(clone_from)
+        if not ok:
+            return False, "Clone id does not exist on Proxmox host"
+
+        """Clone if `new_vmid` isn’t in use."""
+        ok, _ = self.is_vmid_in_use(new_vmid)
+        if ok:  # in use
+            return True, (
+                f"VMID {new_vmid} already exists; "
+                "will update settings."
+                )
+
+        r = self.run(f"qm clone {clone_from} {new_vmid} --full 1")
+        if r["exit_code"] == 0:
+            return True, f"Cloned {new_vmid} from {clone_from}."
+        return False, r["stderr"].strip()
+
+    def get_qm_status(self, vmid: int) -> tuple[bool, dict | str]:
+        """
+        Return {'status': 'running|stopped', 'name': '...', 'cpus': int,
+        'maxmem_mb': int, 'maxdisk_gb': int} via qm status --verbose.
+        """
+        cmd = f"qm status {vmid} --verbose"
+        r = self.run(cmd)
+        if r["exit_code"] != 0:
+            return False, r["stderr"].strip()
+
+        # crude parse: key: value lines
+        info = {}
+        for line in r["stdout"].splitlines():
+            line = line.strip()
+            if not line or ":" not in line:
+                continue
+            k, v = [p.strip() for p in line.split(":", 1)]
+            info[k.lower()] = v
+
+        # normalize
+        status = info.get("status", "")
+        name = info.get("name", None)
+        cpus = int(info["cpus"]) if "cpus" in info else None
+
+        def to_mb(v: str | None) -> int | None:
+            if v is None:
+                return None
+            # qm prints bytes; convert to MB
+            try:
+                return int(int(v) / (1024 * 1024))
+            except Exception:
+                return None
+
+        def to_gb(v: str | None) -> int | None:
+            try:
+                return int(int(v) / (1024 * 1024 * 1024))
+            except Exception:
+                return None
+
+        out = {
+            "status": status.lower(),
+            "name": name,
+            "cpus": cpus,
+            "maxmem_mb": to_mb(info.get("maxmem")),
+            "maxdisk_gb": to_gb(info.get("maxdisk")),
+        }
+        return True, out
+
+    def get_qm_config(self, vmid: int) -> tuple[bool, dict | str]:
+        """
+        Return `qm config` as a dict of key->value lines (e.g., net0 string,
+        balloon, onboot, memory, cores...).
+        """
+        r = self.run(f"qm config {vmid}")
+        if r["exit_code"] != 0:
+            return False, r["stderr"].strip()
+        cfg = {}
+        for line in r["stdout"].splitlines():
+            line = line.strip()
+            if not line or ":" not in line:
+                continue
+            k, v = [p.strip() for p in line.split(":", 1)]
+            cfg[k] = v
+        return True, cfg
+
+    def ensure_sshkeys(self, vmid: int, keys: list[str]) -> tuple[bool, str]:
+        """Write keys to a temp file on host and `qm set --sshkeys`."""
+        if not keys:
+            return True, "No SSH keys provided."
+        tmp = f"/tmp/sshkeys_{vmid}.pub"
+        content = "\n".join(k.strip() for k in keys if k.strip()) + "\n"
+        r1 = self.run(f"printf %s {shlex.quote(content)} > {shlex.quote(tmp)}")
+        if r1["exit_code"] != 0:
+            return False, r1["stderr"].strip()
+        r2 = self.run(f"qm set {vmid} --sshkeys {tmp}")
+        self.run(f"rm -f {tmp}")
+        if r2["exit_code"] == 0:
+            return True, "Applied SSH public keys to VM."
+        return False, r2["stderr"].strip()
+
+    def set_ci_network(
+            self,
+            vmid: int,
+            mode: str,
+            *,
+            ip=None,
+            gw=None,
+            cidr=None
+    ) -> tuple[bool, str]:
+        """DHCP or STATIC for ipconfig0."""
+        if mode.lower() == "dhcp":
+            r = self.run(f"qm set {vmid} --ipconfig0 ip=dhcp")
+            return (
+                r["exit_code"] == 0,
+                "Set DHCP" if r["exit_code"] == 0 else r["stderr"].strip()
+            )
+        if all([ip, gw, cidr]):
+            r = self.run(f"qm set {vmid} --ipconfig0 ip={ip}/{cidr},gw={gw}")
+            return (
+                r["exit_code"] == 0,
+                "Set STATIC network"
+                if r["exit_code"] == 0
+                else r["stderr"].strip()
+            )
+        return False, "Invalid STATIC parameters"
+
+    def cloudinit_update(self, vmid: int) -> tuple[bool, str]:
+        r = self.run(f"qm cloudinit update {vmid}")
+        return (
+            r["exit_code"] == 0,
+            "Cloud-Init image updated."
+            if r["exit_code"] == 0
+            else r["stderr"].strip()
+        )
+
+    def start_vm(self, vmid: int) -> tuple[bool, str]:
+        status_ok, st = self.get_qm_status(vmid)
+        if status_ok and st.get("status") == "running":
+            return True, "VM already running."
+        r = self.run(f"qm start {vmid}")
+        return (
+            r["exit_code"] == 0,
+            r["stdout"].strip() or r["stderr"].strip()
+        )
+
+    def parse_net_kv(self, net_str: str) -> dict:
+        """
+        Parse a qm netN value (e.g., 'virtio,bridge=vmbr0,tag=42') into dict.
+        """
+        out = {}
+        if not net_str:
+            return out
+        parts = net_str.split(",")
+        if parts:
+            out["model"] = parts[0]
+        for p in parts[1:]:
+            if "=" in p:
+                k, v = p.split("=", 1)
+                out[k] = v
+        return out
+
+    def ensure_snippets(
+        self,
+        storage: str = "local",
+        snippets_dir: str = "/var/lib/vz/snippets",
+    ) -> list[tuple[bool, str, str]]:
+        """
+            Ensure the snippets directory exists and that the given
+            storage enables the 'snippets' content type.
+            Returns [(ok, message, level)].
+        """
+        out: list[tuple[bool, str, str]] = []
+
+        # 0) Verify storage exists
+        cmd_storage_exists = (
+            "pvesm status | awk '{print $1}' | "
+            f"grep -x -- {shlex.quote(storage)}"
+        )
+        res = self.run(cmd_storage_exists)
+        if res["exit_code"] != 0:
+            out.append((
+                False,
+                f"Storage '{storage}' not found on host.",
+                "e"
+            ))
+            return out
+        out.append((True, f"Storage '{storage}' exists.", "s"))
+
+        # 1) Ensure directory exists
+        test_cmd = f'test -d {shlex.quote(snippets_dir)}'
+        test_res = self.run(test_cmd)
+        if test_res["exit_code"] != 0:
+            mk_cmd = f"mkdir -p {shlex.quote(snippets_dir)}"
+            mk_res = self.run(mk_cmd)
+            if mk_res["exit_code"] != 0:
+                out.append((
+                    False,
+                    f"Failed to create {snippets_dir}: "
+                    f"{mk_res['stderr'].strip()}",
+                    "e"
+                ))
+                return out
+            out.append((
+                True,
+                f"Created snippets directory: {snippets_dir}",
+                "s"
+                ))
+        else:
+            out.append((
+                True,
+                f"Snippets directory already present: {snippets_dir}",
+                "i"
+                ))
+
+        # 2) Check storage's current content list
+        #    We read the existing content line to avoid
+        # overwriting other types.
+        get_content = (
+            f"pvesm config {shlex.quote(storage)} | "
+            "awk '/^\\s*content\\s/ {print $2}'"
+        )
+        gc_res = self.run(get_content)
+        if gc_res["exit_code"] != 0:
+            out.append((
+                False,
+                f"Failed to read content for storage '{storage}': "
+                f"{gc_res['stderr'].strip()}",
+                "e"
+            ))
+            return out
+
+        current = (gc_res["stdout"].strip() or "").strip(",")
+        types = [t for t in current.split(",") if t] if current else []
+
+        if "snippets" in types:
+            out.append((
+                True,
+                f"'snippets' already enabled on storage '{storage}'.",
+                "i"
+                ))
+            return out
+
+        # 3) Append 'snippets' (preserve existing content types)
+        new_content = "snippets" if not types else f"{current},snippets"
+        set_cmd = (
+            f"pvesm set {shlex.quote(storage)} "
+            f"--content {shlex.quote(new_content)}"
+            )
+        set_res = self.run(set_cmd)
+        if set_res["exit_code"] != 0:
+            out.append((
+                False,
+                f"Failed to enable 'snippets' on storage '{storage}': "
+                f"{set_res['stderr'].strip()}",
+                "e"
+            ))
+            return out
+
+        out.append((
+            True,
+            f"Enabled 'snippets' on storage '{storage}' "
+            f"(content: {new_content}).",
+            "s"
+            ))
+        return out
+
+    def storage_supports_content(
+            self,
+            storage: str,
+            kind: str = "images"
+    ) -> tuple[bool, str]:
+        """
+        Parse /etc/pve/storage.cfg to check if a storage
+        ID supports a given content type.
+        Works around lack of `pvesm config`.
+        """
+        if not storage:
+            return False, "Empty storage id."
+
+        cmd = (
+            "awk '"
+            f"BEGIN {{ found=0; has_type=0; }} "
+            f"/^[a-z]+: {storage}$/ {{ found=1; next }} "
+            f"/^[a-z]+:/ {{ found=0 }} "
+            f"found && /content/ && /{kind}/ {{ has_type=1 }} "
+            f"END {{ exit (has_type ? 0 : 1) }} "
+            "' /etc/pve/storage.cfg"
+        )
+        res = self.run(cmd)
+        if res["exit_code"] == 0:
+            return True, f"Storage '{storage}' supports '{kind}'."
+        return False, f"Storage '{storage}' does NOT support '{kind}'."
+
+    def has_cloudinit_drive(self, vmid: int) -> bool:
+        """
+        True if the VM already has a Cloud-Init drive attached.
+        Looks for any <bus><slot>: ... cloudinit in `qm config`.
+        """
+        res = self.run(
+            f"qm config {vmid} | grep -E '^(ide|scsi|sata)[0-9]+:.*cloudinit'"
+        )
+        return res["exit_code"] == 0
+
+    def ensure_cloudinit_drive(
+        self,
+        vmid: int,
+        storage: str,
+        *,
+        bus: str = "ide",
+        slot: int = 2,
+    ) -> list[tuple[bool, str, str]]:
+        """
+        Ensure a Cloud-Init drive exists on the VM.
+        - Verifies storage supports 'images'
+        - Attaches <bus><slot>=<storage>:cloudinit if missing
+        - Regenerates CI image (qm cloudinit update)
+        Returns [(ok, message, level)]
+        """
+        out: list[tuple[bool, str, str]] = []
+
+        # 0) sanity
+        if bus not in {"ide", "scsi", "sata"}:
+            out.append((
+                False,
+                f"Unsupported bus '{bus}'. Use ide/scsi/sata.",
+                "e"
+                ))
+            return out
+
+        # 1) storage supports images?
+        ok, msg = self.storage_supports_content(storage, "images")
+        out.append((ok, msg, "s" if ok else "e"))
+        if not ok:
+            return out
+
+        # 2) already attached?
+        if self.has_cloudinit_drive(vmid):
+            out.append((True, "Cloud-Init drive already attached.", "i"))
+        else:
+            opt = f"--{bus}{slot} {shlex.quote(storage)}:cloudinit"
+            res = self.run(f"qm set {vmid} {opt}")
+            if res["exit_code"] != 0:
+                out.append((
+                    False,
+                    f"Failed attaching Cloud-Init drive: "
+                    f"{res['stderr'].strip()}",
+                    "e"
+                ))
+                return out
+            out.append((
+                True,
+                f"Attached Cloud-Init drive on {bus}{slot} "
+                f"using storage '{storage}'.",
+                "s"
+            ))
+
+        # 3) regenerate CI image
+        r = self.run(f"qm cloudinit update {vmid}")
+        if r["exit_code"] != 0:
+            out.append((
+                False,
+                f"Failed to regenerate Cloud-Init image: "
+                f"{r['stderr'].strip()}",
+                "e"
+                ))
+            return out
+
+        out.append((True, "Regenerated Cloud-Init image.", "s"))
+        return out
+
+    def find_snippet_storage(self) -> tuple[str, str] | tuple[None, None]:
+        """
+        Find the first storage that supports 'snippets' content type.
+        Returns (storage_id, snippet_path) or (None, None) on failure.
+        """
+        result = self.run("cat /etc/pve/storage.cfg")
+        if result["exit_code"] != 0:
+            return None, None
+
+        config = result["stdout"]
+        blocks = config.strip().split('\n\n')  # Split storage entries
+        for block in blocks:
+            if 'snippets' in block:
+                storage_id = None
+                storage_path = None
+                lines = block.strip().splitlines()
+                for line in lines:
+                    line = line.strip()
+                    if line.startswith(
+                        ('dir:', 'zfspool:', 'lvmthin:', 'nfs:')
+                    ):
+                        storage_id = line.split(':')[1].strip()
+                    elif line.startswith('path'):
+                        parts = line.split()
+                        if len(parts) >= 2:
+                            storage_path = parts[1].strip()
+                if storage_id and storage_path:
+                    return storage_id, f"{storage_path}/snippets"
+
+        return None, None
