@@ -100,7 +100,7 @@ systemctl restart systemd-logind
 - Reboot the system. 
 
 ## Proxmox host configuration
-Now you should be able to continue to the [Proxmox host configuration](https://github.com/PCH-ApS/proxmox/blob/main/Proxmox%20host%20configuration.md) for further information on my configuration script.
+Now you should be able to continue to the [Proxmox host configuration](https://github.com/PCH-ApS/proxmox/blob/main/md/Proxmox%20host%20configuration.md) for further information on my configuration script.
 
 
 
