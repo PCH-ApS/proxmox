@@ -441,13 +441,14 @@ def main():
     # On-guest configuration and finalization
     # -------------------------------------------------------------------------
     found_ip = []
+    dhcp_fallback = False  # Track if we're falling back to scanned IPs
 
     if ci_changed:
         wait_in_sec = 90
         output.output(
             f"Waiting {wait_in_sec}s for guest network to come up",
             "i"
-            )
+        )
         countdown(output, wait_in_sec)
 
     output.output()
@@ -456,7 +457,8 @@ def main():
 
     # DHCP case: scan subnet for IPs
     if vc['ci_network'].lower() == "dhcp":
-        subnet = f"{vc['ip_prefix']}.{vc['vlan']}.0"
+        subnet_prefix = f"{vc['ip_prefix']}.{vc['vlan']}"
+        subnet = f"{subnet_prefix}.0"
         port = 22
         ok, results = host.subnet_scan(subnet, port)
 
@@ -468,57 +470,88 @@ def main():
             )
 
         fqdn = f"{vc['name']}.{vc['ci_domain']}"
+        output.output(f"Looking for hostname match: {fqdn}", "i")
 
         for ip, hostname in results:
             if hostname == fqdn:
-                found_ip.append(ip)
+                output.output(f"Matched hostname: {hostname} ({ip})", "s")
+                found_ip = [ip]
+                break
 
-        # If no exact match, fallback to all found IPs
         if not found_ip:
+            output.output("No hostname match, will try all scanned IPs", "w")
             found_ip = [ip for ip, _ in results]
+            dhcp_fallback = True
 
-    # STATIC fallback: use known config
-    if not found_ip:
+    else:
         static_ip = vc.get("ci_ipaddress")
         if static_ip:
             found_ip = [static_ip]
+        else:
+            output.output(
+                "Static IP not defined in config",
+                "e",
+                exit_on_error=True
+            )
 
     if not found_ip:
-        output.output(
-            "Error retrieving IP address of VM",
-            "e",
-            exit_on_error=True
-        )
+        output.output("No usable IPs found for guest", "e", exit_on_error=True)
 
     # -------------------------------------------------------------------------
-    # Single or multiple ips found in scan?
+    # Single or multiple IPs found in scan?
     # -------------------------------------------------------------------------
+    connected = False
+    valid_ssh = None
+
     for ip in found_ip:
-        output.output(
-            f"Found ip: {ip}",
-            "i"
-        )
-        output.output(
-            f"Attempting to connect to VM on: {ip}",
-            "i"
-            )
+        output.output(f"Trying IP: {ip}", "i")
 
         ssh = SSHConnection(
-                host=ip,
-                username=vc["ci_username"],
-                key_filename=vc["vm_keyfile"],
-            )
+            host=ip,
+            username=vc["ci_username"],
+            key_filename=vc["vm_keyfile"],
+        )
 
         vm_connect_flag, vm_connect_message = ssh.connect()
         output.output(
             vm_connect_message,
             type="s" if vm_connect_flag else "e",
-            exit_on_error=True if len(found_ip) == 1 else False
-            )
+            exit_on_error=(
+                not dhcp_fallback and
+                len(found_ip) == 1 and
+                not vm_connect_flag
+                )
+        )
+
+        if not vm_connect_flag:
+            continue
 
         result = ssh.run("hostname")
-        if result['stdout'].strip('\n') == vc['name']:
+        if result["exit_code"] != 0:
+            ssh.close()
+            continue
+
+        hostname = result["stdout"].strip()
+        expected = vc["name"]
+
+        if hostname == expected:
+            output.output(f"VM hostname verified: {hostname}", "s")
+            connected = True
+            valid_ssh = ssh
             break
+        else:
+            output.output(
+                f"Hostname mismatch: got '{hostname}', expected '{expected}'",
+                "w"
+            )
+            ssh.close()
+
+    if not connected or not valid_ssh:
+        output.output(
+            "Failed to connect to a guest with the expected hostname",
+            "e",
+            exit_on_error=True
+        )
 
     ssh_config = {
         key.removeprefix("ssh_"): value

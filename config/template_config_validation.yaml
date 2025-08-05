@@ -1,67 +1,67 @@
-tmp_name:
+name:
   type: string
   required: true
   regex: '^(?=.{1,63}$)[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?$'
 
-tmp_id:
+id:
   type: integer
   required: true
   min: 100
   max: 999999999
 
-tmp_image_path:
+image_path:
   type: string
   required: true
   regex: '^\/([a-zA-Z0-9._+-]+\/)*[a-zA-Z0-9._+-]+$'
 
-tmp_host_username:
+host_username:
   type: string
   default: root
   required: false
   regex: '^[a-z_][a-z0-9_-]{0,31}$'
 
-tmp_host_keyfile:
+host_keyfile:
   type: string
   default: <Your ssh keyfile path goes here>
   required: false
   regex: '^/home/[a-z_][a-z0-9_-]{0,31}/\.ssh/.*$'
   # Path to the ssh keyfile used to access the Proxmox host
 
-tmp_host_ip:
+host_ip:
   type: string
   required: false
   default: <Your PVE host ip goes here>
   regex: '^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$'
 
-tmp_cpu:
+cpu:
   type: string
   required: false
   default: "host"
   # allow 'host', 'custom-<name>', or a simple built-in model token
   regex: '^(host|custom-[A-Za-z0-9][A-Za-z0-9._-]*|[A-Za-z0-9][A-Za-z0-9._-]*)$'
 
-tmp_cores:
+cores:
   type: integer
   required: false
   default: 1
   min: 1
   max: 4
 
-tmp_memory:
+memory:
   type: integer
   required: false
   default: 512
   min: 256
   max: 8192
 
-tmp_storage_ctrl:
+storage_ctrl:
   type: string
   required: false
   default: "virtio-scsi-pci"
   # Valid SCSI controller models
   regex: '^(lsi|lsi53c810|megasas|pvscsi|virtio-scsi-pci|virtio-scsi-single)$'
 
-tmp_bootdisk:
+bootdisk:
   type: string
   required: false
   default: "scsi0"
@@ -69,7 +69,7 @@ tmp_bootdisk:
   # ide0-ide3, sata0-sata5, scsi0-scsi30, virtio0-virtio15
   regex: '^(?:ide[0-3]|sata[0-5]|scsi(?:[0-9]|[12][0-9]|30)|virtio(?:[0-9]|1[0-5]))$'
 
-tmp_local_storage:
+local_storage:
   type: string
   required: false
   default: "local-zfs"
@@ -77,14 +77,14 @@ tmp_local_storage:
   # typically lowercase alnum plus '_' or '-'; 1–32 chars.
   regex: '^[a-z][a-z0-9_-]{0,31}$'
 
-tmp_network_ctrl:
+network_ctrl:
   type: string
   required: false
   default: "virtio"
   # Full set of models Proxmox exposes
   regex: '^(e1000|e1000-82540em|e1000-82544gc|e1000-82545em|e1000e|i82551|i82557b|i82559er|ne2k_isa|ne2k_pci|pcnet|rtl8139|virtio|vmxnet3)$'
 
-tmp_bridge:
+bridge:
   type: string
   required: false
   default: "vmbr0"

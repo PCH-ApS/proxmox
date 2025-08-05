@@ -1,40 +1,40 @@
-v_name:
+name:
   type: string
   required: true
   regex: '^[a-zA-Z0-9][a-zA-Z0-9-]{0,62}$'
 
-v_id:
+id:
   type: integer
   required: true
   min: 100
   max: 999999999
 
-v_clone_id:
+clone_id:
   type: integer
   required: true
   min: 100
   max: 999999999
 
-v_vlan:
+vlan:
   type: integer
   required: true
   min: 2
   max: 4094
 
-v_host_username:
+host_username:
   type: string
   default: root
   required: false
   regex: '^[a-z_][a-z0-9_-]{0,31}$'
 
-v_host_keyfile:
+host_keyfile:
   type: string
   default: <Your PVE host ip goes here>
   required: false
   regex: '^/home/[a-z_][a-z0-9_-]{0,31}/\.ssh/.*$'
   # Path to the ssh keyfile used to access the Proxmox host
 
-v_host_ip:
+host_ip:
   type: string
   required: false
   default: 192.168.6.3
@@ -43,35 +43,35 @@ v_host_ip:
   # Ensures each octet is between 0–255
   # Does not allow leading zeros like 01
 
-v_cores:
+cores:
   type: integer
   required: false
   default: 1
   min: 1
   max: 4
 
-v_memory:
+memory:
   type: integer
   required: false
   default: 2048
   min: 256
   max: 8192
 
-v_disk:
+disk:
   type: integer
   required: false
   default: 8
   min: 4
   max: 1024
 
-v_driver:
+driver:
   type: string
   required: false
   default: "virtio"
   # Full set of models Proxmox exposes
   regex: '^(e1000|e1000-82540em|e1000-82544gc|e1000-82545em|e1000e|i82551|i82557b|i82559er|ne2k_isa|ne2k_pci|pcnet|rtl8139|virtio|vmxnet3)$'
 
-v_bridge:
+bridge:
   type: string
   required: false
   default: "vmbr0"
@@ -79,30 +79,30 @@ v_bridge:
   # up to 15 chars total, allowed body chars are [A-Za-z0-9_.:-]
   regex: '^[A-Za-z][A-Za-z0-9_.:-]{0,14}$'
 
-v_balloon:
+balloon:
   type: integer
   required: false
   default: 512
   min: 256
   max: 8192
 
-v_boot_start:
+boot_start:
   type: boolean
   required: false
   default: true
 
-v_ci_upgrade:
+ci_upgrade:
   type: boolean
   required: false
   default: true
 
-v_ci_username:
+ci_username:
   type: string
   default: pch
   required: false
   regex: '^[a-z_][a-z0-9_-]{0,31}$'
 
-v_ci_password:
+ci_password:
   type: string
   required: false
   default: password
@@ -110,12 +110,12 @@ v_ci_password:
   regex: '^[\x20-\x7E]{8,128}$'
   # printable ASCII, no spaces -> change to [^\s] if spaces OK
 
-v_change_pwd:
+change_pwd:
   type: boolean
   default: true
   required: false
 
-v_ci_publickey:
+ci_publickey:
   type: list
   required: false
   empty: True
@@ -128,14 +128,14 @@ v_ci_publickey:
     # Validates SSH public keys
     # Allows optional comment at the end
 
-v_ci_domain:
+ci_domain:
   type: string
   default: pch.dk
   required: false
   regex: '^(?=.{1,253}$)([A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,}$'
 
 
-v_ci_dns_server:
+ci_dns_server:
   type: string
   required: false
   default: 192.168.9.5
@@ -144,7 +144,7 @@ v_ci_dns_server:
   # Ensures each octet is between 0–255
   # Does not allow leading zeros like 01
 
-v_ci_ipaddress:
+ci_ipaddress:
   type: string
   required: false
   regex: '^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$'
@@ -152,7 +152,7 @@ v_ci_ipaddress:
   # Ensures each octet is between 0–255
   # Does not allow leading zeros like 01
 
-v_ci_gateway:
+ci_gateway:
   type: string
   required: false
   regex: '^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$'
@@ -160,20 +160,20 @@ v_ci_gateway:
   # Ensures each octet is between 0–255
   # Does not allow leading zeros like 01
 
-v_ci_netmask:
+ci_netmask:
   type: string
   required: false
   regex: '^/(?:[0-9]|[12][0-9]|3[0-2])$'
   # Accepts /0–/32 (IPv4 CIDR).
 
 
-v_ci_network:
+ci_network:
   type: string
   default: "dhcp"
   required: false
   regex: '^(?i)(dhcp|static)$'
 
-v_ip_prefix:
+ip_prefix:
   type: string
   required: false
   default: "192.168"
@@ -181,82 +181,82 @@ v_ip_prefix:
   regex: '^(?:25[0-5]|2[0-4]\d|1?\d?\d)\.(?:25[0-5]|2[0-4]\d|1?\d?\d)\.?$'
 
 # --------------------------- PROXMOX SSHD DEFAULTS ---------------------------
-PermitRootLogin:
+ssh_PermitRootLogin:
   type: string
   default: "without-password"
   required: false
   regex: "(?i)^(yes|no|without-password|forced-commands-only)$"
 
-PasswordAuthentication:
+ssh_PasswordAuthentication:
   type: string
   default: "no"
   required: false
   regex: "(?i)^(yes|no)$"
 
-PermitEmptyPasswords:
+ssh_PermitEmptyPasswords:
   type: string
   default: "no"
   required: false
   regex: "(?i)^(yes|no)$"
 
-UseDNS:
+ssh_UseDNS:
   type: string
   default: "no"
   required: false
   regex: "(?i)^(yes|no)$"
 
-AllowTcpForwarding:
+ssh_AllowTcpForwarding:
   type: string
   default: "no"
   required: false
   regex: "(?i)^(yes|no)$"
 
-X11Forwarding:
+ssh_X11Forwarding:
   type: string
   default: "no"
   required: false
   regex: "(?i)^(yes|no)$"
 
-ClientAliveInterval:
+ssh_ClientAliveInterval:
   type: integer
   default: 300
   required: false
 
-ClientAliveCountMax:
+ssh_ClientAliveCountMax:
   type: integer
   default: 2
   required: false
 
-MaxAuthTries:
+ssh_MaxAuthTries:
   type: integer
   default: 3
   required: false
 
-MaxSessions:
+ssh_MaxSessions:
   type: integer
   default: 2
   required: false
 
-Compression:
+ssh_Compression:
   type: string
   default: "no"
   required: false
   regex: "(?i)^(yes|no|delayed)$"
 
-LogLevel:
+ssh_LogLevel:
   type: string
   default: "VERBOSE"
   required: false
   regex: "(?i)^(QUIET|FATAL|ERROR|INFO|VERBOSE|DEBUG|DEBUG1|DEBUG2|DEBUG3)$"
 
-LoginGraceTime:
+ssh_LoginGraceTime:
   type: integer
   default: 30
   required: false
   min: 1
   # only integers, expect it to be seconds
 
-Subsystem:
+ssh_Subsystem:
   type: string
   default: "sftp /usr/lib/openssh/sftp-server"
   required: false
