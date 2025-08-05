@@ -29,6 +29,7 @@ class OutputHandler:
             'i': ('[i] ', '32'),  # Green
             'w': ('[*] ', '33'),  # Yellow
             'e': ('[x] ', '31'),  # Red
+            'p': ('[~] ', '36'),  # Cyan
             'h': ('', '0')        # Heading
         }
 
@@ -56,15 +57,22 @@ class OutputHandler:
         if not message:
             message = "-" * 80
 
-        # Log if needed
-        log_path = logfile if logfile else self.logfile
-        if log_path:
-            timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            with open(log_path, 'a') as log_file:
-                log_file.write(f"{timestamp} {pre_message}{message}\n")
-
         # Print to terminal
-        print(f"{color}{pre_message}{message}{reset}")
+        if type and type.lower() == 'p':
+            # Print progress updates on the same line (e.g., countdown)
+            print(
+                f"\r{color}{pre_message}{message}{reset}", end='', flush=True
+                )
+        else:
+            # Log if needed
+            log_path = logfile if logfile else self.logfile
+            if log_path:
+                timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                with open(log_path, 'a') as log_file:
+                    log_file.write(f"{timestamp} {pre_message}{message}\n")
+
+            # Print to terminal
+            print(f"{color}{pre_message}{message}{reset}")
 
         # Exit if requested
         if type and type.lower() == "e" and exit_on_error:

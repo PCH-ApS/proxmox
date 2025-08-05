@@ -125,9 +125,9 @@ def main():
         output.output(f"{key.ljust(max_key_len + 1)}: {label}", type="i")
 
     host = ProxmoxHost(
-        host=v_config["pve_host_ip"],
-        username=v_config["pve_host_username"],
-        key_filename=v_config["pve_host_keyfile"],
+        host=v_config["host_ip"],
+        username=v_config["host_username"],
+        key_filename=v_config["host_keyfile"],
     )
 
     output.output()
@@ -158,10 +158,10 @@ def main():
         ]
 
     host_message = host.change_hostname(
-        v_config["pve_hostname"],
-        v_config['pve_host_ip'],
-        v_config["pve_domain"],
-        v_config['pve_host_file'],
+        v_config["hostname"],
+        v_config['host_ip'],
+        v_config["domain"],
+        v_config['host_file'],
         DEFAULT_FOLDERS
         )
 
@@ -171,8 +171,8 @@ def main():
             f"{line[2]}"
         )
 
-    if line[1] != f"Current hostname is correct: '{v_config["pve_hostname"]}'":
-        if v_config["pve_host_reboot"]:
+    if line[1] != f"Current hostname is correct: '{v_config["hostname"]}'":
+        if v_config["host_reboot"]:
             wait_time = 10
             timeout = 180
             output.output(
@@ -180,7 +180,7 @@ def main():
                 "i"
                 )
             reboot_message = (
-                host.reboot_and_reconnect(wait_time, timeout)
+                host.reboot_and_reconnect(host.ssh, wait_time, timeout)
                 )
             for line in reboot_message:
                 output.output(
@@ -193,8 +193,18 @@ def main():
     output.output()
     output.output("Checking Proxmox sshd config", type="h")
     output.output()
+    ssh_config = {
+        key.removeprefix("ssh_"): value
+        for key, value in v_config.items()
+        if key.startswith("ssh_")
+    }
+    check_message = host.check_sshd_config(
+        ssh_config,
+        v_config['sshd_searchstring'],
+        v_config['sshd_config_path'],
+        v_config['sshd_custom_config']
+    )
 
-    check_message = host.check_sshd_config(v_config)
     for line in check_message:
         output.output(
             f"{line[1]}",
@@ -206,7 +216,12 @@ def main():
             "Rechecking SSHD config",
             "i"
         )
-        sshd_success = host.check_sshd_config(v_config)
+        sshd_success = host.check_sshd_config(
+            ssh_config,
+            v_config['sshd_searchstring'],
+            v_config['sshd_config_path'],
+            v_config['sshd_custom_config']
+        )
         for line in sshd_success:
             output.output(
                 f"{line[1]}",
@@ -217,7 +232,7 @@ def main():
     output.output("Checking SSH keys on Proxmox", type="h")
     output.output()
 
-    keys_message = host.check_ssh_keys(v_config["pve_sshkey_public"])
+    keys_message = host.check_ssh_keys(v_config["sshkey_public"])
     for line in keys_message:
         output.output(
             f"{line[1]}",
@@ -248,7 +263,7 @@ def main():
             f"{line[2]}"
         )
 
-    patch_message = host.check_pve_pve_no_subscription_patch()
+    patch_message = host.check_pve_no_subscription_patch()
     for line in patch_message:
         output.output(
             f"{line[1]}",
@@ -269,14 +284,17 @@ def main():
     output.output()
     output.output("Downloading ISO files", type="h")
     output.output()
-    download_message = host.download_iso_files(v_config)
+    download_message = host.download_iso_files(
+        v_config['iso_urls'],
+        v_config['iso_path']
+        )
     for line in download_message:
         output.output(
             f"{line[1]}",
             f"{line[2]}"
         )
 
-    if v_config['pve_host_change_pwd']:
+    if v_config['host_change_pwd']:
         output.output()
         output.output("Root password change", type="h")
         output.output()
@@ -298,7 +316,7 @@ def main():
             )
             return
 
-        user = v_config['pve_host_username']
+        user = v_config['host_username']
         password_message = host.change_pwd(user, pwd1)
         for line in password_message:
             output.output(

@@ -2,6 +2,8 @@
 from lib.ssh_handler import SSHConnection
 from lib.remote_host import RemoteHost
 import shlex
+import time
+import re
 
 
 class ProxmoxHost(RemoteHost):
@@ -128,11 +130,18 @@ class ProxmoxHost(RemoteHost):
 
         return host_output
 
-    def check_sshd_config(self, v_config):
+    def check_sshd_config(
+            self,
+            ssh_config,
+            searchstring,
+            config_path,
+            custom_config
+            ):
+
         config_output = []
         sshd_files = self.get_all_config_files(
-            v_config['pve_sshd_searchstring'],
-            v_config['pve_sshd_config_path']
+            searchstring,
+            config_path
             )
         if len(sshd_files) > 0:
             for file in sshd_files:
@@ -166,8 +175,7 @@ class ProxmoxHost(RemoteHost):
 
         missing = self.get_missing_sshd_keys(
             active_config_dict,
-            v_config,
-            v_config['pve_key_prefix']
+            ssh_config,
             )
         missing_set = set()
         if len(missing) > 0:
@@ -188,8 +196,7 @@ class ProxmoxHost(RemoteHost):
         wrong = (
             self.get_wrong_value_sshd_keys(
                 active_config_dict,
-                v_config,
-                v_config['pve_key_prefix']
+                ssh_config,
                 )
         )
         wrong_set = set()
@@ -274,7 +281,7 @@ class ProxmoxHost(RemoteHost):
                             False,
                             "Error commenting out explicit key: "
                             f"'{e_key}' in "
-                            f"'{v_config['pve_sshd_config_path']}'",
+                            f"'{'pve_sshd_config_path'}'",
                             "e"
                         ))
 
@@ -298,41 +305,41 @@ class ProxmoxHost(RemoteHost):
             missing = list(missing_set)
             lines: list[str] = []
             for param in missing:
-                if param in v_config:
-                    lines.append(f"{param} {v_config[param]}")
+                if param in ssh_config:
+                    lines.append(f"{param} {ssh_config[param]}")
 
             results = self.ensure_lines_in_file(
                 lines,
-                v_config["pve_sshd_custom_config"]
+                custom_config
                 )
 
             for flag, msg, type in results:
                 config_output.append((flag, msg, type))
 
             sshd_files = self.get_all_config_files(
-                v_config['pve_sshd_searchstring'],
-                v_config['pve_sshd_config_path']
+                searchstring,
+                config_path
                 )
-            if v_config['pve_sshd_custom_config'] not in sshd_files:
+            if custom_config not in sshd_files:
                 include_cmd = (
                     "echo Include "
-                    f"{shlex.quote(v_config['pve_sshd_custom_config'])} "
+                    f"{shlex.quote(custom_config)} "
                     ">> "
-                    f"{shlex.quote(v_config['pve_sshd_config_path'])}"
+                    f"{shlex.quote(config_path)}"
                 )
                 success = self.run(include_cmd)['exit_code'] == 0
                 if success:
                     config_output.append((
                         True,
                         "Included custom config in "
-                        f"'{v_config['pve_sshd_config_path']}'",
+                        f"'{config_path}'",
                         "s"
                     ))
                 else:
                     config_output.append((
                         False,
                         "Custom config file NOT included in "
-                        f"'{v_config['pve_sshd_config_path']}'",
+                        f"'{config_path}'",
                         "e"
                     ))
                     return config_output
@@ -513,7 +520,7 @@ class ProxmoxHost(RemoteHost):
                     ))
                     return ceph_message
 
-    def check_pve_pve_no_subscription_patch(self):
+    def check_pve_no_subscription_patch(self):
         patch_message = []
         file_path = '/usr/share/perl5/PVE/API2/Subscription.pm'
         find_str = 'NotFound'
@@ -572,9 +579,8 @@ class ProxmoxHost(RemoteHost):
                     ))
                     return patch_message
 
-    def download_iso_files(self, v_config):
+    def download_iso_files(self, urls, path):
         download_output = []
-        path = v_config['pve_iso_path']
         command = f"mkdir -p {shlex.quote(path)}"
         result = self.run(command)
         if result['exit_code'] != 0:
@@ -586,7 +592,6 @@ class ProxmoxHost(RemoteHost):
             return download_output
 
         if result['exit_code'] == 0:
-            urls = v_config['pve_iso_urls']
             for url in urls:
                 iso_filename = url.split('/')[-1]
                 iso_filepath = f"{path}/{iso_filename}"
@@ -887,7 +892,7 @@ class ProxmoxHost(RemoteHost):
         if ok:  # in use
             return True, (
                 f"VMID {new_vmid} already exists; "
-                "will update settings."
+                "will only update changed settings."
                 )
 
         r = self.run(f"qm clone {clone_from} {new_vmid} --full 1")
@@ -1010,15 +1015,51 @@ class ProxmoxHost(RemoteHost):
             else r["stderr"].strip()
         )
 
-    def start_vm(self, vmid: int) -> tuple[bool, str]:
+    def start_vm(self, vmid: int, reboot: bool = False) -> tuple[bool, str]:
         status_ok, st = self.get_qm_status(vmid)
-        if status_ok and st.get("status") == "running":
-            return True, "VM already running."
-        r = self.run(f"qm start {vmid}")
-        return (
-            r["exit_code"] == 0,
-            r["stdout"].strip() or r["stderr"].strip()
-        )
+
+        if not status_ok:
+            return False, f"Failed to get VM status: {st}"
+
+        if st.get("status") == "running":
+            if reboot:
+                stop = self.run(f"qm stop {vmid}")
+                if stop["exit_code"] != 0:
+                    return (
+                        False,
+                        f"Failed to stop VM: {stop['stderr'].strip()}"
+                        )
+
+                # Wait until VM is fully stopped
+                timeout = 60  # seconds
+                waited = 0
+                while waited < timeout:
+                    time.sleep(3)
+                    waited += 3
+                    check_ok, check_status = self.get_qm_status(vmid)
+                    if check_ok and check_status.get("status") == "stopped":
+                        break
+                else:
+                    return False, f"Timed out waiting for VM {vmid} to stop."
+
+                # Start it again
+                start = self.run(f"qm start {vmid}")
+                if start["exit_code"] == 0:
+                    return True, f"Rebooted VM {vmid}."
+                else:
+                    return (
+                        False,
+                        f"Failed to start VM: {start['stderr'].strip()}"
+                        )
+
+            return True, "VM is already running and no config changes made."
+
+        # If not running, just start it
+        start = self.run(f"qm start {vmid}")
+        if start["exit_code"] == 0:
+            return True, f"Started VM {vmid}."
+        else:
+            return False, f"Failed to start VM: {start['stderr'].strip()}"
 
     def parse_net_kv(self, net_str: str) -> dict:
         """
@@ -1231,7 +1272,7 @@ class ProxmoxHost(RemoteHost):
                 "s"
             ))
 
-        # 3) regenerate CI image
+        """ # 3) regenerate CI image
         r = self.run(f"qm cloudinit update {vmid}")
         if r["exit_code"] != 0:
             out.append((
@@ -1242,7 +1283,7 @@ class ProxmoxHost(RemoteHost):
                 ))
             return out
 
-        out.append((True, "Regenerated Cloud-Init image.", "s"))
+        out.append((True, "Regenerated Cloud-Init image.", "s")) """
         return out
 
     def find_snippet_storage(self) -> tuple[str, str] | tuple[None, None]:
@@ -1275,3 +1316,40 @@ class ProxmoxHost(RemoteHost):
                     return storage_id, f"{storage_path}/snippets"
 
         return None, None
+
+    def subnet_scan(self, subnet: str, port: int) -> tuple[bool, str]:
+        command = f"nmap -Pn -T4 -p {port} --open {subnet}/24"
+        result = self.run(command)
+        if result["exit_code"] != 0:
+            return False, [f"Nmap error: {result['stderr'].strip()}"]
+        hosts_found = []
+        lines = result["stdout"].splitlines()
+        first_3_octets = ".".join(subnet.split(".")[:3])
+        ignore_ip = f"{first_3_octets}.2"
+
+        for line in lines:
+            line = line.strip()
+
+            # Hostname + IP
+            match = re.match(
+                r"Nmap scan report for (.+?) \((\d+\.\d+\.\d+\.\d+)\)", line
+                )
+            if match:
+                hostname, ip = match.groups()
+            else:
+                # IP only (no hostname)
+                match = re.match(
+                    r"Nmap scan report for (\d+\.\d+\.\d+\.\d+)", line
+                    )
+                if match:
+                    ip = match.group(1)
+                    hostname = ""
+                else:
+                    continue  # Not a matching line
+
+            if ip == ignore_ip:
+                continue  # Skip specific ignored IP
+
+            hosts_found.append((ip, hostname))
+
+        return True, hosts_found
