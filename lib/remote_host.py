@@ -120,18 +120,26 @@ class RemoteHost:
             f"removed from {file_path}"
         )
 
+    @staticmethod
     def reboot_and_reconnect(
-            self,
-            wait_time=10,
-            timeout=180
+        ssh: SSHLike,
+        wait_time: int = 10,
+        timeout: int = 180
     ) -> list[tuple[bool, str, str]]:
+        """
+        Reboots the host associated with the given SSH connection
+        and waits until it becomes reachable again.
+
+        Returns a list of (success_flag, message, level).
+        """
         reboot_output: list[tuple[bool, str, str]] = []
-        result = self.ssh.run("reboot")
+
+        result = ssh.run("reboot")
         if result['exit_code'] != 0:
             reboot_output.append((False, "Failed to send reboot command", "e"))
             return reboot_output
 
-        self.ssh.close()
+        ssh.close()
 
         reboot_output.append((True, "Waiting for host to reboot...", "i"))
         time.sleep(wait_time)
@@ -139,31 +147,33 @@ class RemoteHost:
         start_time = time.time()
         while time.time() - start_time < timeout:
             try:
-                sock = socket.create_connection((self.ssh.host, 22), timeout=5)
+                sock = socket.create_connection((ssh.host, 22), timeout=5)
                 sock.close()
 
                 reboot_output.append(
                     (True, "SSH port is open, trying to reconnect...", "i")
-                    )
-                success, message = self.ssh.connect()
-                reboot_output.append(
-                    (
-                        True if success else False,
-                        f"{message}",
-                        "s" if success else "e"
-                        )
                 )
+
+                success, message = ssh.connect()
+                reboot_output.append((
+                    success,
+                    message,
+                    "s" if success else "e"
+                ))
+
                 if success:
                     return reboot_output
+
             except (OSError, socket.error):
                 pass
 
             time.sleep(5)
+
         reboot_output.append((
             False,
             "Timed out waiting for SSH after reboot",
             "e"
-            ))
+        ))
         return reboot_output
 
     def check_ssh_keys(
@@ -350,12 +360,9 @@ class RemoteHost:
         self,
         active_config: dict[str, str],
         desired_config: dict[str, str],
-        ignore_prefix: str | None = None,
     ) -> list[str]:
         missing: list[str] = []
         for key in desired_config:
-            if ignore_prefix and key.startswith(ignore_prefix):
-                continue
             if key.lower() not in active_config:
                 missing.append(key)
         return missing
@@ -364,12 +371,9 @@ class RemoteHost:
         self,
         active_config: dict[str, str],
         desired_config: dict[str, str],
-        ignore_prefix: str | None = None,
     ) -> list[str]:
         wrong: list[str] = []
         for key, desired in desired_config.items():
-            if ignore_prefix and key.startswith(ignore_prefix):
-                continue
             active = active_config.get(key.lower())
             if (
                 active is not None
@@ -430,3 +434,52 @@ class RemoteHost:
     def bool(self, value) -> str:
         """Return '1' or '0' for truthy/falsy config values."""
         return "1" if bool(value) else "0"
+
+    def ensure_qemu_guest_agent_on_guest(
+            self,
+            ssh
+    ) -> list[tuple[bool, str, str]]:
+        """
+        Ensures that qemu-guest-agent is installed and enabled on a guest VM
+        via the provided SSH connection.
+
+        Returns a list of (success_flag, message, log_level).
+        """
+        out: list[tuple[bool, str, str]] = []
+
+        # Check if installed
+        check_cmd = "dpkg -s qemu-guest-agent | grep -q '^Status: install'"
+        check = ssh.run(check_cmd)
+        if check["exit_code"] == 0:
+            out.append((True, "qemu-guest-agent is already installed.", "i"))
+        else:
+            # Install it
+            install_cmd = (
+                "sudo apt-get update && sudo apt-get "
+                "install -y qemu-guest-agent"
+                )
+            res = ssh.run(install_cmd)
+            if res["exit_code"] != 0:
+                out.append((
+                    False,
+                    "Failed to install qemu-guest-agent: "
+                    f"{res['stderr'].strip()}",
+                    "e"
+                ))
+                return out
+            out.append((True, "qemu-guest-agent installed successfully.", "s"))
+
+        # Enable and start the service
+        enable_cmd = "sudo systemctl enable --now qemu-guest-agent"
+        res = ssh.run(enable_cmd)
+        if res["exit_code"] != 0:
+            out.append((
+                False,
+                "Failed to enable/start qemu-guest-agent: "
+                f"{res['stderr'].strip()}",
+                "e"
+            ))
+        else:
+            out.append((True, "qemu-guest-agent enabled and running.", "s"))
+
+        return out

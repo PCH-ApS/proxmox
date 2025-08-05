@@ -1,10 +1,4 @@
-pve_key_prefix:
-  type: string
-  default: pve_
-  required: false
-  regex: '^[a-z_][a-z0-9_-]{0,31}$'
-
-pve_host_username:
+host_username:
   type: string
   default: root
   required: false
@@ -16,7 +10,7 @@ pve_host_username:
   # No special characters other than _ or -
   # Starts with a letter or _
 
-pve_host_ip:
+host_ip:
   type: string
   required: true
   regex: '^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$'
@@ -24,7 +18,7 @@ pve_host_ip:
   # Ensures each octet is between 0–255
   # Does not allow leading zeros like 01
 
-pve_hostname:
+hostname:
   type: string
   required: true
   regex: '^[a-zA-Z0-9][a-zA-Z0-9-]{0,62}$'
@@ -33,9 +27,9 @@ pve_hostname:
   # Contains only letters, numbers, and hyphens
   # Does not end with a hyphen
 
-pve_domain:
+domain:
   type: string
-  default: your.domain.here
+  default: your.domain
   required: false
   regex: '^[a-zA-Z0-9][a-zA-Z0-9-]{0,62}\.[a-zA-Z]{2,}$'
   # Max 63 characters for the domain part
@@ -43,162 +37,165 @@ pve_domain:
   # Contains only letters, numbers, and hyphens
   # Ends with a top-level domain (TLD) like .com, .org, etc.
 
-pve_sshkey_public:
+sshkey_public:
   type: list
   required: false
   empty: True
   default:
-    - 'Your key goes here .....'
+    - 'public key'
+    - 'public key'
   schema:
     type: string
     regex: '^(ssh-(rsa|dss|ed25519|ecdsa) [A-Za-z0-9+/=]+ ?[a-zA-Z0-9._-]+)?$'
     # Validates SSH public keys
     # Allows optional comment at the end
 
-pve_iso_urls:
+iso_urls:
   type: list
   required: false
   empty: True
   default:
-    - 'Yout urL goes here ....'
-    - 'Yout urL goes here ....'
+    - 'https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img'
+    - 'https://releases.ubuntu.com/24.04/ubuntu-24.04.2-live-server-amd64.iso'
   schema:
     type: string
     regex: '^(https?|ftp)://[^\s/$.?#].[^\s]*$'
     # Validates URLs for ISO images
     # Allows http, https, and ftp protocols
 
-pve_iso_path:
+iso_path:
   type: string
   required: false
   default: '/var/lib/vz/template/iso'
   regex: '^\/([a-zA-Z0-9._+-]+\/)*[a-zA-Z0-9._+-]+$'
   # Path to Promox ISO folder
 
-pve_host_change_pwd:
+host_change_pwd:
   type: boolean
   default: false
   required: false
   regex: '^(true|false)$'
   # Accepts true or false values
 
-pve_host_keyfile:
+host_keyfile:
   type: string
-  default: 'path/to/ssh/keyfile'
+  default: '/path/to/.ssh/keyfile'
   required: false
   regex: '^/home/[a-z_][a-z0-9_-]{0,31}/\.ssh/.*$'
   # Path to the ssh keyfile used to access the Proxmox host
 
-pve_host_reboot:
+host_reboot:
   type: boolean
   default: false
   required: false
   regex: '^(true|false)$'
   # Should Proxmox host reboot if required
 
-pve_host_file:
+host_file:
   type: string
   default: '/etc/hosts'
   required: false
   regex: '^\/([a-zA-Z0-9._+-]+\/)*[a-zA-Z0-9._+-]+$'
   # Path to the sshd config file on the Proxmox host
 
-pve_sshd_searchstring:
+sshd_searchstring:
   type: string
   default: 'include'
   required: false
   regex: '^[^\n\r]{1,512}$'
   # Default search string 'include' used in sshd config
 
-pve_sshd_config_path:
+sshd_config_path:
   type: string
   default: '/etc/ssh/sshd_config'
   required: false
   regex: '^(/[^/\0]+)+/?$'
   # Default path to sshd_config
 
-pve_sshd_custom_config:
+sshd_custom_config:
   type: string
   default: "/etc/ssh/sshd_config.d/99-custom.conf"
   required: false
   regex: '^(/[^/\0]+)+/?$'
   # Default path to desired sshd_config
+
 # --------------------------- PROXMOX SSHD DEFAULTS ---------------------------
-PermitRootLogin:
+ssh_PermitRootLogin:
   type: string
   default: "without-password"
   required: false
   regex: "(?i)^(yes|no|without-password|forced-commands-only)$"
 
-PasswordAuthentication:
+ssh_PasswordAuthentication:
   type: string
   default: "no"
   required: false
   regex: "(?i)^(yes|no)$"
 
-PermitEmptyPasswords:
+ssh_PermitEmptyPasswords:
   type: string
   default: "no"
   required: false
   regex: "(?i)^(yes|no)$"
 
-UseDNS:
+ssh_UseDNS:
   type: string
   default: "no"
   required: false
   regex: "(?i)^(yes|no)$"
 
-AllowTcpForwarding:
+ssh_AllowTcpForwarding:
   type: string
   default: "no"
   required: false
   regex: "(?i)^(yes|no)$"
 
-X11Forwarding:
+ssh_X11Forwarding:
   type: string
   default: "no"
   required: false
   regex: "(?i)^(yes|no)$"
 
-ClientAliveInterval:
+ssh_ClientAliveInterval:
   type: integer
   default: 300
   required: false
 
-ClientAliveCountMax:
+ssh_ClientAliveCountMax:
   type: integer
   default: 2
   required: false
 
-MaxAuthTries:
+ssh_MaxAuthTries:
   type: integer
   default: 3
   required: false
 
-MaxSessions:
+ssh_MaxSessions:
   type: integer
   default: 2
   required: false
 
-Compression:
+ssh_Compression:
   type: string
   default: "no"
   required: false
   regex: "(?i)^(yes|no|delayed)$"
 
-LogLevel:
+ssh_LogLevel:
   type: string
   default: "VERBOSE"
   required: false
   regex: "(?i)^(QUIET|FATAL|ERROR|INFO|VERBOSE|DEBUG|DEBUG1|DEBUG2|DEBUG3)$"
 
-LoginGraceTime:
-  type: string
-  default: "30"
+ssh_LoginGraceTime:
+  type: integer
+  default: 30
   required: false
-  regex: "^[1-9]\\d*$" # only integers, expect it to be seconds
+  min: 1
+  # only integers, expect it to be seconds
 
-Subsystem:
+ssh_Subsystem:
   type: string
   default: "sftp /usr/lib/openssh/sftp-server"
   required: false

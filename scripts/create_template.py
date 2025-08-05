@@ -142,9 +142,9 @@ def main():
         output.output(f"{key.ljust(max_key_len + 1)}: {label}", type="i")
 
     host = ProxmoxHost(
-        host=v_config["tmp_host_ip"],
-        username=v_config["tmp_host_username"],
-        key_filename=v_config["tmp_host_keyfile"],
+        host=v_config["host_ip"],
+        username=v_config["host_username"],
+        key_filename=v_config["host_keyfile"],
     )
 
     output.output()
@@ -162,46 +162,46 @@ def main():
     output.output("Validating Proxmox components", type="h")
     output.output()
 
-    ok, msg = host.is_vmid_in_use(v_config["tmp_id"])
+    ok, msg = host.is_vmid_in_use(v_config["id"])
     output.output(msg, "s" if not ok else "e", exit_on_error=ok)
 
-    ok, msg = host.check_cpu_model_supported(v_config["tmp_cpu"])
+    ok, msg = host.check_cpu_model_supported(v_config["cpu"])
     output.output(msg, "s" if ok else "e", exit_on_error=not ok)
 
-    ok, msg = host.check_storage_ctrl_exists(v_config["tmp_storage_ctrl"])
+    ok, msg = host.check_storage_ctrl_exists(v_config["storage_ctrl"])
     output.output(msg, "s" if ok else "e", exit_on_error=not ok)
 
-    ok, msg = host.check_storage_exists(v_config["tmp_local_storage"])
+    ok, msg = host.check_storage_exists(v_config["local_storage"])
     output.output(msg, "s" if ok else "e", exit_on_error=not ok)
 
-    ok, msg = host.check_bridge_exists(v_config["tmp_bridge"])
+    ok, msg = host.check_bridge_exists(v_config["bridge"])
     output.output(msg, "s" if ok else "e", exit_on_error=not ok)
 
-    ok, msg = host.check_network_ctrl_exists(v_config["tmp_network_ctrl"])
+    ok, msg = host.check_network_ctrl_exists(v_config["network_ctrl"])
     output.output(msg, "s" if ok else "e", exit_on_error=not ok)
 
-    ok, msg = host.check_image_file_exists(v_config["tmp_image_path"])
+    ok, msg = host.check_image_file_exists(v_config["image_path"])
     output.output(msg, "s" if ok else "e", exit_on_error=not ok)
 
     # Optional: bootdisk slot sanity (e.g., scsi0 / sata0 / ide0 / virtio0)
-    ok, msg = host.validate_disk_slot(v_config["tmp_bootdisk"])
+    ok, msg = host.validate_disk_slot(v_config["bootdisk"])
     output.output(msg, "s" if ok else "e", exit_on_error=not ok)
 
     output.output()
     output.output("Creating template", type="h")
     output.output()
 
-    vmid = v_config["tmp_id"]
-    name = shlex.quote(v_config["tmp_name"])
-    cpu = shlex.quote(v_config["tmp_cpu"])
-    cores = v_config["tmp_cores"]
-    memory = v_config["tmp_memory"]
-    scsihw = shlex.quote(v_config["tmp_storage_ctrl"])
-    netmdl = shlex.quote(v_config["tmp_network_ctrl"])
-    bridge = shlex.quote(v_config["tmp_bridge"])
-    store = shlex.quote(v_config["tmp_local_storage"])
-    slot = shlex.quote(v_config["tmp_bootdisk"])
-    img = shlex.quote(v_config["tmp_image_path"])
+    vmid = v_config["id"]
+    name = shlex.quote(v_config["name"])
+    cpu = shlex.quote(v_config["cpu"])
+    cores = v_config["cores"]
+    memory = v_config["memory"]
+    scsihw = shlex.quote(v_config["storage_ctrl"])
+    netmdl = shlex.quote(v_config["network_ctrl"])
+    bridge = shlex.quote(v_config["bridge"])
+    store = shlex.quote(v_config["local_storage"])
+    slot = shlex.quote(v_config["bootdisk"])
+    img = shlex.quote(v_config["image_path"])
 
     # Build net0 parameter once (minimal: model + bridge)
     net0 = f"model={netmdl},bridge={bridge}"
@@ -211,12 +211,12 @@ def main():
         (
             f"qm create {vmid} --name {name}",
             f"Setting template id: {vmid} and name: "
-            f"{v_config['tmp_name']}"
+            f"{v_config['name']}"
             ),
 
         (
             f"qm set {vmid} --cpu {cpu}",
-            f"Setting template CPU: {v_config['tmp_cpu']}"
+            f"Setting template CPU: {v_config['cpu']}"
             ),
 
         (
@@ -231,20 +231,20 @@ def main():
 
         (
             f"qm set {vmid} --scsihw {scsihw}",
-            f"Setting template storage ctrl: {v_config['tmp_storage_ctrl']}"
+            f"Setting template storage ctrl: {v_config['storage_ctrl']}"
             ),
 
         (
             f"qm set {vmid} --net0 {net0}",
             "Setting template network controller: "
-            f"{v_config['tmp_network_ctrl']} on {v_config['tmp_bridge']}"
+            f"{v_config['network_ctrl']} on {v_config['bridge']}"
             ),
 
         # Import image into storage and attach as boot disk (PVE 8.x)
         (
             f"qm set {vmid} --{slot} {store}:0,import-from={img},discard=on",
             "Setting template bootdisk: "
-            f"{v_config['tmp_bootdisk']} on {v_config['tmp_local_storage']}"
+            f"{v_config['bootdisk']} on {v_config['local_storage']}"
             ),
     ]
 
