@@ -210,8 +210,8 @@ def main():
             f"{line[1]}",
             f"{line[2]}"
         )
-
-    if len(check_message) > 5:
+    has_errors = any(not flag for flag, _, _ in check_message)
+    if has_errors:
         output.output(
             "Rechecking SSHD config",
             "i"

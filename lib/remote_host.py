@@ -124,7 +124,8 @@ class RemoteHost:
     def reboot_and_reconnect(
         ssh: SSHLike,
         wait_time: int = 10,
-        timeout: int = 180
+        timeout: int = 180,
+        user="root"
     ) -> list[tuple[bool, str, str]]:
         """
         Reboots the host associated with the given SSH connection
@@ -133,8 +134,8 @@ class RemoteHost:
         Returns a list of (success_flag, message, level).
         """
         reboot_output: list[tuple[bool, str, str]] = []
-
-        result = ssh.run("reboot")
+        cmd = "sshd -T" if user == "root" else "sudo sshd -T"
+        result = ssh.run(cmd)
         if result['exit_code'] != 0:
             reboot_output.append((False, "Failed to send reboot command", "e"))
             return reboot_output
@@ -235,35 +236,54 @@ class RemoteHost:
     def change_pwd(
         self,
         user: str,
-        new_password: str
+        new_password: str,
+        treat_user_as_root: bool = False
     ) -> list[tuple[bool, str, str]]:
         if not user:
             return [(False, "Empty username is not allowed.", "e")]
 
-        is_root = getattr(self.ssh, "username", "") == "root"
-        prog = "chpasswd" if is_root else "sudo -n chpasswd"
-        cmd = f"echo {shlex.quote(f'{user}:{new_password}')} | {prog}"
+        is_root = (
+            getattr(self.ssh, "username", "") == "root" or
+            treat_user_as_root
+        )
+
+        # Safely quote user:password
+        user_pass = shlex.quote(f"{user}:{new_password}")
+
+        if is_root:
+            cmd = f"echo {user_pass} | chpasswd"
+        else:
+            # Wrap full pipeline in sudo shell
+            cmd = f"sudo -n sh -c 'echo {user_pass} | chpasswd'"
 
         res = self.run(cmd)
+
         if res["exit_code"] == 0:
             return [
                 (
                     True,
                     f"Password for '{user}' changed successfully.",
                     "s"
-                    )
-                    ]
+                )
+            ]
+
         return [
             (
                 False,
                 f"Failed to change password for '{user}': "
                 f"{res['stderr'].strip()}",
                 "e"
-                )
-                ]
+            )
+        ]
 
-    def get_active_sshd_config(self) -> tuple[bool, dict[str, str]]:
-        result = self.run("sshd -T")
+    def get_active_sshd_config(
+            self,
+            user="root"
+    ) -> tuple[bool, dict[str, str]]:
+
+        cmd = "sshd -T" if user == "root" else "sudo sshd -T"
+
+        result = self.run(cmd)
         if result["exit_code"] != 0:
             return False, {"error": result["stderr"].strip()}
 
@@ -331,11 +351,18 @@ class RemoteHost:
                 visited.add(current)
         return visited
 
-    def comment_out_param_in_file(self, param: str, path: str) -> bool:
+    def comment_out_param_in_file(
+            self,
+            param: str,
+            path: str,
+            user: str = "root"
+    ) -> bool:
         # Backup
         timestamp = time.strftime("%Y%m%d_%H%M%S")
         backup = f"{path}.{timestamp}.bak"
-        command = f"cp {shlex.quote(path)} {shlex.quote(backup)}"
+        prefix = "sudo " if user.strip().lower() != "root" else ""
+
+        command = f"{prefix}cp {shlex.quote(path)} {shlex.quote(backup)}"
         if self.run(command)["exit_code"] != 0:
             return False
 
@@ -344,7 +371,9 @@ class RemoteHost:
         # Use a non-slash delimiter and escape regex metacharacters.
         pattern = re.escape(param)
         safe_path = shlex.quote(path)
-        cmd = f"sed -i '/^[[:space:]]*{pattern}\\b/ s/^/#/' {safe_path}"
+        cmd = (
+            f"{prefix}sed -i '/^[[:space:]]*{pattern}\\b/ s/^/#/' {safe_path}"
+            )
         return self.run(cmd)["exit_code"] == 0
 
     def is_param_explicitly_set(self, param: str, filepath: str) -> bool:
@@ -385,7 +414,8 @@ class RemoteHost:
     def ensure_lines_in_file(
             self,
             lines: list[str],
-            path: str
+            path: str,
+            user: str = "root"
     ) -> list[tuple[bool, str, str]]:
         """
         Ensure each line appears in `path` exactly once (append if missing).
@@ -394,8 +424,9 @@ class RemoteHost:
         out: list[tuple[bool, str, str]] = []
 
         # Ensure file exists
-        dir_cmd = f"mkdir -p $(dirname {shlex.quote(path)})"
-        touch_cmd = f"touch {shlex.quote(path)}"
+        prefix = "sudo " if user.strip().lower() != "root" else ""
+        dir_cmd = f"{prefix}mkdir -p $(dirname {shlex.quote(path)})"
+        touch_cmd = f"{prefix}touch {shlex.quote(path)}"
         for cmd in (dir_cmd, touch_cmd):
             res = self.run(cmd)
             if res["exit_code"] != 0:
@@ -419,7 +450,10 @@ class RemoteHost:
             if check["exit_code"] == 0:
                 out.append((True, f"Line already present: {line}", "i"))
                 continue
-            append = self.run(f"printf '%s\\n' {safe_line} >> {safe_path}")
+            cmd = f"sh -c \"echo {safe_line} >> {safe_path}\""
+            if user.strip().lower() != "root":
+                cmd = f"sudo {cmd}"
+            append = self.run(cmd)
             if append["exit_code"] == 0:
                 out.append((True, f"Appended: {line}", "s"))
             else:
@@ -467,7 +501,11 @@ class RemoteHost:
                     "e"
                 ))
                 return out
-            out.append((True, "qemu-guest-agent installed successfully.", "s"))
+            out.append((
+                False,
+                "qemu-guest-agent installed successfully.",
+                "s"
+                ))
 
         # Enable and start the service
         enable_cmd = "sudo systemctl enable --now qemu-guest-agent"

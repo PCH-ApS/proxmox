@@ -5,6 +5,7 @@ import argparse
 import yaml
 import shlex
 import time
+import getpass
 
 from lib.output_handler import OutputHandler
 from lib.check_files_handler import CheckFiles
@@ -411,6 +412,15 @@ def main():
         ip = vc.get("ci_ipaddress", "")
         gw = vc.get("ci_gateway", "")
         cidr = vc.get("ci_netmask", "").lstrip("/")
+        chk_vlan = ip.split('.')[2]
+
+        if not str(chk_vlan) == str(vc['vlan']):
+            output.output(
+                f"Vlan ID '{vc['vlan']}' doesn't match 3rd octet "
+                f"'{chk_vlan}' in static ip address.",
+                "e",
+                exit_on_error=True
+                )
 
         # If anything differs, update guest
         if ip != ip_part or gw != gw_part or cidr != sub_part:
@@ -452,7 +462,7 @@ def main():
         countdown(output, wait_in_sec)
 
     output.output()
-    output.output("Finalising VM config", type="h")
+    output.output("Querying VM ip and connectivity", type="h")
     output.output()
 
     # DHCP case: scan subnet for IPs
@@ -553,6 +563,20 @@ def main():
             exit_on_error=True
         )
 
+    output.output()
+    output.output("Closing SSH to host", type="h")
+    output.output()
+
+    flag, message = host.close()
+    output.output(message, type="s" if flag else "e", exit_on_error=not flag)
+
+    output.output()
+    output.output("Finalising VM configuration", type="h")
+    output.output()
+
+    # -------------------------------------------------------------------------
+    # Checking sshd config
+    # -------------------------------------------------------------------------
     ssh_config = {
         key.removeprefix("ssh_"): value
         for key, value in vc.items()
@@ -562,7 +586,8 @@ def main():
             ssh_config,
             vc['sshd_searchstring'],
             vc['sshd_config_path'],
-            vc['sshd_custom_config']
+            vc['sshd_custom_config'],
+            ssh
         )
     for line in check_message:
         output.output(
@@ -570,7 +595,8 @@ def main():
             f"{line[2]}"
         )
 
-    if len(check_message) > 5:
+    has_errors = any(not flag for flag, _, _ in check_message)
+    if has_errors:
         output.output(
             "Rechecking SSHD config",
             "i"
@@ -587,18 +613,78 @@ def main():
                 f"{line[2]}"
             )
 
+    # -------------------------------------------------------------------------
     # Ensure QEMU agent on the guest
+    # -------------------------------------------------------------------------
     steps = host.ensure_qemu_guest_agent_on_guest(ssh)
     for ok, msg, lvl in steps:
         output.output(msg, lvl)
+    installed = any(not flag for flag, _, _ in steps)
+    # -------------------------------------------------------------------------
+    # Reboot and reconnect
+    # -------------------------------------------------------------------------
+    if vc["reboot_on_change"] and has_errors or installed:
+        wait_time = 10
+        timeout = 60
+        output.output(
+            f"Reboot wait between try: {wait_time}s, timeout: {timeout}s",
+            "i"
+            )
+        user = getattr(ssh, "username", "root")
+        reboot_message = (
+            host.reboot_and_reconnect(
+                ssh,
+                wait_time,
+                timeout,
+                user
+            )
+            )
+        for line in reboot_message:
+            output.output(
+                f"{line[1]}",
+                f"{line[2]}"
+            )
+
+    # -------------------------------------------------------------------------
+    # Change ci_user password
+    # -------------------------------------------------------------------------
+    if vc['change_pwd']:
+        output.output()
+        output.output("Root password change", type="h")
+        output.output()
+
+        response = input(
+            f"'change_pwd' is '{vc['change_pwd']}' in {args.config_file}. "
+            "Do you want to change the password now? (yes/no): "
+            ).strip().lower()
+        if response in ('yes', 'y'):
+            error = False
+            user = vc['ci_username']
+            pwd1 = getpass.getpass(f"Enter new password for {user}: ")
+            pwd2 = getpass.getpass("Confirm new root password: ")
+
+            if pwd1 != pwd2:
+                output.output(
+                    "Passwords do not match. Aborting.",
+                    "e"
+                )
+                error = True
+
+            if not pwd1:
+                output.output(
+                    "Empty password is not allowed.",
+                    "e"
+                )
+                error = True
+
+            if not error:
+                password_message = host.change_pwd(user, pwd1)
+                for line in password_message:
+                    output.output(
+                        f"{line[1]}",
+                        f"{line[2]}"
+                    )
 
     flag, message = ssh.close()
-    output.output(message, type="s" if flag else "e", exit_on_error=not flag)
-
-    output.output()
-    output.output("Closing SSH", type="h")
-    output.output()
-
-    flag, message = host.close()
     output.output(message, type="s" if flag else "e", exit_on_error=not flag)
     output.output()

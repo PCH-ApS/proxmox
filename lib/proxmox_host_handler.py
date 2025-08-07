@@ -135,9 +135,18 @@ class ProxmoxHost(RemoteHost):
             ssh_config,
             searchstring,
             config_path,
-            custom_config
+            custom_config,
+            ssh_conn=None
             ):
+        # ---------------------------------------------------------------------
+        # - Setting SSH connectin to use
+        # ---------------------------------------------------------------------
+        if ssh_conn:
+            self.ssh = ssh_conn
 
+        # ---------------------------------------------------------------------
+        # - Get all sshd config files on the server
+        # ---------------------------------------------------------------------
         config_output = []
         sshd_files = self.get_all_config_files(
             searchstring,
@@ -158,7 +167,11 @@ class ProxmoxHost(RemoteHost):
                 ))
             return config_output
 
-        config_flag, active_config_dict = self.get_active_sshd_config()
+        # ---------------------------------------------------------------------
+        # - Retrive the active sshd configuration from the server
+        # ---------------------------------------------------------------------
+        user = getattr(self.ssh, "username", "root")
+        config_flag, active_config_dict = self.get_active_sshd_config(user)
         if config_flag:
             config_output.append((
                     True,
@@ -173,6 +186,9 @@ class ProxmoxHost(RemoteHost):
                 ))
             return config_output
 
+        # ---------------------------------------------------------------------
+        # - Check active configuration for any keys missing
+        # ---------------------------------------------------------------------
         missing = self.get_missing_sshd_keys(
             active_config_dict,
             ssh_config,
@@ -193,6 +209,9 @@ class ProxmoxHost(RemoteHost):
                     "s"
                 ))
 
+        # ---------------------------------------------------------------------
+        # - Check active configuration for any keys with wrong values
+        # ---------------------------------------------------------------------
         wrong = (
             self.get_wrong_value_sshd_keys(
                 active_config_dict,
@@ -216,6 +235,9 @@ class ProxmoxHost(RemoteHost):
                 ))
             return config_output
 
+        # ---------------------------------------------------------------------
+        # - Check if wrong keys er implicit or explicitly set
+        # ---------------------------------------------------------------------
         if len(wrong) > 0:
             explicit_keys = []
             implicit_keys = []
@@ -258,11 +280,17 @@ class ProxmoxHost(RemoteHost):
                         "No keys set implicitly in SSHD config",
                         "s"
                     ))
-
+            # ---------------------------------------------------------------------
+            # - comment out any explicitly set keys
+            # ---------------------------------------------------------------------
             if len(explicit_keys) > 0:
                 for key in explicit_keys:
                     e_key, e_path = key
-                    success = self.comment_out_param_in_file(e_key, e_path)
+                    success = self.comment_out_param_in_file(
+                        e_key,
+                        e_path,
+                        user
+                        )
                     if success:
                         config_output.append((
                             True,
@@ -285,6 +313,9 @@ class ProxmoxHost(RemoteHost):
                             "e"
                         ))
 
+            # ---------------------------------------------------------------------
+            # - Add implicit keys to list of missing keys
+            # ---------------------------------------------------------------------
             if len(implicit_keys) > 0:
                 for im_key in implicit_keys:
                     config_output.append((
@@ -310,7 +341,8 @@ class ProxmoxHost(RemoteHost):
 
             results = self.ensure_lines_in_file(
                 lines,
-                custom_config
+                custom_config,
+                user
                 )
 
             for flag, msg, type in results:
@@ -351,21 +383,48 @@ class ProxmoxHost(RemoteHost):
                         "s"
                     ))
 
-            reload_cmd = "systemctl reload sshd"
-            success = self.run(reload_cmd)['exit_code'] == 0
-            if success:
+            # Validate SSHD config syntax before applying
+            test_cmd = "sshd -t" if user == "root" else "sudo sshd -t"
+            test_result = self.run(test_cmd)
+            if test_result["exit_code"] != 0:
                 config_output.append((
-                        True,
-                        "SSHD config reloaded",
-                        "s"
-                    ))
-            else:
-                config_output.append((
-                    True,
-                    "SSHD config failed to reload",
+                    False,
+                    "SSHD config syntax error: "
+                    f"{test_result['stderr'].strip()}",
                     "e"
                 ))
                 return config_output
+            else:
+                config_output.append((
+                    True,
+                    "SSHD config syntax is valid",
+                    "s"
+                ))
+
+            if user == "root":
+                reload_cmd = "systemctl reload sshd"
+                success = self.run(reload_cmd)
+                if success['exit_code'] == 0:
+                    config_output.append((
+                            True,
+                            "SSHD config reloaded",
+                            "s"
+                        ))
+                else:
+                    config_output.append((
+                        True,
+                        "SSHD config failed to reload: "
+                        f"{success['stderr'].strip()}",
+                        "e"
+                    ))
+                    return config_output
+            else:
+                config_output.append((
+                    True,
+                    "Non-root user: skipping reload — "
+                    "changes will apply after reboot",
+                    "i"
+                ))
 
         return config_output
 
