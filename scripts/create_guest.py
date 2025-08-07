@@ -451,12 +451,13 @@ def main():
     # On-guest configuration and finalization
     # -------------------------------------------------------------------------
     found_ip = []
-    dhcp_fallback = False  # Track if we're falling back to scanned IPs
+    """ dhcp_fallback = False """  # Track if we're falling back to scanned IPs
 
     if ci_changed:
         wait_in_sec = 90
         output.output(
-            f"Waiting {wait_in_sec}s for guest network to come up",
+            f"Waiting {wait_in_sec}s for guest cloud-init "
+            "and network, before continueing.....",
             "i"
         )
         countdown(output, wait_in_sec)
@@ -491,7 +492,7 @@ def main():
         if not found_ip:
             output.output("No hostname match, will try all scanned IPs", "w")
             found_ip = [ip for ip, _ in results]
-            dhcp_fallback = True
+            """ dhcp_fallback = True """
 
     else:
         static_ip = vc.get("ci_ipaddress")
@@ -522,7 +523,12 @@ def main():
             key_filename=vc["vm_keyfile"],
         )
 
-        vm_connect_flag, vm_connect_message = ssh.connect()
+        connect_msg = host.reconnect(ssh, 5, 60)
+        for ok, msg, lvl in connect_msg:
+            output.output(msg, lvl)
+        vm_connect_flag = any(flag for flag, _, _ in steps)
+
+        """         vm_connect_flag, vm_connect_message = ssh.connect()
         output.output(
             vm_connect_message,
             type="s" if vm_connect_flag else "e",
@@ -531,7 +537,7 @@ def main():
                 len(found_ip) == 1 and
                 not vm_connect_flag
                 )
-        )
+        ) """
 
         if not vm_connect_flag:
             continue
@@ -684,6 +690,29 @@ def main():
                         f"{line[1]}",
                         f"{line[2]}"
                     )
+
+    # -------------------------------------------------------------------------
+    # Check if final reboot is required
+    # -------------------------------------------------------------------------
+    cmd = "test -f /var/run/reboot-required && echo 'True' || echo 'False'"
+    res = ssh.run(cmd)
+    test = res['stdout'].strip()
+    user = getattr(ssh, "username", "root")
+    if res['exit_code'] == 0 and test == "True":
+        wait_time = 10
+        timeout = 60
+        reboot_message = (
+            host.reboot_and_reconnect(
+                ssh,
+                wait_time,
+                timeout,
+                user)
+            )
+        for line in reboot_message:
+            output.output(
+                f"{line[1]}",
+                f"{line[2]}"
+            )
 
     flag, message = ssh.close()
     output.output(message, type="s" if flag else "e", exit_on_error=not flag)

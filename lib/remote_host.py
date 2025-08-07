@@ -134,7 +134,7 @@ class RemoteHost:
         Returns a list of (success_flag, message, level).
         """
         reboot_output: list[tuple[bool, str, str]] = []
-        cmd = "sshd -T" if user == "root" else "sudo sshd -T"
+        cmd = "reboot" if user == "root" else "sudo reboot"
         result = ssh.run(cmd)
         if result['exit_code'] != 0:
             reboot_output.append((False, "Failed to send reboot command", "e"))
@@ -176,6 +176,52 @@ class RemoteHost:
             "e"
         ))
         return reboot_output
+
+    @staticmethod
+    def reconnect(
+        ssh: SSHLike,
+        wait_time: int = 10,
+        timeout: int = 180,
+    ) -> list[tuple[bool, str, str]]:
+        reconnect_output: list[tuple[bool, str, str]] = []
+        reconnect_output.append(
+            (True,
+             "Waiting for server to come up...",
+             "i"
+             ))
+        time.sleep(wait_time)
+
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            try:
+                sock = socket.create_connection((ssh.host, 22), timeout=5)
+                sock.close()
+
+                reconnect_output.append(
+                    (True, "SSH port is open, trying to reconnect...", "i")
+                )
+
+                success, message = ssh.connect()
+                reconnect_output.append((
+                    success,
+                    message,
+                    "s" if success else "e"
+                ))
+
+                if success:
+                    return reconnect_output
+
+            except (OSError, socket.error):
+                pass
+
+            time.sleep(5)
+
+        reconnect_output.append((
+            False,
+            "Timed out waiting for SSH to reconnect",
+            "e"
+        ))
+        return reconnect_output
 
     def check_ssh_keys(
             self,
