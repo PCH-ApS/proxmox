@@ -17,10 +17,6 @@ If you're using this project, make sure you've already installed Proxmox manuall
 This toolkit is not intended to be the final layer of automation. Instead, it brings Proxmox hosts and guests to a known-good **baseline state** — the point where true Infrastructure-as-Code can take over. With hosts set up, templates in place, and guests provisioned consistently, tools like Ansible, Terraform, or SaltStack can handle configuration, service orchestration, and lifecycle management.
 
 Think of this project as the **foundation layer**: automation that bootstraps your virtual infrastructure, so your real IaC tooling has something solid to build on.
-
-
-
-
 ## Scripts & Structure
 
 This project uses modular scripts backed by schema-validated YAML files.

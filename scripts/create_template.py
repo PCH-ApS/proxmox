@@ -12,7 +12,7 @@ from cerberus import Validator
 from lib.proxmox_host_handler import ProxmoxHost
 
 DEFAULT_YAML_VALIDATION_FILE = "config/template_config_validation.yaml"
-DEFAULT_LOGFILE = "logs/create_teamplate.log"
+DEFAULT_LOGFILE = "logs/create_template.log"
 output = OutputHandler(DEFAULT_LOGFILE)
 
 
