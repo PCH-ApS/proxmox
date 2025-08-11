@@ -1,3 +1,4 @@
+# Proxmox host configuration
 This guide outlines how to use the `configure_host.py` script to create the desired Proxmox host configuration with at script that I can run as many times as I like, checking the initial config is correct.
 
 Once configured, continue to [Create an image template](https://github.com/PCH-ApS/proxmox/blob/main/md/Create%20an%20image%20template.md)
@@ -38,7 +39,7 @@ There are two YAML files used for the configuration:
 1. The host config file - [host_config_example](https://github.com/PCH-ApS/proxmox/blob/main/config/host_config_example.yaml)
 2. The config validation file - [host_config_validation](https://github.com/PCH-ApS/proxmox/blob/main/config/host_config_validation.yaml)
 
-The validation file also contains default values for non-required keys. This mean that when you have set all your defaults in the file, you can configure a host with only the ip-address and the hostname in the config file
+The validation file also contains default values for non-required keys. This mean that when you have set all your defaults in the file, you can configure a host with only the ip-address and the hostname in the config file.
 
 ## Required config keys
 | Key | Type | Constraints | Default |
