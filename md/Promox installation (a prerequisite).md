@@ -1,106 +1,87 @@
-This guide aims to install Proxmox VE and configure the Proxmox host with a basic network setup, that can be customized further with scripts in this repository.
+# Proxmox Installation (a Prerequisite)
 
-## Install Proxmox
-- Boot on the Proxmox VE installation media and wait for the "**Welcome to Proxmox Virtual Environment**" screen.
-  
-  I would download the installation image ISO and write it to a USB drive using Etcher or a similar tool
+This guide outlines how to install Proxmox manually — which is required before running anything in this repository.
 
-### Proxmox installation steps
-- Select Installation Option  
-	  Choose Install Proxmox VE (Graphical).
-- Accept the EULA  
-	  Click the I agree button in the lower-right corner.
-- Disk Selection  
-	  Choose the target hard disk for installation.  
-	  Click Options and  
-		  Set the filesystem to ZFS (RAID0).  
-		  This is what I select for my Proxmox VE servers, you should select what works for you.  
-	  Click OK.  
-	  Click Next in the lower-right corner.  
-- Location and Time Zone Settings  
-	  Set the following:  
-		  Country: Denmark  
-		  Timezone: Europe/Copenhagen  
-		  Keyboard Layout: Danish  
-		  Again, this is what I select for my Proxmox VE servers, you should select what works for you.  
-	  Click Next.  
-- Administrative Settings  
-	  Enter an administrative password.  
-		  I use a simple password for this as I will change it later with code.  
-	  Provide an admin email address.  
-	  Click Next.
-- Network Configuration  
-	  Enter:  
-		  FQDN: Any value (this will be updated by the script).  
-		  IP Address: x.x.x.x/29  
-			  I have small network segments, and defaults to VLANs with /29-size.  
-		  Gateway: y.y.y.y  
-		  DNS Server: y.y.y.y  
-	  Click Next.
-- Start Installation  
-	  Click the Install button in the lower-right corner.
-	
-Once the installation has been completed access the Proxmox web GUI on https://x.x.x.x:8006 to validate the installation if possible.
+## Why manual install?
 
-### Proxmox post installation steps
-#### Set Proxmox host to DHCP (optional)
-I segment my network, and each segment is usually a /29 subnet, and I have good control over which hosts are in what segment. 
+As I mentioned in the readme, Proxmox can be bootstrapped and automated with PXE, preseed, or other tools — but I decided that the complexity wasn’t worth it. Clicking through the standard installer is much earlier, and I assume that has been done now.
 
-I might run the installation while conneted to a test or config network or zone, that is not the intended final network for the host. When I move the Proxmox host into the desired network, I still want to be able to access it, and I set the host to DHCP. 
+> 💡 My rule: *Click through the installer (`Next`, `Next`, `Finish`) and automate everything after that.*
 
-My configuration script will change it to a fixed ip, if specified in my config file for the host.
+---
 
-- Edit the network interfaces configuration file
-```
-nano /etc/network/interfaces
-```
-- Add the following:
-```
-iface vmbr0 inet dhcp
-bridge-vlan-aware yes
-bridge-vids 2-4094
-```
-- Comment out the following:
-```
-#iface vmbr0 inet static
-#       address x.x.x.x/29
-#       gateway y.y.y.y
-```
-- Save the changes and reboot the system.
+## My Personal Selections (Reference)
+
+These are the choices I make during a fresh Proxmox install. This list is here for *me* and my specific setup — yours might have different needs.
+
+### 🔧 Installer Settings
+
+- **Filesystem**: `ZFS (RAID1)`
+- **Country/Timezone**: `DK / Europe / Copenhagen`
+- **Keyboard**: `Danish`
+- **Hostname**: Manually set based on role (e.g., `pve01`)  
+  *(The script will later change it to whatever you define in your config YAML)*
+- **IP address**: Static, configured during installation
+- **Root password**: Set manually  
+  *(If you set `change_password: true` in the config, the script will prompt you to update it)*
+
+### Post-Install Tasks
+
+After reboot:
+- Access Proxmox via the web UI: `https://<your-ip>:8006`
+- Ensure SSH access is working — the script connects via SSH and expects the host to be reachable.
 
 #### Validate SSH access to Proxmox host
-- Log in to the Proxmox host using SSH. 
-  Change @x.x.x.x to the ip-address of the Proxmox host 
+
+    Log in to the Proxmox host using SSH. Change @x.x.x.x to the ip-address of the Proxmox host
 ```
 ssh -o IdentitiesOnly=yes root@x.x.x.x
 ```
-- if successful, continue and copy your SSH key to the Proxmox root account.
-  I assume that an SSH key has been created for use when logging into Proxmox as root. Replace ~/.ssh/Key-for-Proxmox.pub with the path for the key you want to use, and change @x.x.x.x to the ip-address of the Proxmox host 
+
+    if successful, continue and copy your SSH key to the Proxmox root account. I assume that an SSH key has been created for use when logging into Proxmox as root. Replace ~/.ssh/Key-for-Proxmox.pub with the path for the key you want to use, and change @x.x.x.x to the ip-address of the Proxmox host
 ```
 ssh-copy-id -o IdentitiesOnly=yes -i ~/.ssh/Key-for-Proxmox.pub root@x.x.x.x
 ```
-### Proxmox on a laptop
-I use old laptops as test machines - also for Proxmox. It is a bit annoying that they can go into hibernation or sleep when the lid i closed, and therefor I add these twerks if I when I run Proxmox on a laptop.
 
-- Access the host shell in the Proxmox web GUI or ssh to the host
-- Modify logind.conf to prevent sleep when the lid is closed: 
+---
+
+## Step-by-Step: Install & Prep
+
+### 1. Download Proxmox VE ISO
+
+- [Official site](https://www.proxmox.com/en/downloads)
+- Select the latest **Proxmox VE** ISO
+- Optionally verify the SHA256 hash
+
+### 2. Flash ISO to USB
+
+Recommended tools:
+- On Linux/macOS: `balenaEtcher`, `dd`
+- On Windows: `Rufus`
+
+### 3. Boot and Install
+
+- Boot from the USB stick
+- Run through the Proxmox installer
+- Apply the selections above 
+- Reboot when done
+
+---
+
+## Using Spare Laptops for Proxmox Testing
+
+I often repurpose spare laptops for testing Proxmox installs.
+
+If you want the system to **continue running with the lid closed**, you need to override the default ACPI behavior. Add the following to your laptop’s systemd power settings:
+
+```bash
+echo "HandleLidSwitch=ignore" >> /etc/systemd/logind.conf
 ```
-nano /etc/systemd/logind.conf
-```
-- Modify the matching lines in the file to the below.
-```
-HandleLidSwitch=ignore
-HandleLidSwitchExternalPower=ignore
-HandleLidSwitchDocked=ignore
-```
-- Save changes and restart the service.
+Then reload the configuration:
 ```
 systemctl restart systemd-logind
 ```
-- Reboot the system. 
+This prevents the laptop from suspending or powering off when the lid is closed — useful for headless testing setups.
 
 ## Proxmox host configuration
-Now you should be able to continue to the [Proxmox host configuration](https://github.com/PCH-ApS/proxmox/blob/main/md/Proxmox%20host%20configuration.md) for further information on my configuration script.
-
-
-
+Now you should be able to continue to the  [Proxmox host configuration](https://github.com/PCH-ApS/proxmox/blob/main/md/Proxmox%20host%20configuration.md) for further information on my configuration script.
