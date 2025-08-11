@@ -34,6 +34,7 @@ After reboot:
 #### Validate SSH access to Proxmox host
 
     Log in to the Proxmox host using SSH. Change @x.x.x.x to the ip-address of the Proxmox host
+    
 ```
 ssh -o IdentitiesOnly=yes root@x.x.x.x
 ```
