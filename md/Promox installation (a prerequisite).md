@@ -33,13 +33,12 @@ After reboot:
 
 #### Validate SSH access to Proxmox host
 
-    Log in to the Proxmox host using SSH. Change @x.x.x.x to the ip-address of the Proxmox host
-    
+Log in to the Proxmox host using SSH. Change @x.x.x.x to the ip-address of the Proxmox host
 ```
 ssh -o IdentitiesOnly=yes root@x.x.x.x
 ```
 
-    if successful, continue and copy your SSH key to the Proxmox root account. I assume that an SSH key has been created for use when logging into Proxmox as root. Replace ~/.ssh/Key-for-Proxmox.pub with the path for the key you want to use, and change @x.x.x.x to the ip-address of the Proxmox host
+if successful, continue and copy your SSH key to the Proxmox root account. I assume that an SSH key has been created for use when logging into Proxmox as root. Replace ~/.ssh/Key-for-Proxmox.pub with the path for the key you want to use, and change @x.x.x.x to the ip-address of the Proxmox host
 ```
 ssh-copy-id -o IdentitiesOnly=yes -i ~/.ssh/Key-for-Proxmox.pub root@x.x.x.x
 ```
