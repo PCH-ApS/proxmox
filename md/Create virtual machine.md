@@ -32,7 +32,7 @@ Optional override for validation rules:
 10. Close SSH connection to the Proxmomx host.
 11. Ensures the desired SSHD config is set on the VM
 12. Installs the QEMU-client-agent
-13. Changes the rott password
+13. Changes the root password
 14. Reboot the vm
 
 ## Config File Structure
