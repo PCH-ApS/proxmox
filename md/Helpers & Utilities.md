@@ -234,14 +234,3 @@ lines = host.download_iso_files(urls=[
 - For long‑running operations the scripts already handle result printing via `OutputHandler`.
 
 ---
-
-## Validation schemas
-
-Each `run_*.py` defaults to a schema file:
-- **Host:** `config/host_config_validation.yaml`
-- **Template:** `config/template_config_validation.yaml`
-- **Guest:** `config/guest_config_validation.yaml`
-
-You can override with `--validation <path>`.
-
-> Heads‑up: In `create_template.py`, the default logfile is spelled `create_teamplate.log`. Consider renaming to `create_template.log` for consistency.
