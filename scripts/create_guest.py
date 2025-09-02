@@ -246,6 +246,13 @@ def main():
             f"Set cores to {vc['cores']}"
             ))
 
+    """ disk size """
+    desired_disk = str(vc["disk"])
+    plan.append((
+        f"qm resize {vmid} scsi0 {desired_disk}G",
+        f"Set disk to {desired_disk}G"
+        ))
+
     """ memory """
     if cfg.get("memory") != str(vc["memory"]):
         plan.append((
