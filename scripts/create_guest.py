@@ -461,7 +461,7 @@ def main():
     """ dhcp_fallback = False """  # Track if we're falling back to scanned IPs
 
     if ci_changed:
-        wait_in_sec = 90
+        wait_in_sec = 180
         output.output(
             f"Waiting {wait_in_sec}s for guest cloud-init "
             "and network, before continueing.....",
