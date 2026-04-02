@@ -26,7 +26,7 @@ remote.close()
 """
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Callable, Protocol
 import shlex
 import socket
 import time
@@ -79,6 +79,134 @@ class RemoteHost:
     def run(self, command: str) -> dict:
         """Pass-through to the injected SSH client's run method."""
         return self.ssh.run(command)
+
+    @staticmethod
+    def _emit_progress(
+            progress_callback: Callable[[str, str], None] | None,
+            message: str,
+            level: str
+    ) -> None:
+        if progress_callback:
+            progress_callback(message, level)
+
+    def get_cloud_init_apt_dns_blockers(
+            self,
+            ssh: SSHLike
+    ) -> str:
+        status_cmd = """
+cloud_ready=1
+cloud_status="unknown"
+if [ -f /var/lib/cloud/instance/boot-finished ]; then
+    cloud_ready=0
+    cloud_status="boot-finished"
+elif command -v cloud-init >/dev/null 2>&1; then
+    status="$(cloud-init status 2>/dev/null || true)"
+    cloud_status="$(printf '%s' "$status" | head -n 1)"
+    case "$status" in
+        "status: done"*|"status: disabled"*|"status: error"*)
+            cloud_ready=0
+            ;;
+    esac
+else
+    cloud_ready=0
+    cloud_status="cloud-init-missing"
+fi
+
+apt_busy=1
+apt_proc="$(
+    (
+        pgrep -fa "apt-get|apt |dpkg|unattended-upgrade" || true
+        fuser /var/lib/dpkg/lock-frontend \
+              /var/lib/dpkg/lock \
+              /var/lib/apt/lists/lock \
+              /var/cache/apt/archives/lock 2>/dev/null || true
+    ) | grep -v 'unattended-upgrade-shutdown' | head -n 1
+)"
+if [ -z "$apt_proc" ]; then
+    apt_busy=0
+    apt_proc="idle"
+fi
+
+dns_ready=1
+dns_state="resolving"
+if getent hosts archive.ubuntu.com >/dev/null 2>&1 && \
+   getent hosts security.ubuntu.com >/dev/null 2>&1; then
+    dns_ready=0
+    dns_state="ready"
+fi
+
+printf 'cloud=%s apt=%s dns=%s cloud_status=%s apt_proc=%s dns_state=%s\n' \
+    "$cloud_ready" "$apt_busy" "$dns_ready" \
+    "$(printf '%s' "$cloud_status" | tr ' ' '_')" \
+    "$(printf '%s' "$apt_proc" | tr ' ' '_')" \
+    "$dns_state"
+        """
+        res = ssh.run(f"bash -lc {shlex.quote(status_cmd)}")
+        parts = {}
+        line = res.get("stdout", "").strip()
+        if res["exit_code"] == 0 and line:
+            parts = dict(
+                item.split("=", 1)
+                for item in line.split()
+                if "=" in item
+            )
+
+        blockers = []
+        if parts.get("cloud") != "0":
+            blockers.append(f"cloud-init={parts.get('cloud_status', 'unknown')}")
+        if parts.get("apt") != "0":
+            blockers.append(f"apt={parts.get('apt_proc', 'busy')}")
+        if parts.get("dns") != "0":
+            blockers.append(f"dns={parts.get('dns_state', 'resolving')}")
+        return ", ".join(blockers) if blockers else "no blockers detected"
+
+    def wait_for_cloud_init_and_apt(
+            self,
+            ssh: SSHLike,
+            timeout: int = 300,
+            interval: int = 10,
+            progress_callback: Callable[[str, str], None] | None = None
+    ) -> list[tuple[bool, str, str]]:
+        """
+        Wait until cloud-init is no longer actively running, no apt/dpkg
+        processes appear busy, and DNS resolution works for Ubuntu mirrors.
+        This is helpful on first boot, where cloud-init may still be doing
+        package update/upgrade work and networking may not be fully ready.
+        """
+        out: list[tuple[bool, str, str]] = []
+        checks = max(1, timeout // interval)
+        for attempt in range(checks):
+            blockers = self.get_cloud_init_apt_dns_blockers(ssh)
+            if blockers == "no blockers detected":
+                msg = (
+                    "cloud-init, package operations, and DNS are ready; "
+                    "continuing with qemu-guest-agent install."
+                )
+                self._emit_progress(progress_callback, msg, "i")
+                if not progress_callback:
+                    out.append((True, msg, "i"))
+                return out
+
+            remaining_checks = checks - attempt - 1
+            remaining = remaining_checks * interval
+            msg = (
+                "Waiting for cloud-init/apt/DNS readiness before installing "
+                f"qemu-guest-agent; rechecking in {interval}s "
+                f"({remaining}s remaining). Blocked by: {blockers}"
+            )
+            self._emit_progress(progress_callback, msg, "i")
+            if not progress_callback:
+                out.append((True, msg, "i"))
+            time.sleep(interval)
+
+        msg = (
+            "Timed out waiting for cloud-init, apt, and DNS readiness; "
+            "will still attempt qemu-guest-agent install."
+        )
+        self._emit_progress(progress_callback, msg, "w")
+        if not progress_callback:
+            out.append((False, msg, "w"))
+        return out
 
     # ---------------------------------------------------------------------
     # Generic host operations
@@ -517,7 +645,8 @@ class RemoteHost:
 
     def ensure_qemu_guest_agent_on_guest(
             self,
-            ssh
+            ssh,
+            progress_callback: Callable[[str, str], None] | None = None
     ) -> list[tuple[bool, str, str]]:
         """
         Ensures that qemu-guest-agent is installed and enabled on a guest VM
@@ -533,25 +662,49 @@ class RemoteHost:
         if check["exit_code"] == 0:
             out.append((True, "qemu-guest-agent is already installed.", "i"))
         else:
-            # Install it
+            max_attempts = 30
+            retry_interval = 10
+            transient_pattern = (
+                "Could not get lock|Unable to lock directory|"
+                "Temporary failure resolving|Failed to fetch|"
+                "Unable to locate package"
+            )
             install_cmd = (
-                "sudo apt-get update && sudo apt-get "
-                "install -y qemu-guest-agent"
+                "bash -lc 'sudo apt-get update && "
+                "sudo apt-get install -y qemu-guest-agent'"
+            )
+            for attempt in range(1, max_attempts + 1):
+                res = ssh.run(install_cmd)
+                if res["exit_code"] == 0:
+                    out.append((
+                        True,
+                        "qemu-guest-agent installed successfully.",
+                        "s"
+                    ))
+                    break
+
+                err_text = res["stderr"].strip() or res["stdout"].strip()
+                transient = re.search(transient_pattern, err_text, re.IGNORECASE)
+                if not transient or attempt == max_attempts:
+                    out.append((
+                        False,
+                        "Failed to install qemu-guest-agent: "
+                        f"{err_text}",
+                        "e"
+                    ))
+                    return out
+
+                remaining = (max_attempts - attempt) * retry_interval
+                blockers = self.get_cloud_init_apt_dns_blockers(ssh)
+                msg = (
+                    "qemu-guest-agent install deferred; retrying in "
+                    f"{retry_interval}s ({remaining}s remaining). "
+                    f"Blocked by: {blockers}"
                 )
-            res = ssh.run(install_cmd)
-            if res["exit_code"] != 0:
-                out.append((
-                    False,
-                    "Failed to install qemu-guest-agent: "
-                    f"{res['stderr'].strip()}",
-                    "e"
-                ))
-                return out
-            out.append((
-                False,
-                "qemu-guest-agent installed successfully.",
-                "s"
-                ))
+                self._emit_progress(progress_callback, msg, "i")
+                if not progress_callback:
+                    out.append((True, msg, "i"))
+                time.sleep(retry_interval)
 
         # Enable and start the service
         enable_cmd = "sudo systemctl enable --now qemu-guest-agent"

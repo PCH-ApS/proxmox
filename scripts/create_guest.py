@@ -111,6 +111,36 @@ def countdown(handler, seconds):
     print()  # Move to the next line after countdown
 
 
+def poll_dhcp_candidates(host, subnet, port, fqdn, timeout=180, interval=10):
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        ok, results = host.subnet_scan(subnet, port)
+        if not ok:
+            return False, results
+
+        matched_result = None
+        for ip, hostname in results:
+            if hostname == fqdn:
+                matched_result = (ip, hostname)
+                break
+
+        if matched_result:
+            return True, [matched_result]
+
+        if results:
+            return True, results
+
+        remaining = max(0, int(deadline - time.time()))
+        output.output(
+            f"No SSH-responsive guest found yet, retrying in {interval}s "
+            f"(up to {remaining}s remaining)...",
+            "i"
+        )
+        time.sleep(interval)
+
+    return True, []
+
+
 def main():
     args = parse_args()
     this_script = os.path.abspath(__file__)
@@ -171,7 +201,6 @@ def main():
     # -------------------------------------------------------------------------
     # setting up the virtual guest machine
     # -------------------------------------------------------------------------
-
     output.output()
     output.output("Cloning new or updating existing machine", "h")
     output.output()
@@ -210,8 +239,8 @@ def main():
     # -------------------------------------------------------------------------
     # Create plan for virtual machine
     # -------------------------------------------------------------------------
-
-    ci_changed = False
+    cloudinit_changed = False
+    reboot_needed = False
     """  --- Read current state --- """
     ok, st = host.get_qm_status(vc["id"])
     output.output(
@@ -229,42 +258,55 @@ def main():
 
     """ --- Plan changes (only apply diffs) --- """
     vmid = vc["id"]
-    plan: list[tuple[str, str]] = []
+    plan: list[tuple[str, str, bool, bool]] = []
 
     """ name """
     desired_name = shlex.quote(vc["name"])
     if st.get("name") != vc["name"]:
         plan.append((
             f"qm set {vmid} --name {desired_name}",
-            f"Set name to {vc['name']}"
+            f"Set name to {vc['name']}",
+            False,
+            False
             ))
 
     """ cores """
     if cfg.get("cores") != str(vc["cores"]):
         plan.append((
             f"qm set {vmid} --cores {vc['cores']}",
-            f"Set cores to {vc['cores']}"
+            f"Set cores to {vc['cores']}",
+            True,
+            False
             ))
 
     """ disk size """
     desired_disk = str(vc["disk"])
-    plan.append((
-        f"qm resize {vmid} scsi0 {desired_disk}G",
-        f"Set disk to {desired_disk}G"
-        ))
+    current_disk = st.get("maxdisk_gb")
+    if str(current_disk) != desired_disk:
+        plan.append((
+            f"qm resize {vmid} scsi0 {desired_disk}G",
+            f"Set disk to {desired_disk}G",
+            False,
+            False
+            ))
 
     """ memory """
     if cfg.get("memory") != str(vc["memory"]):
         plan.append((
             f"qm set {vmid} --memory {vc['memory']}",
-            f"Set memory to {vc['memory']} MB"))
+            f"Set memory to {vc['memory']} MB",
+            True,
+            False
+        ))
 
     """ balloon """
     desired_balloon = str(vc["balloon"])
     if cfg.get("balloon") != desired_balloon:
         plan.append((
             f"qm set {vmid} --balloon {desired_balloon}",
-            f"Set balloon to {desired_balloon}"
+            f"Set balloon to {desired_balloon}",
+            True,
+            False
             ))
 
     """ start on boot """
@@ -272,7 +314,9 @@ def main():
     if cfg.get("onboot") != desired_onboot:
         plan.append((
             f"qm set {vmid} --onboot {desired_onboot}",
-            f"Set onboot={desired_onboot}"
+            f"Set onboot={desired_onboot}",
+            False,
+            False
             ))
 
     """ NIC (model + bridge + vlan tag) """
@@ -295,7 +339,9 @@ def main():
         net_str = f"{want_model},bridge={want_bridge},tag={want_tag}"
         plan.append((
             f"qm set {vmid} --net0 {shlex.quote(net_str)}",
-            f"Set net0 to {net_str}"
+            f"Set net0 to {net_str}",
+            True,
+            False
             ))
 
     """ cloud-init user/pass/domain/dns/upgrade """
@@ -306,7 +352,9 @@ def main():
         plan.append((
             f"qm set {vmid} --ciuser "
             f"{shlex.quote(vc['ci_username'])}",
-            f"Set ciuser={vc['ci_username']}"
+            f"Set ciuser={vc['ci_username']}",
+            True,
+            True
         ))
 
     if (
@@ -316,7 +364,9 @@ def main():
         plan.append((
             f"qm set {vmid} --cipassword "
             f"{shlex.quote(vc['ci_password'])}",
-            "Set ci password"
+            "Set ci password",
+            True,
+            True
         ))
 
     if (
@@ -326,7 +376,9 @@ def main():
         plan.append((
             f"qm set {vmid} --searchdomain "
             f"{shlex.quote(vc['ci_domain'])}",
-            f"Set searchdomain={vc['ci_domain']}"
+            f"Set searchdomain={vc['ci_domain']}",
+            True,
+            True
             ))
 
     if (
@@ -336,7 +388,9 @@ def main():
         plan.append((
             f"qm set {vmid} --nameserver "
             f"{shlex.quote(vc['ci_dns_server'])}",
-            f"Set nameserver={vc['ci_dns_server']}"
+            f"Set nameserver={vc['ci_dns_server']}",
+            True,
+            True
             ))
 
     """ current value from `qm config` (usually '1' or '0') """
@@ -347,7 +401,9 @@ def main():
     if "ci_upgrade" in vc and current != desired:
         plan.append((
             f"qm set {vmid} --ciupgrade {desired}",
-            f"Set ciupgrade={desired}"
+            f"Set ciupgrade={desired}",
+            True,
+            True
         ))
 
     # -------------------------------------------------------------------------
@@ -357,9 +413,12 @@ def main():
         output.output()
         output.output("Applying configuration deltas", "h")
         output.output()
-        ci_changed = True
-        for cmd, msg_ok in plan:
+        for cmd, msg_ok, change_requires_reboot, change_affects_cloudinit in plan:
             run_or_die(host, cmd, msg_ok, "Failed to apply qm setting")
+            reboot_needed = reboot_needed or change_requires_reboot
+            cloudinit_changed = (
+                cloudinit_changed or change_affects_cloudinit
+                )
 
     """ SSH public keys (list) """
     """ Decode sshkeys and split into list of lines """
@@ -380,7 +439,9 @@ def main():
     if missing_keys:
         ok, msg = host.ensure_sshkeys(vmid, desired_keys)
         output.output(msg, "s" if ok else "e", exit_on_error=not ok)
-        ci_changed = True
+        if ok:
+            reboot_needed = True
+            cloudinit_changed = True
 
     """ cloud-init networking """
     # Desired config
@@ -395,7 +456,8 @@ def main():
             ok, msg = host.set_ci_network(vmid, "dhcp")
             output.output(msg, "s" if ok else "e", exit_on_error=not ok)
             if ok:
-                ci_changed = True
+                reboot_needed = True
+                cloudinit_changed = True
 
     # -----------------------
     # Case 2: Set to STATIC if needed
@@ -440,10 +502,11 @@ def main():
             )
             output.output(msg, "s" if ok else "e", exit_on_error=not ok)
             if ok:
-                ci_changed = True
+                reboot_needed = True
+                cloudinit_changed = True
 
     """ regenerate cloud-init """
-    if ci_changed:
+    if cloudinit_changed:
         ok, msg = host.cloudinit_update(vmid)
         output.output(msg, "s" if ok else "e", exit_on_error=not ok)
 
@@ -451,7 +514,15 @@ def main():
     output.output()
     output.output("Starting VM", "h")
     output.output()
-    ok, msg = host.start_vm(vmid, ci_changed)
+    vm_was_running = st.get("status") == "running"
+    should_reboot_vm = reboot_needed and vc["reboot_on_change"]
+    if reboot_needed and vm_was_running and not vc["reboot_on_change"]:
+        output.output(
+            "Config changes were applied but 'reboot_on_change' is false; "
+            "skipping automatic reboot.",
+            "i"
+        )
+    ok, msg = host.start_vm(vmid, should_reboot_vm)
     output.output(msg, "s" if ok else "e", exit_on_error=not ok)
 
     # -------------------------------------------------------------------------
@@ -459,15 +530,10 @@ def main():
     # -------------------------------------------------------------------------
     found_ip = []
     """ dhcp_fallback = False """  # Track if we're falling back to scanned IPs
-
-    if ci_changed:
-        wait_in_sec = 180
-        output.output(
-            f"Waiting {wait_in_sec}s for guest cloud-init "
-            "and network, before continueing.....",
-            "i"
-        )
-        countdown(output, wait_in_sec)
+    boot_timeout = 180 if cloudinit_changed and (
+        should_reboot_vm or not vm_was_running
+    ) else 60
+    poll_interval = 10
 
     output.output()
     output.output("Querying VM ip and connectivity", type="h")
@@ -478,7 +544,23 @@ def main():
         subnet_prefix = f"{vc['ip_prefix']}.{vc['vlan']}"
         subnet = f"{subnet_prefix}.0"
         port = 22
-        ok, results = host.subnet_scan(subnet, port)
+        fqdn = f"{vc['name']}.{vc['ci_domain']}"
+        if boot_timeout > 60:
+            output.output(
+                f"Polling guest readiness every {poll_interval}s for up to "
+                f"{boot_timeout}s before continuing...",
+                "i"
+            )
+            ok, results = poll_dhcp_candidates(
+                host,
+                subnet,
+                port,
+                fqdn,
+                timeout=boot_timeout,
+                interval=poll_interval
+            )
+        else:
+            ok, results = host.subnet_scan(subnet, port)
 
         if not ok:
             output.output(
@@ -487,7 +569,6 @@ def main():
                 exit_on_error=True
             )
 
-        fqdn = f"{vc['name']}.{vc['ci_domain']}"
         output.output(f"Looking for hostname match: {fqdn}", "i")
 
         for ip, hostname in results:
@@ -498,7 +579,7 @@ def main():
 
         if not found_ip:
             output.output("No hostname match, will try all scanned IPs", "w")
-            found_ip = [ip for ip, _ in results]
+            found_ip = list(dict.fromkeys(ip for ip, _ in results))
             """ dhcp_fallback = True """
 
     else:
@@ -530,10 +611,14 @@ def main():
             key_filename=vc["vm_keyfile"],
         )
 
-        connect_msg = host.reconnect(ssh, 5, 60)
+        wait_time = 0 if boot_timeout > 60 else 5
+        connect_msg = host.reconnect(ssh, wait_time, boot_timeout)
         for ok, msg, lvl in connect_msg:
             output.output(msg, lvl)
-        vm_connect_flag = any(flag for flag, _, _ in steps)
+        vm_connect_flag = any(
+            flag and "Connected to" in msg
+            for flag, msg, _ in connect_msg
+        )
 
         """         vm_connect_flag, vm_connect_message = ssh.connect()
         output.output(
@@ -629,14 +714,20 @@ def main():
     # -------------------------------------------------------------------------
     # Ensure QEMU agent on the guest
     # -------------------------------------------------------------------------
-    steps = host.ensure_qemu_guest_agent_on_guest(ssh)
+    steps = host.ensure_qemu_guest_agent_on_guest(
+        ssh,
+        progress_callback=output.output
+    )
     for ok, msg, lvl in steps:
         output.output(msg, lvl)
-    installed = any(not flag for flag, _, _ in steps)
+    guest_agent_failed = any(
+        (not flag) and lvl == "e"
+        for flag, _, lvl in steps
+    )
     # -------------------------------------------------------------------------
     # Reboot and reconnect
     # -------------------------------------------------------------------------
-    if vc["reboot_on_change"] and has_errors or installed:
+    if vc["reboot_on_change"] and has_errors:
         wait_time = 10
         timeout = 60
         output.output(
@@ -657,6 +748,18 @@ def main():
                 f"{line[1]}",
                 f"{line[2]}"
             )
+    elif has_errors:
+        output.output(
+            "Reboot is needed for SSHD configuration changes, but "
+            "'reboot_on_change' is false so no reboot was performed.",
+            "w"
+        )
+    elif guest_agent_failed:
+        output.output(
+            "Skipping automatic reboot because qemu-guest-agent setup failed; "
+            "guest may still be finishing unattended apt work.",
+            "w"
+        )
 
     # -------------------------------------------------------------------------
     # Change ci_user password
@@ -705,7 +808,7 @@ def main():
     res = ssh.run(cmd)
     test = res['stdout'].strip()
     user = getattr(ssh, "username", "root")
-    if res['exit_code'] == 0 and test == "True":
+    if res['exit_code'] == 0 and test == "True" and vc["reboot_on_change"]:
         wait_time = 10
         timeout = 60
         reboot_message = (
@@ -720,6 +823,12 @@ def main():
                 f"{line[1]}",
                 f"{line[2]}"
             )
+    elif res['exit_code'] == 0 and test == "True":
+        output.output(
+            "Guest reports reboot-required, but 'reboot_on_change' is false "
+            "so no reboot was performed.",
+            "w"
+        )
 
     flag, message = ssh.close()
     output.output(message, type="s" if flag else "e", exit_on_error=not flag)
