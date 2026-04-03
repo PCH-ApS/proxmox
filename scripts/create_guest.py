@@ -6,6 +6,7 @@ import yaml
 import shlex
 import time
 import getpass
+import re
 
 from lib.output_handler import OutputHandler
 from lib.check_files_handler import CheckFiles
@@ -109,6 +110,22 @@ def countdown(handler, seconds):
         handler.output(f"Continueing in {i} seconds...", type='p')
         time.sleep(1)
     print()  # Move to the next line after countdown
+
+
+def parse_qm_disk_size_gb(disk_config: str) -> int | None:
+    match = re.search(r"(?:^|,)size=([0-9]+(?:\.[0-9]+)?)([KMGT])(?:,|$)", disk_config)
+    if not match:
+        return None
+
+    value = float(match.group(1))
+    unit = match.group(2)
+    multipliers = {
+        "K": 1 / (1024 * 1024),
+        "M": 1 / 1024,
+        "G": 1,
+        "T": 1024,
+    }
+    return int(round(value * multipliers[unit]))
 
 
 def poll_dhcp_candidates(host, subnet, port, fqdn, timeout=180, interval=10):
@@ -281,7 +298,9 @@ def main():
 
     """ disk size """
     desired_disk = str(vc["disk"])
-    current_disk = st.get("maxdisk_gb")
+    current_disk = parse_qm_disk_size_gb(cfg.get("scsi0", ""))
+    if current_disk is None:
+        current_disk = st.get("maxdisk_gb")
     if str(current_disk) != desired_disk:
         plan.append((
             f"qm resize {vmid} scsi0 {desired_disk}G",
