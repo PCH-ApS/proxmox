@@ -428,156 +428,181 @@ class ProxmoxHost(RemoteHost):
 
         return config_output
 
+    def get_debian_codename(self) -> str:
+        result = self.ssh.run('. /etc/os-release && printf "%s" "$VERSION_CODENAME"')
+        return result['stdout'].strip() or "bookworm"
+
     def check_pve_no_subscribtion(self):
         subscription_output = []
-        while True:
-            command = (
-                'grep -q "^deb .*pve-no-subscription" '
-                '/etc/apt/sources.list && echo "enabled"'
-            )
-            result = self.ssh.run(command)
-            if result['stdout'].strip() == "enabled":
-                subscription_output.append((
-                    True,
-                    "pve-no-subscription repository is enabled.",
-                    "s"
-                ))
-                return subscription_output
+        codename = self.get_debian_codename()
 
-            command = (
-                'grep -q "^# deb .*pve-no-subscription" '
-                '/etc/apt/sources.list && echo "commented"'
-            )
-            result = self.ssh.run(command)
-            if result['stdout'].strip() == "commented":
-                subscription_output.append((
-                    True,
-                    "pve-no-subscription repository is found "
-                    "but not enabled. Enabling it now...",
-                    "w"
-                ))
+        command = (
+            r'grep -R "download.proxmox.com/debian/pve" '
+            r'/etc/apt/sources.list /etc/apt/sources.list.d 2>/dev/null'
+        )
+        result = self.ssh.run(command)
 
-                command = (
-                    "sed -i 's/^# deb \\(.*pve-no-subscription\\)/deb \\1/' "
-                    "/etc/apt/sources.list"
-                )
-                result = self.ssh.run(command)
-                if result['exit_code'] == 0:
-                    continue
-                else:
-                    subscription_output.append((
-                        False,
-                        "Error enabling pve-no-subscription repository.",
-                        "e"
-                    ))
-                    return subscription_output
-
+        if "pve-no-subscription" in result['stdout'] and codename in result['stdout']:
             subscription_output.append((
                 True,
-                "pve-no-subscription repository is not found. "
-                "Adding it now...",
-                "w"
+                "pve-no-subscription repository is enabled.",
+                "s"
             ))
+            return subscription_output
 
-            http_str = "deb http://download.proxmox.com/debian/pve "
-            pve_no = "bookworm pve-no-subscription"
-            command = (
-                'echo '
-                f'"{http_str} {pve_no}"'
-                ' | tee -a /etc/apt/sources.list'
-            )
-            result = self.ssh.run(command)
-            if result['exit_code'] == 0:
-                continue
-
-            else:
-                subscription_output.append((
-                    False,
-                    "Error adding pve-no-subscription repository"
-                    " to /etc/apt/sources.list.",
-                    "e"
-                ))
-                return subscription_output
+        command = (
+            'echo '
+            f'"deb http://download.proxmox.com/debian/pve {codename} pve-no-subscription"'
+            ' >> /etc/apt/sources.list'
+        )
+        result = self.ssh.run(command)
+        if result['exit_code'] == 0:
+            subscription_output.append((
+                True,
+                f"Added pve-no-subscription repository for {codename}.",
+                "s"
+            ))
+        else:
+            subscription_output.append((
+                False,
+                "Error adding pve-no-subscription repository.",
+                "e"
+            ))
+        return subscription_output
 
     def check_pve_enterprise(self):
         enterprise_message = []
-        while True:
-            command = (
-                'grep -q "^deb .*bookworm pve-enterprise" '
-                '/etc/apt/sources.list.d/pve-enterprise.list '
-                '&& echo "enabled" || echo "disabled"'
-            )
-            result = self.ssh.run(command)
-            if result['stdout'].strip() == "disabled":
-                enterprise_message.append((
-                    True,
-                    "pve-enterprise repository is disabled.",
-                    "s"
-                ))
-                return enterprise_message
 
-            if result['stdout'].strip() == "enabled":
-                enterprise_message.append((
-                    True,
-                    "pve-enterprise repository is enabled. "
-                    "Disabling it now...",
-                    "w"
-                ))
+        command = (
+            r'grep -R "enterprise.proxmox.com/debian/pve" '
+            r'/etc/apt/sources.list /etc/apt/sources.list.d 2>/dev/null'
+        )
+        result = self.ssh.run(command)
 
-                command = (
-                    r"sed -i 's/^\(deb .*bookworm pve-enterprise\)/# \1/' "
-                    r"/etc/apt/sources.list.d/pve-enterprise.list"
-                )
-                result = self.ssh.run(command)
-                if result['exit_code'] == 0:
-                    continue
-                else:
-                    enterprise_message.append((
-                        False,
-                        "Error disabling pve-enterprise repository.",
-                        "e"
-                    ))
-                    return enterprise_message
+        if not result['stdout'].strip():
+            enterprise_message.append((
+                True,
+                "pve-enterprise repository is disabled.",
+                "s"
+            ))
+            return enterprise_message
+
+        enterprise_message.append((
+            True,
+            "pve-enterprise repository is enabled. Disabling it now...",
+            "w"
+        ))
+
+        # Disable legacy .list entries
+        self.ssh.run(
+            r"find /etc/apt/sources.list.d -type f -name '*.list' "
+            r"-exec sed -i '/enterprise\.proxmox\.com\/debian\/pve/s/^\s*deb /# deb /' {} +"
+        )
+
+        # Disable deb822 .sources entries
+        self.ssh.run(
+            r"if [ -f /etc/apt/sources.list.d/pve-enterprise.sources ]; then "
+            r"  grep -q '^Enabled:' /etc/apt/sources.list.d/pve-enterprise.sources "
+            r"    && sed -i 's/^Enabled:.*/Enabled: no/' /etc/apt/sources.list.d/pve-enterprise.sources "
+            r"    || sed -i '/^Signed-By:/a Enabled: no' /etc/apt/sources.list.d/pve-enterprise.sources; "
+            r"fi"
+        )
+
+        command = (
+            r"if grep -R -q 'enterprise.proxmox.com/debian/pve' /etc/apt/sources.list.d/*.sources 2>/dev/null; then "
+            r"  if grep -R -q 'enterprise.proxmox.com/debian/pve' /etc/apt/sources.list.d/*.sources 2>/dev/null "
+            r"     && grep -R -q '^Enabled: no' /etc/apt/sources.list.d/*.sources 2>/dev/null; then "
+            r"    echo 'disabled'; "
+            r"  else "
+            r"    echo 'enabled'; "
+            r"  fi; "
+            r"else "
+            r"  grep -R -q '^[[:space:]]*deb .*enterprise.proxmox.com/debian/pve' /etc/apt/sources.list /etc/apt/sources.list.d 2>/dev/null "
+            r"    && echo 'enabled' || echo 'disabled'; "
+            r"fi"
+        )
+        result = self.ssh.run(command)
+        if result['stdout'].strip() == "enabled":
+            enterprise_message.append((
+                False,
+                "Error disabling pve-enterprise repository.",
+                "e"
+            ))
+        else:
+            enterprise_message.append((
+                True,
+                "pve-enterprise repository is disabled.",
+                "s"
+            ))
+        return enterprise_message
+
+
 
     def check_pve_ceph(self):
         ceph_message = []
-        while True:
-            command = (
-                'grep -q "^deb .*ceph-quincy bookworm enterprise" '
-                '/etc/apt/sources.list.d/ceph.list && '
-                'echo "enabled" || echo "disabled"'
-            )
-            result = self.ssh.run(command)
-            if result['stdout'].strip() == "disabled":
-                ceph_message.append((
-                    True,
-                    "pve-ceph repository is disabled.",
-                    "s"
-                ))
-                return ceph_message
 
-            if result['stdout'].strip() == "enabled":
-                ceph_message.append((
-                    True,
-                    "pve-ceph repository is enabled. "
-                    "Disabling it now...",
-                    "w"
-                ))
+        command = (
+            r'grep -R "enterprise.proxmox.com/debian/ceph-" '
+            r'/etc/apt/sources.list /etc/apt/sources.list.d 2>/dev/null'
+        )
+        result = self.ssh.run(command)
 
-                command = (
-                    r"sed -i 's/^\(deb .*bookworm enterprise\)/# \1/' "
-                    r"/etc/apt/sources.list.d/ceph.list"
-                    )
-                result = self.ssh.run(command)
-                if result['exit_code'] == 0:
-                    continue
-                else:
-                    ceph_message.append((
-                        False,
-                        "Error disabling pve-ceph repository.",
-                        "e"
-                    ))
-                    return ceph_message
+        if not result['stdout'].strip():
+            ceph_message.append((
+                True,
+                "pve-ceph repository is disabled.",
+                "s"
+            ))
+            return ceph_message
+
+        ceph_message.append((
+            True,
+            "pve-ceph repository is enabled. Disabling it now...",
+            "w"
+        ))
+
+        self.ssh.run(
+            r"find /etc/apt/sources.list.d -type f -name '*.list' "
+            r"-exec sed -i '/enterprise\.proxmox\.com\/debian\/ceph-/s/^\s*deb /# deb /' {} +"
+        )
+
+        self.ssh.run(
+            r"if [ -f /etc/apt/sources.list.d/ceph.sources ]; then "
+            r"  grep -q '^Enabled:' /etc/apt/sources.list.d/ceph.sources "
+            r"    && sed -i 's/^Enabled:.*/Enabled: no/' /etc/apt/sources.list.d/ceph.sources "
+            r"    || sed -i '/^Signed-By:/a Enabled: no' /etc/apt/sources.list.d/ceph.sources; "
+            r"fi"
+        )
+
+        command = (
+            r"if grep -R -q 'enterprise.proxmox.com/debian/ceph-' /etc/apt/sources.list.d/*.sources 2>/dev/null; then "
+            r"  if grep -R -q 'enterprise.proxmox.com/debian/ceph-' /etc/apt/sources.list.d/*.sources 2>/dev/null "
+            r"     && grep -R -q '^Enabled: no' /etc/apt/sources.list.d/*.sources 2>/dev/null; then "
+            r"    echo 'disabled'; "
+            r"  else "
+            r"    echo 'enabled'; "
+            r"  fi; "
+            r"else "
+            r"  grep -R -q '^[[:space:]]*deb .*enterprise.proxmox.com/debian/ceph-' /etc/apt/sources.list /etc/apt/sources.list.d 2>/dev/null "
+            r"    && echo 'enabled' || echo 'disabled'; "
+            r"fi"
+        )
+        result = self.ssh.run(command)
+        if result['stdout'].strip() == "enabled":
+            ceph_message.append((
+                False,
+                "Error disabling pve-ceph repository.",
+                "e"
+            ))
+        else:
+            ceph_message.append((
+                True,
+                "pve-ceph repository is disabled.",
+                "s"
+            ))
+        return ceph_message
+
+
 
     def check_pve_no_subscription_patch(self):
         patch_message = []
@@ -1412,3 +1437,4 @@ class ProxmoxHost(RemoteHost):
             hosts_found.append((ip, hostname))
 
         return True, hosts_found
+
